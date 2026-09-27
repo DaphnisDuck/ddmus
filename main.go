@@ -536,12 +536,16 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 				out := make([]luaplugin.QueueEntry, len(tracks))
 				for i, t := range tracks {
 					out[i] = luaplugin.QueueEntry{
-						Title:  t.Title,
-						Artist: t.Artist,
-						Album:  t.Album,
-						Path:   t.Path,
-						Index:  i,
-						Queued: pl.QueuePosition(i) > 0, // 1-based; 0 means not queued
+						Title:    t.Title,
+						Artist:   t.Artist,
+						Album:    t.Album,
+						Genre:    t.Genre,
+						Year:     t.Year,
+						Path:     t.Path,
+						Duration: t.DurationSecs,
+						Stream:   t.Stream,
+						Index:    i,
+						Queued:   pl.QueuePosition(i) > 0, // 1-based; 0 means not queued
 					}
 				}
 				return out
@@ -659,6 +663,12 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 			Prev: func() { prog.Send(playback.PrevMsg{}) },
 			QueueAdd: func(path string) {
 				prog.Send(model.PluginQueueMsg{Op: "add", Path: path})
+			},
+			QueueAddTrack: func(t luaplugin.QueueTrack) {
+				prog.Send(model.PluginQueueMsg{Op: "add_track", Track: playlist.Track{
+					Path: t.Path, Title: t.Title, Artist: t.Artist, Album: t.Album,
+					Genre: t.Genre, Year: t.Year, DurationSecs: t.Duration, Stream: t.Stream,
+				}})
 			},
 			QueueJump: func(index int) {
 				prog.Send(model.PluginQueueMsg{Op: "jump", Index: index})

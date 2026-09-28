@@ -127,6 +127,8 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	localProv := local.New()
 
 	var providers []model.ProviderEntry
+	// The cliamp radio channels come first: they are the view cliamp opens on.
+	providers = append(providers, model.ProviderEntry{Key: "cliamp", Name: "cliamp radio", Provider: radio.NewChannels()})
 	providers = append(providers, model.ProviderEntry{Key: "radio", Name: "Radio", Provider: radioProv})
 	if localProv != nil {
 		providers = append(providers, model.ProviderEntry{Key: "local", Name: "Local", Provider: localProv})
@@ -329,9 +331,14 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 
 	defaultProvider := cfg.Provider
 	if defaultProvider == "" {
-		defaultProvider = "radio"
+		defaultProvider = "cliamp"
 	}
 	defaultRadio := len(positional) == 0 && defaultProvider == "radio"
+	// The cliamp radio view waits for the listener to pick a channel. The
+	// daemon has no view, and auto-play expects sound without a keypress, so
+	// both start with the live channel streams instead.
+	liveChannels := defaultRadio ||
+		(len(positional) == 0 && defaultProvider == "cliamp" && (daemon || cfg.AutoPlay))
 	resumeState := resume.Load()
 
 	pl := playlist.New()
@@ -341,7 +348,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 			return fmt.Errorf("playlist %q: %w", cfg.Playlist, err)
 		}
 		pl.Add(tracks...)
-	} else if defaultRadio {
+	} else if liveChannels {
 		// The channel list lives in the M3U the radio provider already serves,
 		// so resolve that instead of restating it here: the startup playlist
 		// then matches what browsing "cliamp radio" shows -- same channels,

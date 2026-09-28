@@ -283,10 +283,12 @@ Rules:
 Set the provider that cliamp opens at start:
 
 ```toml
-provider = "radio"
+provider = "cliamp"
 ```
 
-Valid values: `radio` (default), `podcast`, `navidrome`, `lyrion`, `spotify`, `plex`, `jellyfin`, `emby`, `qobuz`, `tidal`, `soundcloud`, `mixcloud`, `netease`, `audiobookshelf`, `yt`, `youtube`, `ytmusic`.
+The default, `cliamp`, opens on the cliamp radio channels. See [radio.md](radio.md#cliamp-radio).
+
+Valid values: `cliamp` (default), `radio`, `podcast`, `navidrome`, `lyrion`, `spotify`, `plex`, `jellyfin`, `emby`, `qobuz`, `tidal`, `soundcloud`, `mixcloud`, `netease`, `audiobookshelf`, `yt`, `youtube`, `ytmusic`.
 
 You can also override this setting on the CLI: `cliamp --provider jellyfin`.
 

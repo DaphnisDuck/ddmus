@@ -254,14 +254,6 @@ kbd{font-family:var(--mono);font-size:12px;color:var(--fg);border:1px solid var(
 .row .bar{height:4px;background:var(--line-2);border-radius:2px;margin-top:5px;overflow:hidden}
 .row .bar i{display:block;height:100%;background:var(--accent)}
 .row .v{color:var(--fg-2);min-width:48px;text-align:right}
-.tiles{border-top:1px solid var(--line-2);padding-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
-.tile .v{font-family:var(--mono);font-size:19px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tile .l{font-family:var(--mono);font-size:11.5px;color:var(--fg-2)}
-.daily{border-top:1px solid var(--line-2);padding-top:14px}
-#daily{display:flex;align-items:flex-end;gap:2px;height:48px}
-#daily i{flex:1;display:block;background:var(--accent);opacity:.75;border-radius:1px 1px 0 0;min-height:2px}
-#daily i:hover{opacity:1}
-.daily-l{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--mute);margin-top:6px}
 .err{font-family:var(--mono);font-size:12px;color:var(--rose);margin:12px 0 0;min-height:0}
 
 /* ── keys ────────────────────────────────────────────────────────── */
@@ -481,7 +473,7 @@ footer a{color:var(--fg-2)}
     <div class="sec-head">
       <div>
         <h2>cliamp radio</h2>
-        <p class="sub">Fourteen channels we run ourselves — always on, no account. Play any of them in the player above, or pipe the URL straight into cliamp or any player of your choice.</p>
+        <p class="sub">Fourteen channels we run ourselves — always on, no account. Play any of them in the player above, or pipe the URL straight into cliamp or any player of your choice. In cliamp, a channel with a song library opens as a playlist of its songs.</p>
       </div>
       <a href="https://github.com/bjarneo/cliamp/blob/main/docs/radio.md" class="link-btn">read the radio docs ↗</a>
     </div>
@@ -493,10 +485,11 @@ footer a{color:var(--fg-2)}
     <div class="sec-head">
       <div>
         <h2>Who's listening right now</h2>
-        <p class="sub">Live connections to the cliamp radio channels, by country. Drag the globe to spin it, or hover a country for its count.</p>
+        <p class="sub">Live connections to the cliamp radio channels and their playlists, by country. Drag the globe to spin it, or hover a country for its count.</p>
       </div>
       <div class="big" aria-live="polite">
         <div><div class="n" id="n-listeners">–</div><div class="l">LISTENERS</div></div>
+        <div><div class="n fg" id="n-playlists">–</div><div class="l">ON PLAYLISTS</div></div>
         <div><div class="n fg" id="n-countries">–</div><div class="l">COUNTRIES</div></div>
       </div>
     </div>
@@ -514,17 +507,6 @@ footer a{color:var(--fg-2)}
       <div class="side">
         <div class="side-h"><span id="countries-h">TOP COUNTRIES</span><span id="countries-u">LISTENERS</span></div>
         <div id="countries"></div>
-        <div class="tiles">
-          <div class="tile"><div class="v" id="t-busiest">–</div><div class="l" id="t-busiest-l">busiest channel</div></div>
-          <div class="tile"><div class="v" id="t-peak">–</div><div class="l">all-time high</div></div>
-          <div class="tile"><div class="v" id="t-sessions">–</div><div class="l">sessions</div></div>
-          <div class="tile"><div class="v" id="t-hours">–</div><div class="l">hours streamed</div></div>
-        </div>
-        <div class="daily">
-          <div class="side-h"><span>LISTENING HOURS · LAST 31 DAYS</span></div>
-          <div id="daily" style="margin-top:10px" aria-hidden="true"></div>
-          <div class="daily-l"><span id="daily-a"></span><span id="daily-b"></span></div>
-        </div>
       </div>
     </div>
   </section>
@@ -632,6 +614,7 @@ var $=function(s,r){return (r||document).querySelector(s)};
 var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
 var reduce=!!(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 var STATS_URL="https://radio.cliamp.stream/statistics";
+var TRACK_STATS_URL="https://radio.cliamp.stream/tracks/statistics";
 var ATLAS_URL="https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json";
 var BASE="https://radio.cliamp.stream/";
 
@@ -1051,34 +1034,35 @@ function loop(){
 
 /* ---------- live statistics ---------- */
 function fmt(n){return Math.round(n).toLocaleString("en-US")}
-function fmtDate(iso){var p=iso.split("-"),m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];return m[+p[1]-1]+" "+(+p[2])}
-function nameOf(slug){for(var i=0;i<STATIONS.length;i++)if(STATIONS[i].slug===slug)return STATIONS[i].name;return slug}
+function getJSON(url){
+  return fetch(url,{cache:"no-store"}).then(function(r){if(!r.ok)throw new Error(String(r.status));return r.json()});
+}
 function loadStats(){
-  fetch(STATS_URL,{cache:"no-store"})
-    .then(function(r){if(!r.ok)throw new Error(String(r.status));return r.json()})
-    .then(function(d){$("#stats-err").textContent="";renderStats(d)})
+  /* Playlist listeners add to the radio numbers, so a failed request counts as nobody on the playlists. */
+  Promise.all([getJSON(STATS_URL),getJSON(TRACK_STATS_URL).catch(function(){return {}})])
+    .then(function(r){$("#stats-err").textContent="";renderStats(r[0],r[1])})
     .catch(function(){
       $("#stats-err").textContent="Live statistics from radio.cliamp.stream are unavailable right now.";
       globe.setEmpty("live statistics unavailable");
     });
 }
-function renderStats(d){
-  var st=d.stations||{},now=0,active={},alltime={},daily={},busiest=null,busiestAll=null;
+function renderStats(d,t){
+  var st=d.stations||{},ts=t.stations||{},now=0,onPlaylists=0,active={},alltime={};
   counts={};
+  function addActive(k,name,n){if(!k)return;active[k]=active[k]||{code:k,name:name,n:0};active[k].n+=n}
   Object.keys(st).forEach(function(slug){
     var s=st[slug],a=s.active_listeners||0;
-    counts[slug]=a;now+=a;
-    if(!busiest||a>busiest.n)busiest={slug:slug,n:a};
-    if(!busiestAll||(s.total_sessions||0)>busiestAll.n)busiestAll={slug:slug,n:s.total_sessions||0};
-    (s.active_listener_countries||[]).forEach(function(c){
-      var k=c.country_code;if(!k)return;
-      active[k]=active[k]||{code:k,name:c.country,n:0};active[k].n+=c.sessions||0;
-    });
+    counts[slug]=(counts[slug]||0)+a;now+=a;
+    (s.active_listener_countries||[]).forEach(function(c){addActive(c.country_code,c.country,c.sessions||0)});
     (s.top_countries||[]).forEach(function(c){
       var k=c.country_code;if(!k)return;
       alltime[k]=alltime[k]||{code:k,name:c.country,n:0};alltime[k].n+=c.sessions||0;
     });
-    (s.daily||[]).forEach(function(x){daily[x.date]=(daily[x.date]||0)+(x.listen_hours||0)});
+  });
+  Object.keys(ts).forEach(function(slug){
+    var s=ts[slug],a=s.active_listeners||0;
+    counts[slug]=(counts[slug]||0)+a;now+=a;onPlaylists+=a;
+    (s.active_listener_countries||[]).forEach(function(c){addActive(c.country_code,c.country,c.listeners||0)});
   });
   var byN=function(a,b){return b.n-a.n};
   var act=Object.keys(active).map(function(k){return active[k]}).sort(byN);
@@ -1086,19 +1070,12 @@ function renderStats(d){
   var live=act.length>0,rows=live?act:all;
 
   $("#n-listeners").textContent=fmt(now);
+  $("#n-playlists").textContent=fmt(onPlaylists);
   $("#n-countries").textContent=fmt(act.length);
   $("#countries-h").textContent=live?"TOP COUNTRIES":"TOP COUNTRIES · ALL-TIME";
   $("#countries-u").textContent=live?"LISTENERS":"SESSIONS";
   $("#globe-live").textContent=live?"● live":"○ all-time";
   renderCountries(rows.slice(0,10));
-
-  var b=(busiest&&busiest.n>0)?busiest:busiestAll;
-  $("#t-busiest").textContent=b?nameOf(b.slug):"–";
-  $("#t-busiest-l").textContent=(busiest&&busiest.n>0)?"busiest channel now":"busiest channel · all-time";
-  $("#t-peak").textContent=fmt(d.peak_listeners||0);
-  $("#t-sessions").textContent=fmt(d.total_sessions||0);
-  $("#t-hours").textContent=fmt(d.total_listen_hours||0);
-  renderDaily(daily);
 
   paintList();paintChannels();updateLive();
   globe.setData(rows,live);
@@ -1118,19 +1095,6 @@ function renderCountries(rows){
     el.querySelector(".v").textContent=fmt(c.n);
     wrap.appendChild(el);
   });
-}
-function renderDaily(daily){
-  var dates=Object.keys(daily).sort().slice(-31),wrap=$("#daily");wrap.textContent="";
-  if(!dates.length){$("#daily-a").textContent="";$("#daily-b").textContent="";return}
-  var max=Math.max.apply(null,dates.map(function(k){return daily[k]}))||1;
-  dates.forEach(function(k){
-    var i=document.createElement("i");
-    i.style.height=Math.max(4,Math.round(daily[k]/max*100))+"%";
-    i.title=fmtDate(k)+" · "+daily[k].toFixed(1)+" h";
-    wrap.appendChild(i);
-  });
-  $("#daily-a").textContent=fmtDate(dates[0]);
-  $("#daily-b").textContent=fmtDate(dates[dates.length-1]);
 }
 
 /* ---------- listeners globe (d3-geo + world-atlas) ---------- */

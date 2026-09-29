@@ -124,15 +124,27 @@ type CollectionStatus struct {
 	LastError   string    // from the last attempt; empty when it succeeded
 }
 
+// AlbumOrder is how a library album list is sorted.
+type AlbumOrder int
+
+const (
+	ByTitle  AlbumOrder = iota // title, then artist
+	ByArtist                   // artist, then title
+)
+
 // Catalog is the read side the UI uses. Every method is a local query: none
 // reaches the network.
 type Catalog interface {
-	// Albums returns provider's library albums, by artist then title.
-	Albums(ctx context.Context, provider string) ([]Album, error)
+	// Albums returns provider's library albums in order; an empty
+	// provider means every provider's.
+	Albums(ctx context.Context, provider string, order AlbumOrder) ([]Album, error)
+	// Album returns one album by its catalog ID, or ErrNotFound.
+	Album(ctx context.Context, id int64) (Album, error)
 	// AlbumTracks returns an album's tracks in disc and track order, and
 	// whether its track list has been cached at all.
 	AlbumTracks(ctx context.Context, albumID int64) (tracks []Track, cached bool, err error)
-	// Artists returns provider's library artists, by name.
+	// Artists returns provider's library artists, by name; an empty
+	// provider means every provider's.
 	Artists(ctx context.Context, provider string) ([]Artist, error)
 	// ArtistAlbums returns every catalog album credited to the artist,
 	// newest first.
@@ -150,6 +162,9 @@ type Catalog interface {
 	GenreAlbums(ctx context.Context, provider, genre string) ([]Album, error)
 	// LikedTracks returns provider's liked tracks, most recently liked first.
 	LikedTracks(ctx context.Context, provider string) ([]Track, error)
+	// Search returns up to limit results of each kind q wants, best first.
+	// An empty query finds nothing.
+	Search(ctx context.Context, q Query, limit int) (SearchResults, error)
 	// SyncStatus returns the last sync outcome of each of provider's
 	// collections.
 	SyncStatus(ctx context.Context, provider string) ([]CollectionStatus, error)

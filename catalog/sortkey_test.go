@@ -4,14 +4,14 @@ import "testing"
 
 func TestSortKey(t *testing.T) {
 	tests := []struct{ in, want string }{
-		{"The Cure", "cure"},
-		{"A Copland Celebration", "copland celebration"},
-		{"An Ending", "ending"},
+		// Articles are part of the name: "The Cure" files under T.
+		{"The Cure", "the cure"},
+		{"A Copland Celebration", "a copland celebration"},
+		{"An Ending", "an ending"},
 		{"Dvořák: Symphony No. 9", "dvorak: symphony no. 9"},
 		{`"Academy of Ancient Music" - Baroque`, `academy of ancient music" - baroque`},
 		{"  Beethoven  ", "beethoven"},
-		{"The", "the"},           // an article alone is kept, not emptied
-		{"Theodora", "theodora"}, // only a whole leading word is an article
+		{"Theodora", "theodora"},
 		{"", ""},
 		{"Øresund", "oresund"},
 		{"Łódź Philharmonic", "lodz philharmonic"},

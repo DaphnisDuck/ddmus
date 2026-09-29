@@ -158,7 +158,7 @@ func (l *library) readFiles() []string {
 func (l *library) albums() map[string][]string {
 	l.t.Helper()
 	ctx := context.Background()
-	albums, err := l.store.Albums(ctx, catalog.Local)
+	albums, err := l.store.Albums(ctx, catalog.Local, catalog.ByTitle)
 	if err != nil {
 		l.t.Fatal(err)
 	}
@@ -391,7 +391,7 @@ func TestIndexClearsRemovedTags(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	albums, err := l.store.Albums(ctx, catalog.Local)
+	albums, err := l.store.Albums(ctx, catalog.Local, catalog.ByTitle)
 	if err != nil || len(albums) != 1 {
 		t.Fatalf("albums = %+v, %v", albums, err)
 	}

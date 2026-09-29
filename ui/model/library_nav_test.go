@@ -44,7 +44,7 @@ func libRun(t *testing.T, m Model, cmd tea.Cmd) Model {
 		return m
 	}
 	switch msg := cmd().(type) {
-	case libraryLoadedMsg, libraryPlayMsg, libraryAuthDoneMsg:
+	case libraryLoadedMsg, libraryPlayMsg, libraryAuthDoneMsg, librarySearchTickMsg:
 		updated, next := m.Update(msg)
 		return libRun(t, updated.(Model), next)
 	}
@@ -352,5 +352,25 @@ func TestRefreshKeySyncsTheBrowsedProvider(t *testing.T) {
 	m = libPress(t, m, "r")
 	if !slices.Equal(refreshed, []string{"spotify", "spotify"}) {
 		t.Errorf("refresh calls = %q, want spotify twice", refreshed)
+	}
+}
+
+// allLevel is a catalog level of every source.
+type allLevel struct{ catLevel }
+
+func (allLevel) CatalogProvider() string { return "" }
+
+// A level of every source reloads after any source's sync.
+func TestCatalogSyncRefreshesAllSourceLevels(t *testing.T) {
+	rows := []library.Entry{{ID: "a", Title: "A"}}
+	loads := 0
+	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "Library", Open: allLevel{catLevel{"Albums", &rows, &loads}}}))
+	m = libPress(t, m, "enter")
+	for _, p := range []string{"spotify", "local"} {
+		updated, cmd := m.Update(CatalogSyncMsg{Provider: p, Phase: CatalogSyncCollectionDone})
+		m = libRun(t, updated.(Model), cmd)
+	}
+	if loads != 3 {
+		t.Errorf("loads = %d, want the first and one per source's sync", loads)
 	}
 }

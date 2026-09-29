@@ -213,6 +213,113 @@ spotify_refresh = "30m"   # background sync if the last success is older than th
 - M2.6 Local indexer into the catalog, replacing `library/localscan.go` (incremental by mtime and size).
 - M2.7 `[omatunes]` config, docs (`docs/omatunes/catalog.md`), the offline test (browse with the network off), and a `v0.2.0` tag.
 
+## M3 implementation plan
+
+Goal: `/` from anywhere opens one search over everything the catalog holds (Spotify, Local and your radio stations). Results appear as you type, in well under 50 ms, offline. Selecting a result opens or plays it through its own provider. A top-level Library node lists albums and artists from every source together.
+
+### Decisions (confirmed 2026-09-29)
+- **Scope:** as-you-type search covers the catalog only. It's instant, offline and never rate-limited. Explicit rows at the end reach outside it:
+  - "Search Spotify for “q”…" opens the existing live Spotify search with the query.
+  - "Search the radio directory for “q”…" opens the existing Radio Browser search.
+- **Radio:** your favorite stations and your `radios.toml` stations go into the catalog as provider `radio`. Favorites always rank above other stations.
+- **Duplicates:** the same album or artist from two sources stays two rows, labelled with the source (Spotify / Local) and sorted next to each other. Merging is deferred.
+- **Enter on a track** plays the track's album, starting at that track. An uncached Spotify album is fetched and cached first (M2.5 path). Offline, or with no album, it plays just the track.
+
+### Index (migration `002_search.sql`)
+- **Tables:** one FTS5 table per kind, keyed by the entity's catalog ID (`rowid = id`). Sections then fall out naturally, and each kind gets its own limits.
+
+  | Table | Columns |
+  |---|---|
+  | `artists_fts` | name |
+  | `albums_fts` | title, artist |
+  | `tracks_fts` | title, artist, album, genre |
+  | `playlists_fts` | name |
+
+- **Tokenizer:** `unicode61 remove_diacritics 2` ("dvorak" finds Dvořák), with `prefix='1 2 3'` so prefix queries stay fast.
+- **Kept in sync by triggers** on the entity tables: after insert, delete, and update of searchable columns. Updates are guarded by `WHEN OLD.x IS NOT NEW.x …`, so re-syncing unchanged rows doesn't churn the index. An album retitle also updates its tracks' `album` column.
+- **Backfill:** the migration fills the tables from existing rows, so an upgraded catalog is searchable without a resync.
+- **Budget:** measure on the real catalog, about 80k rows (2k Spotify albums plus a 37k-file local library).
+  - A query must run in under 15 ms at p95.
+  - The first local index may slow by at most 50% (7.1 s today).
+  - Unchanged startups must not slow down.
+
+### Query language (`catalog.ParseQuery`, pure Go, no SQL)
+- **Plain words** match as prefixes in any field (`bee sym` finds "Beethoven Symphony No. 5"). `"quoted text"` is a phrase.
+- **Operators:**
+  - `artist:`, `album:`, `title:` and `genre:` limit a word or phrase to one field.
+  - `source:` (or `provider:`) takes `spotify`, `local` or `radio`.
+  - `type:` takes `artist`, `album`, `track`, `playlist` or `station`.
+  - An unknown `foo:` is plain text.
+- **Safety:** `catalog/sqlite` turns the parsed query into an FTS5 `MATCH` string. Every token is quoted there, so no user input reaches FTS syntax unescaped.
+
+### Catalog API
+```go
+type Query struct { Terms []Term; Providers []string; Kinds []SearchKind }
+type Term  struct { Field string /* "" = any */; Text string; Phrase bool }
+
+type SearchKind string // artist, album, track, playlist, station
+type SearchResult struct {
+    Kind     SearchKind
+    Provider string
+    Score    float64 // lower is better (bm25 plus boosts)
+    // Exactly one is set; the library builds entries from it.
+    Artist *Artist; Album *Album; Track *Track; Playlist *Playlist
+}
+Search(ctx, q Query, limit int) (map[SearchKind][]SearchResult, error) // per-kind top `limit`
+```
+- **Ranking:** bm25 with field weights (tracks: title 10, artist 5, album 3, genre 1; albums: title 10, artist 5). Then:
+  - a boost for library members (saved albums, followed artists, liked and local tracks)
+  - a boost for exact title matches
+  - for stations, favorites first
+- **Stations** are `radio` tracks, reported with Kind `station`.
+
+### Radio in the catalog (`catalogsync/radiosrc`)
+- **Records:** stations are track records under provider `radio`: title is the station name, genre its tags, and playable URI its stream URL.
+- **Collections:** `favorites` and `custom`, both read from local files through the radio provider. It's instant, needs no network, and reuses the engine's generation and reconcile logic.
+- **When it syncs:** at startup, on `r` in Radio, and after a favorite is toggled in the library.
+- **Radio → Favorites** stays read from the radio provider; only search reads these rows.
+
+### UI
+- **Opening search:** `/` from anywhere in the library, or the root's Search entry, opens the search screen: an input line above the results.
+- **Typing:** each keystroke re-runs the query, superseding the one in flight (generation plus context). A short debounce of about 60 ms keeps key repeat smooth.
+- **Results:**
+  - Sections in this order: Artists, Albums, Tracks, Playlists, Stations.
+  - Limits: 5 artists, 8 albums, 20 tracks, 5 playlists, 5 stations.
+  - A section that hits its limit ends in "More…", which opens the full list (up to 200).
+  - The two explicit rows for outside search come last.
+- **Keys:** `↓`/`Tab` moves from the input into the results. `/` returns to the input. `Esc` in the input closes search, and in the results it goes back to the input. `Enter` in the input jumps to the first result.
+- **Routing:** the library builds result entries with the same builders the browse levels use (Spotify catalog, Local catalog, radio). Opening a result is identical to opening it while browsing. The UI still never runs SQL.
+- **Library node:** Music → Library → Albums and Artists, across every source.
+  - Albums are sorted by artist then title, with the source in the detail line ("Ozawa · 1990 · Local").
+  - Opening a row goes to that source's own album or artist level.
+  - Source-specific browsing (Spotify, Local, Radio) stays as it is.
+
+### Tests (automated, as in M2)
+- **Parser:** table-driven: words, prefixes, phrases, each operator, unknown operators, empty and odd input (unbalanced quotes, a lone `:`), and injection attempts (`"`, `*`, `NEAR`, `-`).
+- **Index:**
+  - Triggers keep the FTS tables in step through ApplySnapshot, Sweep, CacheAlbumTracks, a local re-index and an album retitle.
+  - The migration backfills an existing catalog.
+  - Accents and prefixes both match.
+- **Ranking:**
+  - A title match beats an artist-only match.
+  - A library member beats a non-member.
+  - A favorite station beats a custom one.
+  - Operators filter correctly.
+- **Performance:** a benchmark over a synthetic 100k-track catalog, plus a timed run against a copy of the real library.
+- **UI:**
+  - Typing supersedes stale results.
+  - Section limits and "More…" work.
+  - Enter on a track plays its album from that track, and the offline fallback plays just the track.
+  - Esc and `/` focus behave as specified.
+  - The explicit rows open the provider searches with the query.
+
+### Delivery
+- M3.1 Search index and API: `002_search.sql` (FTS5 tables, triggers, backfill), `catalog.ParseQuery`, `Store.Search` with ranking, parser/index/ranking tests and the benchmark. No UI.
+- M3.2 Radio in the catalog: `catalogsync/radiosrc` (favorites, custom), wiring, resync on favorite toggle.
+- M3.3 Search screen: input, as-you-type, sectioned results through the library builders, track→album play, explicit Spotify and radio-directory rows, `/` everywhere.
+- M3.4 Library node: unified Albums and Artists with source labels.
+- M3.5 `docs/omatunes/search.md`, README, review agents, live check, tag `v0.3.0`.
+
 ## Status
 - [x] M0: add the `upstream` remote, create `plan.md`, add the CLAUDE.md fork note, write `docs/omatunes/upstream.md`, make the Makefile build `omatunes`, rebrand the UI title and terminal title.
 - [x] M1.1: `library/` Level/Entry model and root menu, with tests.
@@ -235,6 +342,12 @@ spotify_refresh = "30m"   # background sync if the last success is older than th
 - [x] M2.6 Local indexer: `catalogsync/localsrc` walks the music folder, rereads tags only for files whose size or mtime changed (unchanged files are rebuilt from their catalog rows), and groups them as the v0.1 scan did (album tag within an album folder, disc folders, Various Artists credited to each track artist). Identity: track = file path, album = folder + lowercased title, artist = lowercased name. Nothing changed returns `catalogsync.ErrUnchanged`, recorded as a success with no writes. A missing folder, or an empty one over a non-empty index, fails and keeps the cache; files under unreadable subfolders are kept. Catalog additions: `Genres`/`GenreAlbums`, `AlbumRecord.Credit`, `TrackRecord.File` with `Snapshot.Files` reconciling `local_files`, `IndexedFiles`, `RecordSyncSuccess`. Sweep no longer keeps a track alive just because its album is a library member (only a cached album does), so a deleted file leaves a surviving album. `library.LocalCatalog` replaces `library/localscan.go`; Local's Albums/Artists/Genres need the catalog. The runtime syncs each provider separately (Spotify when stale, Local at every startup; separate retry backoff), `r` syncs the browsed source (all at the root), and the badge names each provider when there are several. Measured on the real library (37,157 files): first index 7.1s, unchanged re-index 0.75s.
 - [x] M2.7 `[omatunes]` config, docs, offline check, tag v0.2.0 (tagged 2026-09-29). Done: `config/omatunes.go` (`[omatunes] spotify_refresh`, default 30m, `0s` = every startup, invalid keeps the default) through tagged hooks in `config/config.go` (struct field, default, section case); `openCatalog(sp, cfg)`; `docs/omatunes/catalog.md` (navigation.md links to it); automated offline test (`TestSpotifyCatalogBrowsesOffline`); `go test -race ./...` clean. Review of M2.5–M2.7 done and applied: Spotify sign-in refusals are classified by code (only INVALID_CREDENTIALS/UNKNOWN_IDENTIFIER, BadCredentials/CouldNotValidateCredentials/ExtraVerificationRequired need sign-in); `ensureWebAPI` restores a Web API token lost to a passing refresh failure for the catalog fetchers; a local index writes exactly (cleared tags clear); albums leaving the library drop their cached tracks in Sweep; dangling symlinks and files deleted mid-walk count as deleted; unchanged startups skip converting stored tracks; shared `catalogsync.NextBackoff`; per-source policy (`source{refresh, fill}`) instead of provider-name checks. The live offline check (browsing with the network off) was not run before tagging; the automated offline test stands in for it.
 - Deferred from the M2.5–M2.7 review: an indexer version so a change to the grouping rules regroups unchanged files (today only changed files are regrouped); ArtistAlbums lists every catalog album of the artist, including ones outside the library (intended as the offline discography fallback).
+- [x] M3.1 Search index and API: `002_search.sql` (FTS5 per kind with an unindexed provider column, bm25 weights as the tables' rank, `prefix='2 3'`, change-guarded triggers incl. album retitle → tracks, backfill, `library_items (kind, item_id)` index); `catalog.ParseQuery` (words as prefixes, phrases, `artist:`/`album:`/`title:`/`genre:`, `source:`/`provider:`, `type:`; unknown operators are text); `Store.Search` in two phases (FTS picks its best 200 per kind by rank, then membership and exact-title boosts re-rank them), kinds searched concurrently; one-character words match whole words only. Measured on a copy of the real catalog (26k local tracks, 4.8k albums), every prefix typed on the way to eight queries: p50 2.1 ms, p95 13.5 ms, worst 27 ms ("th"). Backfilling the real catalog on upgrade: 0.3 s. Budget missed: the first full local index is about 55% slower (6.4 s → 10.0 s, warm cache), the cost of writing the FTS rows in the pure-Go driver (prefix indexes are not the cause: 9.4 s without them); unchanged startups are unaffected (0.7 s).
+- [x] M3.2 Radio stations in the catalog: `catalogsync/radiosrc` (collections `favorites` and `custom`: starred stations, and the built-in plus radios.toml stations; a station's ID is its stream URL), synced at every startup and after every favorite toggle through a fork-owned `radio.Provider.OnFavoritesToggled` hook (one tagged `defer` in `ToggleFavorite`); a `quiet` source, so it reports no status badge. For M3.3: catalog tracks carry no Stream/Realtime flags, so the station result builder must set them.
+- [x] M3.3 Search screen: `library/search.go` (a `SearchLevel` per query; sections Artists 5, Albums 8, Tracks 20, Playlists 5, Stations 5 with "More…" up to 200; rows built by each source's own builders, now shared with browsing, labelled Spotify/Local; "No matches in your library"; "Search Spotify for …" reopens cliamp's live Spotify search already running, "Search the radio directory for …" lists `radio.SearchStationTracks` without touching the provider's own search state); `Entry.PlayFrom` plays a searched track's album from it (fetching an uncached Spotify album; just the track offline or album-less); `Catalog.Album`. UI (`ui/model/library_search.go`): `/` from anywhere opens or returns to search with the input focused and the last query kept; typing reloads after 60 ms through the usual superseding load; Enter/↓/Tab to results, `/`/Esc/h back to the query, Esc in the query closes; the cursor is hidden while typing; tracks number within their section. Without a catalog, Search stays the provider search. Verified live on a copy of the real catalog.
+- [x] Sorting pass (inserted before M3.4, 2026-09-29): sort keys are literal apart from case, accents and leading punctuation (`catalog.SortKeyVersion` 2; stored keys recomputed once at open, tracked by `PRAGMA user_version`); Albums lists sort by title by default, `o` switches to artist order (`library.OrderedLevel`, header shows the order); Radio → Favorites sorts A–Z, directory lists keep most-voted-first; station rows carry no number (live streams have no track number or duration).
+- [x] M3.4 Library node: Music → Library (first in Music) → Albums and Artists across sources (`Catalog.Albums`/`Artists` with an empty provider mean every provider), built with the search's row builders (`searcher.albumRow`/`artistRow`, source label first so a long credit cannot hide it); duplicates stay two rows side by side; rows open their source's own levels; Albums reorders with `o`; the lists are catalog levels of every source (CatalogProvider ""), reloaded after any sync, and `r` there syncs all. Verified live: 4,808 albums (2,667 Local, 2,141 Spotify) and 2,526 artists.
+- [x] M3.5 Docs, review, tag v0.3.0 (tagged 2026-09-29). Done: `docs/omatunes/search.md`; README, navigation.md and catalog.md updated for v0.3. Review of M3 applied: a searched track of an uncached album that cannot be fetched plays alone, never the album's known fragment; a radio sync requested mid-run runs once more (request counter), so a favorite toggled during a sync is not lost; leaving the search input runs a pending query at once, so no late tick reloads under the cursor; returning to search keeps the refresh command it popped past; one-letter words count only letters and digits ("a!" is whole-word). Cleanups: `searcher` → `catalogView`; one `library.SourceLabel`; `catalogView.rows`/`trackRow`; fetch size derived from the section limits; exact-title text moved into sqlite; search scans reuse `scanAlbumWith`/`scanTrackWith`, tracks and stations split; sort-key rewrite with prepared statements. Not taken: partial results when one kind errors (not triggerable; would hide failures), paging the 4,800-row Library list (opens instantly), shrinking the opt-in benchmark. The live offline check was not run before tagging.
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.
@@ -255,7 +368,13 @@ spotify_refresh = "30m"   # background sync if the last success is older than th
 - 2026-09-29: A local index is written exactly (blanks overwrite); provider records keep the "zero means unknown" merge.
 - 2026-09-29: The "suspiciously empty snapshot" guard is the completeness check: a read must return exactly the total Spotify reports. An API that reports total 0 is trusted (you really emptied the collection).
 
+- 2026-09-29: M3 search is catalog-only as you type; explicit rows reach live Spotify search and the radio directory.
+- 2026-09-29: Radio favorites and radios.toml stations move into the catalog (provider `radio`) for search; favorites rank first. This answers the open question below.
+- 2026-09-29: Cross-source duplicates stay separate, labelled by source; merging is deferred.
+- 2026-09-29: Enter on a searched track plays its album from that track (just the track when offline or album-less).
+
+- 2026-09-29: Albums sort by title by default, with `o` for artist order; names sort literally ("The Planets" under T). Radio favorites A–Z; directory stations stay ranked by votes; station rows are unnumbered.
+
 ## Open questions
 - Whether `music_dir` should split from `initial_directory` (the Local scan folder vs the file browser's start folder). Default: keep reusing `initial_directory` until someone needs them apart.
 - Artwork: cache album art images locally for offline display, or store URLs only (M2 stores URLs only).
-- Whether radio favorites move into the catalog (M3 needs station search).

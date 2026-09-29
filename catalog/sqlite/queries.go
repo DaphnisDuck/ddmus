@@ -17,6 +17,10 @@ import (
 // memberIDs selects the item IDs of a provider's library members of a kind.
 const memberIDs = `SELECT item_id FROM library_items WHERE provider = ? AND kind = ?`
 
+// anyMemberIDs is memberIDs where an empty provider means every provider;
+// its provider argument is given twice.
+const anyMemberIDs = `SELECT item_id FROM library_items WHERE (? = '' OR provider = ?) AND kind = ?`
+
 const albumColumns = `al.id, al.provider, al.provider_id, al.title, al.artist_credit,
 	al.year, al.track_count, al.artwork_url, al.tracks_cached_at IS NOT NULL`
 
@@ -25,10 +29,26 @@ const trackColumns = `t.id, t.provider, t.provider_id, t.title, t.artist_credit,
 	t.duration_ms, t.playable_uri, t.genre, t.year, COALESCE(al.artwork_url, '')`
 
 // Albums implements catalog.Catalog.
-func (s *Store) Albums(ctx context.Context, provider string) ([]catalog.Album, error) {
+func (s *Store) Albums(ctx context.Context, provider string, order catalog.AlbumOrder) ([]catalog.Album, error) {
+	orderBy := "al.sort_title, al.sort_artist"
+	if order == catalog.ByArtist {
+		orderBy = "al.sort_artist, al.sort_title"
+	}
 	return queryAll(ctx, s.db, scanAlbum, `SELECT `+albumColumns+` FROM albums al
-		WHERE al.id IN (`+memberIDs+`)
-		ORDER BY al.sort_artist, al.sort_title`, provider, catalog.KindAlbum)
+		WHERE al.id IN (`+anyMemberIDs+`)
+		ORDER BY `+orderBy+`, al.id`, provider, provider, catalog.KindAlbum)
+}
+
+// Album implements catalog.Catalog.
+func (s *Store) Album(ctx context.Context, id int64) (catalog.Album, error) {
+	albums, err := queryAll(ctx, s.db, scanAlbum, `SELECT `+albumColumns+` FROM albums al WHERE al.id = ?`, id)
+	if err != nil {
+		return catalog.Album{}, err
+	}
+	if len(albums) == 0 {
+		return catalog.Album{}, fmt.Errorf("album %d: %w", id, catalog.ErrNotFound)
+	}
+	return albums[0], nil
 }
 
 // AlbumTracks implements catalog.Catalog.
@@ -67,8 +87,8 @@ func (s *Store) Artists(ctx context.Context, provider string) ([]catalog.Artist,
 		err = r.Scan(&a.ID, &a.Ref.Provider, &a.Ref.ProviderID, &a.Name, &a.ImageURL)
 		return a, err
 	}, `SELECT ar.id, ar.provider, ar.provider_id, ar.name, ar.image_url FROM artists ar
-		WHERE ar.id IN (`+memberIDs+`)
-		ORDER BY ar.sort_name`, provider, catalog.KindArtist)
+		WHERE ar.id IN (`+anyMemberIDs+`)
+		ORDER BY ar.sort_name, ar.provider`, provider, provider, catalog.KindArtist)
 }
 
 // ArtistAlbums implements catalog.Catalog.
@@ -177,17 +197,23 @@ func queryAll[T any](ctx context.Context, db *sql.DB, scan func(*sql.Rows) (T, e
 	return out, nil
 }
 
-func scanAlbum(r *sql.Rows) (a catalog.Album, err error) {
-	err = r.Scan(&a.ID, &a.Ref.Provider, &a.Ref.ProviderID, &a.Title, &a.Artist,
-		&a.Year, &a.TrackCount, &a.ArtworkURL, &a.TracksCached)
+func scanAlbum(r *sql.Rows) (catalog.Album, error) { return scanAlbumWith(r) }
+
+// scanAlbumWith scans albumColumns, then extra columns into extra.
+func scanAlbumWith(r *sql.Rows, extra ...any) (a catalog.Album, err error) {
+	err = r.Scan(append([]any{&a.ID, &a.Ref.Provider, &a.Ref.ProviderID, &a.Title, &a.Artist,
+		&a.Year, &a.TrackCount, &a.ArtworkURL, &a.TracksCached}, extra...)...)
 	return a, err
 }
 
-func scanTrack(r *sql.Rows) (t catalog.Track, err error) {
+func scanTrack(r *sql.Rows) (catalog.Track, error) { return scanTrackWith(r) }
+
+// scanTrackWith scans trackColumns, then extra columns into extra.
+func scanTrackWith(r *sql.Rows, extra ...any) (t catalog.Track, err error) {
 	var durationMS int64
-	err = r.Scan(&t.ID, &t.Ref.Provider, &t.Ref.ProviderID, &t.Title, &t.Artist,
+	err = r.Scan(append([]any{&t.ID, &t.Ref.Provider, &t.Ref.ProviderID, &t.Title, &t.Artist,
 		&t.AlbumID, &t.AlbumTitle, &t.Disc, &t.TrackNo, &durationMS, &t.PlayableURI,
-		&t.Genre, &t.Year, &t.ArtworkURL)
+		&t.Genre, &t.Year, &t.ArtworkURL}, extra...)...)
 	t.Duration = time.Duration(durationMS) * time.Millisecond
 	return t, err
 }

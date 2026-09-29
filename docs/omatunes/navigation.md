@@ -4,12 +4,14 @@ omatunes opens on **Music**, a library hierarchy that sits above cliamp's playba
 
 ```
 Music
+├── Library   Albums · Artists (every source together)
 ├── Spotify   Albums · Artists · Playlists · Liked Songs
 ├── Local     Albums · Artists · Genres · Folders · Playlists
 ├── Radio     Favorites · Browse Stations (cliamp radio · Countries · Genres & Tags)
 └── Search
 ```
 
+- **Library:** Albums and Artists from Spotify and Local in one list each, every row labelled with its source. The same album or artist in both stays two rows, side by side. Opening a row goes to that source's own album or artist.
 - **Spotify:**
   - **Albums** are your saved albums.
   - **Artists** are the artists you follow; each one opens their albums and singles.
@@ -22,7 +24,9 @@ Music
 - **Radio:**
   - **Favorites** are your starred stations. Enter plays one.
   - **Browse Stations** lists the cliamp radio channels and the station directory by country or tag.
-- **Search:** until unified search (Milestone 3) lands, this opens the existing provider search (Spotify if configured, else Local).
+- **Search:** searches everything the catalog holds as you type; `/` opens it from anywhere. See [search.md](search.md). Without a catalog it is the provider's own search (Spotify if configured, else Local).
+
+Lists sort A–Z as names are written ("The Planets" under T), ignoring case, accents and leading punctuation. Albums sort by title; press `o` to sort by artist instead. Radio favorites sort by name; stations under a country or tag keep the directory's most-voted-first order.
 
 Enter on a track replaces the queue with the list it's in and starts at that track, the way an album plays. The library stays on screen.
 
@@ -42,6 +46,7 @@ Spotify and Local browsing read from a local catalog (`~/.local/share/omatunes/l
 | `q` | Back; quits at Music |
 | `/` | Search |
 | `r` | Sync the source you're browsing now (everything, at Music) |
+| `o` | In an Albums list, switch between sorting by title and by artist |
 | `Space` | Play / pause |
 | `Tab` | Show the queue; `Tab`, `Esc` or `b` returns to the library |
 | `s` `<` `>` `,` `.` `+` `-` `Shift+←` `Shift+→` | Stop, previous/next, volume, seek |

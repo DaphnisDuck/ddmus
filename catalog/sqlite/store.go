@@ -73,11 +73,18 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 		wdb.Close()
 		return nil, err
 	}
+	if err := retryBusy(ctx, func() error { return refreshSortKeys(ctx, wdb) }); err != nil {
+		wdb.Close()
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		wdb.Close()
 		return nil, fmt.Errorf("open catalog %s: %w", dbPath, err)
 	}
+	// Search reads each kind on its own connection at once, and a browse
+	// query may run beside it: keep one connection per kind plus one open.
+	db.SetMaxIdleConns(len(catalog.SearchKinds) + 1)
 	return &Store{db: db, wdb: wdb}, nil
 }
 
@@ -222,4 +229,92 @@ func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
 		return fmt.Errorf("migration %s: commit: %w", m.name, err)
 	}
 	return nil
+}
+
+// refreshSortKeys recomputes the stored sort keys when they were written by
+// an older catalog.SortKey. The database's user_version records the key
+// version, so this runs once per change of the rules.
+func refreshSortKeys(ctx context.Context, db *sql.DB) error {
+	var version int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		return fmt.Errorf("read sort key version: %w", err)
+	}
+	if version >= catalog.SortKeyVersion {
+		return nil
+	}
+	if err := rewriteSortKeys(ctx, db); err != nil {
+		return fmt.Errorf("refresh sort keys: %w", err)
+	}
+	return nil
+}
+
+// rewriteSortKeys recomputes every artist's and album's sort keys and
+// records the key version, in one transaction.
+func rewriteSortKeys(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// rekey runs update, prepared once, with the keys of each (id, name,
+	// credit) row that query reads.
+	rekey := func(query, update string, keys func(name, credit string) []any) error {
+		type row struct {
+			id           int64
+			name, credit string
+		}
+		rows, err := tx.QueryContext(ctx, query)
+		if err != nil {
+			return err
+		}
+		var all []row
+		for rows.Next() {
+			var r row
+			if err := rows.Scan(&r.id, &r.name, &r.credit); err != nil {
+				rows.Close()
+				return err
+			}
+			all = append(all, r)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		stmt, err := tx.PrepareContext(ctx, update)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+		for _, r := range all {
+			if _, err := stmt.ExecContext(ctx, append(keys(r.name, r.credit), r.id)...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := rekey(`SELECT id, name, '' FROM artists`, `UPDATE artists SET sort_name = ? WHERE id = ?`,
+		func(name, _ string) []any { return []any{catalog.SortKey(name)} }); err != nil {
+		return err
+	}
+	// An album sorts under its display credit when the writer set one (a
+	// local index: the artist or Various Artists), else its first artist.
+	if err := rekey(`SELECT al.id, al.title, CASE WHEN al.provider = '`+catalog.Local+`' THEN al.artist_credit
+			ELSE COALESCE((SELECT ar.name FROM album_artists x JOIN artists ar ON ar.id = x.artist_id
+				WHERE x.album_id = al.id ORDER BY x.position LIMIT 1), '') END
+		FROM albums al`, `UPDATE albums SET sort_title = ?, sort_artist = ? WHERE id = ?`,
+		func(title, credit string) []any {
+			sortArtist := ""
+			if credit != "" {
+				sortArtist = catalog.SortKey(credit)
+			}
+			return []any{catalog.SortKey(title), sortArtist}
+		}); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`PRAGMA user_version = %d`, catalog.SortKeyVersion)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

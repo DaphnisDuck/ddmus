@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+
+	tea "charm.land/bubbletea/v2"
 	"errors"
 	"path/filepath"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/catalog/sqlite"
 	"github.com/bjarneo/cliamp/catalogsync"
+	"github.com/bjarneo/cliamp/ui/model"
 )
 
 // flakySource fails its first fails syncs, then returns an empty library.
@@ -156,4 +159,76 @@ func (s *namedSource) Provider() string    { return s.name }
 func (*namedSource) Collections() []string { return []string{"albums"} }
 func (*namedSource) Fetch(context.Context, string, catalogsync.Known) (catalog.Snapshot, error) {
 	return catalog.Snapshot{}, catalogsync.ErrUnchanged
+}
+
+// A quiet source (radio) syncs without reporting status to the UI.
+func TestQuietSourceReportsNothing(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
+	defer rt.cancel()
+	rt.setSources(source{Source: &namedSource{catalog.Spotify}}, source{Source: &namedSource{catalog.Radio}, quiet: true})
+	var sent []tea.Msg
+	rt.send = func(m tea.Msg) { sent = append(sent, m) }
+	for _, p := range []string{catalog.Radio, catalog.Spotify} {
+		if err := rt.engine.Sync(context.Background(), p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, m := range sent {
+		if msg, ok := m.(model.CatalogSyncMsg); !ok || msg.Provider != catalog.Spotify {
+			t.Errorf("sent %+v, want only Spotify's events", m)
+		}
+	}
+	if len(sent) == 0 {
+		t.Error("Spotify's events were not sent")
+	}
+}
+
+// gatedSource blocks each Fetch until released and counts the runs.
+type gatedSource struct {
+	namedSource
+	mu      sync.Mutex
+	runs    int
+	started chan struct{}
+	release chan struct{}
+}
+
+func (g *gatedSource) Fetch(ctx context.Context, c string, k catalogsync.Known) (catalog.Snapshot, error) {
+	g.mu.Lock()
+	g.runs++
+	g.mu.Unlock()
+	g.started <- struct{}{}
+	<-g.release
+	return g.namedSource.Fetch(ctx, c, k)
+}
+
+// A quiet source's sync requested while one runs (a favorite toggled
+// mid-sync) is served by one more run, not dropped.
+func TestQuietSyncRequestedMidRunRunsAgain(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &gatedSource{namedSource: namedSource{catalog.Radio}, started: make(chan struct{}, 4), release: make(chan struct{})}
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
+	rt.setSources(source{Source: src, quiet: true})
+	t.Cleanup(rt.close)
+
+	rt.sync(catalog.Radio)
+	<-src.started          // the first run is fetching
+	rt.sync(catalog.Radio) // requested mid-run: finds it running
+	close(src.release)
+	<-src.started // the running sync ran again
+	rt.wg.Wait()
+	src.mu.Lock()
+	defer src.mu.Unlock()
+	if src.runs != 2 {
+		t.Errorf("runs = %d, want 2", src.runs)
+	}
 }

@@ -35,6 +35,11 @@ type Sources struct {
 // Root returns the top of the hierarchy: Music.
 func Root(src Sources) Level {
 	var entries []Entry
+	var search *catalogView
+	if src.Catalog != nil {
+		search = newCatalogView(src.Catalog, src)
+		entries = append(entries, Entry{Title: "Library", Open: search.libraryMenu()})
+	}
 	if src.Spotify != nil {
 		spotify := Spotify(src.Spotify)
 		if src.Catalog != nil {
@@ -50,11 +55,15 @@ func Root(src Sources) Level {
 	if src.Radio != nil || src.Channels != nil {
 		entries = append(entries, Entry{Title: "Radio", Open: radio(src.Radio, src.Channels)})
 	}
-	search := Entry{Title: "Search", Intent: IntentSearch, Provider: src.Spotify}
-	if search.Provider == nil {
-		search.Provider = src.Local
+	// With a catalog, Search is the unified search screen; without, the
+	// provider's own search.
+	searchEntry := Entry{Title: "Search", Intent: IntentSearch, Provider: src.Spotify}
+	if search != nil {
+		searchEntry = Entry{Title: "Search", Open: search.level("")}
+	} else if searchEntry.Provider == nil {
+		searchEntry.Provider = src.Local
 	}
-	entries = append(entries, search)
+	entries = append(entries, searchEntry)
 	return Menu("Music", entries...)
 }
 
@@ -226,7 +235,7 @@ func radio(prov, channels playlist.Provider) Level {
 	var entries []Entry
 	if fs, ok := prov.(favoriteStations); ok {
 		entries = append(entries, Entry{Title: "Favorites", Open: TrackLevel("Favorites", prov, func(context.Context) ([]playlist.Track, error) {
-			return fs.FavoriteTracks(), nil
+			return sortedByTitle(fs.FavoriteTracks()), nil
 		})})
 	}
 	entries = append(entries, Entry{Title: "Browse Stations", Open: browseStations(prov, channels)})
@@ -314,4 +323,12 @@ func local(prov playlist.Provider, indexed ...Entry) Level {
 		entries = append(entries, Entry{Title: "Playlists", Open: playlistsLevel("Playlists", prov, nil, playlistEntry(prov))})
 	}
 	return Menu("Local", entries...)
+}
+
+// sortedByTitle sorts tracks A–Z by title, the way catalog lists sort.
+func sortedByTitle(tracks []playlist.Track) []playlist.Track {
+	slices.SortStableFunc(tracks, func(a, b playlist.Track) int {
+		return strings.Compare(catalog.SortKey(a.Title), catalog.SortKey(b.Title))
+	})
+	return tracks
 }

@@ -70,22 +70,29 @@ func seeded(t *testing.T) (*Store, context.Context) {
 
 func TestAlbums(t *testing.T) {
 	s, ctx := seeded(t)
-	got, err := s.Albums(ctx, catalog.Spotify)
+	byArtist, err := s.Albums(ctx, catalog.Spotify, catalog.ByArtist)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Library albums only (not Rarity), by first artist (Muti < Ozawa).
-	if len(got) != 2 || got[0].Title != "Roman Trilogy" || got[1].Title != "Mahler: Symphony No. 5" {
-		t.Fatalf("Albums() = %+v", got)
+	if len(byArtist) != 2 || byArtist[0].Title != "Roman Trilogy" || byArtist[1].Title != "Mahler: Symphony No. 5" {
+		t.Fatalf("Albums(ByArtist) = %+v", byArtist)
 	}
-	roman, mahler := got[0], got[1]
+	got, err := s.Albums(ctx, catalog.Spotify, catalog.ByTitle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Title != "Mahler: Symphony No. 5" || got[1].Title != "Roman Trilogy" {
+		t.Fatalf("Albums(ByTitle) = %+v", got)
+	}
+	mahler, roman := got[0], got[1]
 	if roman.Artist != "Riccardo Muti, Seiji Ozawa" || roman.TracksCached || roman.Ref != (catalog.Ref{Provider: "spotify", ProviderID: "al-roman"}) {
 		t.Errorf("Roman Trilogy = %+v", roman)
 	}
 	if !mahler.TracksCached || mahler.Year != 1990 || mahler.TrackCount != 2 {
 		t.Errorf("Mahler 5 = %+v", mahler)
 	}
-	local, _ := s.Albums(ctx, catalog.Local)
+	local, _ := s.Albums(ctx, catalog.Local, catalog.ByTitle)
 	if len(local) != 1 || local[0].Artist != "Neville Marriner" {
 		t.Errorf("local Albums() = %+v", local)
 	}
@@ -173,5 +180,52 @@ func TestSyncStatus(t *testing.T) {
 	}
 	if none, _ := s.SyncStatus(ctx, catalog.Local); len(none) != 0 {
 		t.Errorf("local SyncStatus() = %+v, want none", none)
+	}
+}
+
+func TestAlbum(t *testing.T) {
+	s, ctx := seeded(t)
+	albums, err := s.Albums(ctx, catalog.Spotify, catalog.ByTitle)
+	if err != nil || len(albums) == 0 {
+		t.Fatalf("Albums() = %v, %v", albums, err)
+	}
+	got, err := s.Album(ctx, albums[0].ID)
+	if err != nil || got != albums[0] {
+		t.Errorf("Album(%d) = %+v, %v; want %+v", albums[0].ID, got, err, albums[0])
+	}
+	if _, err := s.Album(ctx, -1); !errors.Is(err, catalog.ErrNotFound) {
+		t.Errorf("Album(-1) = %v, want ErrNotFound", err)
+	}
+}
+
+// An empty provider lists every provider's albums and artists together.
+func TestAlbumsAndArtistsAcrossProviders(t *testing.T) {
+	s, ctx := seeded(t)
+	albums, err := s.Albums(ctx, "", catalog.ByTitle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, a := range albums {
+		got = append(got, a.Ref.Provider+":"+a.Title)
+	}
+	spotify, _ := s.Albums(ctx, catalog.Spotify, catalog.ByTitle)
+	local, _ := s.Albums(ctx, catalog.Local, catalog.ByTitle)
+	if len(albums) != len(spotify)+len(local) || len(local) == 0 {
+		t.Errorf("all albums = %v, want Spotify's %d and Local's %d", got, len(spotify), len(local))
+	}
+	if !slices.IsSortedFunc(albums, func(a, b catalog.Album) int {
+		return strings.Compare(catalog.SortKey(a.Title), catalog.SortKey(b.Title))
+	}) {
+		t.Errorf("all albums not by title: %v", got)
+	}
+	artists, err := s.Artists(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sa, _ := s.Artists(ctx, catalog.Spotify)
+	la, _ := s.Artists(ctx, catalog.Local)
+	if len(artists) != len(sa)+len(la) {
+		t.Errorf("all artists = %d, want %d + %d", len(artists), len(sa), len(la))
 	}
 }

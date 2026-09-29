@@ -67,7 +67,17 @@ func (m *Model) libAdjustScroll() {
 		return
 	}
 	f := m.libTop()
-	f.scroll = libScroll(libraryRows(f.entries), f.cursor, f.scroll, m.effectivePlaylistVisible())
+	f.scroll = libScroll(libraryRows(f.entries), f.cursor, f.scroll, m.libListBudget())
+}
+
+// libListBudget is how many rows the list gets: the body, less the search
+// input line on the search screen.
+func (m *Model) libListBudget() int {
+	budget := m.effectivePlaylistVisible()
+	if _, ok := m.libSearchLevel(); ok {
+		budget--
+	}
+	return max(budget, 1)
 }
 
 func (m Model) libBreadcrumb() string {
@@ -89,6 +99,9 @@ func (m Model) libBreadcrumb() string {
 func (m *Model) libHeaderLine() string {
 	f := m.libTop()
 	label := m.libBreadcrumb()
+	if ol, ok := f.level.(library.OrderedLevel); ok {
+		label += " · " + ol.OrderName()
+	}
 	if badge := m.libSyncBadge(); badge != "" {
 		label += "  " + badge
 	}
@@ -117,19 +130,11 @@ func (m *Model) libSyncBadge() string {
 			continue
 		}
 		if len(m.lib.sync) > 1 {
-			badge = providerLabel(provider) + " " + badge
+			badge = library.SourceLabel(provider) + " " + badge
 		}
 		badges = append(badges, badge)
 	}
 	return strings.Join(badges, " · ")
-}
-
-// providerLabel is a catalog provider name for display: "spotify" → "Spotify".
-func providerLabel(provider string) string {
-	if provider == "" {
-		return ""
-	}
-	return strings.ToUpper(provider[:1]) + provider[1:]
 }
 
 func syncAge(d time.Duration) string {
@@ -146,13 +151,28 @@ func syncAge(d time.Duration) string {
 }
 
 func (m *Model) libHelpLine() string {
+	if _, ok := m.libSearchLevel(); ok && m.lib.searchInput {
+		return fitHelpLine(strings.Join([]string{helpKey("Enter", "Results"), helpKey("Esc", "Close"),
+			helpKey("Ctrl+U", "Clear")}, " "))
+	}
 	parts := []string{helpKey("j/k", "Move"), helpKey("l", "Open")}
 	quit := helpKey("q", "Quit")
 	if len(m.lib.stack) > 1 {
 		parts = append(parts, helpKey("h", "Back"))
 		quit = helpKey("q", "Back")
 	}
-	parts = append(parts, helpKey("/", "Search"), helpKey("Space", "Pause"), helpKey("Tab", "Queue"))
+	if _, ok := m.libSearchLevel(); ok {
+		// In search results, / and h return to the query.
+		parts = []string{helpKey("j/k", "Move"), helpKey("l", "Open"), helpKey("/", "Edit"), helpKey("h", "Query")}
+		quit = helpKey("q", "Back")
+	} else {
+		parts = append(parts, helpKey("/", "Search"))
+	}
+	if _, ok := m.libTop().level.(library.OrderedLevel); ok {
+		// Before the hints that fitHelpLine trims first.
+		parts = append(parts, helpKey("o", "Order"))
+	}
+	parts = append(parts, helpKey("Space", "Pause"), helpKey("Tab", "Queue"))
 	if m.lib.refresh != nil {
 		parts = append(parts, helpKey("r", "Sync"))
 	}
@@ -161,7 +181,24 @@ func (m *Model) libHelpLine() string {
 }
 
 func (m *Model) renderLibraryBody() string {
-	budget := m.effectivePlaylistVisible()
+	if sl, ok := m.libSearchLevel(); ok && !m.lib.signingIn {
+		budget := m.libListBudget()
+		body := m.renderLibraryList(budget)
+		if sl.Query() == "" {
+			lines := make([]string, len(libSearchHint))
+			for i, h := range libSearchHint {
+				lines[i] = dimStyle.Render(truncate(h, ui.PanelWidth))
+			}
+			body = bodyLines(lines, budget)
+		}
+		return m.libSearchPrompt(sl) + "\n" + body
+	}
+	return m.renderLibraryList(m.effectivePlaylistVisible())
+}
+
+// renderLibraryList renders the top frame's rows, or its loading, sign-in
+// or error state, in budget lines.
+func (m *Model) renderLibraryList(budget int) string {
 	f := m.libTop()
 	switch {
 	case m.lib.signingIn:
@@ -185,6 +222,11 @@ func (m *Model) renderLibraryBody() string {
 
 	rows := libraryRows(f.entries)
 	scroll := libScroll(rows, f.cursor, f.scroll, budget)
+	numbers := libTrackNumbers(f.entries)
+	// While the search input has focus, Enter does not act on a row, so no
+	// row shows the cursor.
+	_, searching := m.libSearchLevel()
+	showCursor := !searching || !m.lib.searchInput
 	lines := make([]string, 0, budget)
 	for _, row := range rows[scroll:] {
 		if len(lines) >= budget {
@@ -194,16 +236,35 @@ func (m *Model) renderLibraryBody() string {
 			lines = append(lines, dimStyle.Render(labeledSeparator("", row.section)))
 			continue
 		}
-		lines = append(lines, cursorLine(libEntryLabel(f.entries[row.index], row.index), row.index == f.cursor))
+		lines = append(lines, cursorLine(libEntryLabel(f.entries[row.index], numbers[row.index]),
+			showCursor && row.index == f.cursor))
 	}
 	return bodyLines(lines, budget)
 }
 
+// libTrackNumbers numbers each section's tracks from 1 (0 for other rows),
+// so an album counts its tracks and a search result section its own.
+func libTrackNumbers(entries []library.Entry) []int {
+	numbers := make([]int, len(entries))
+	n := 0
+	for i, e := range entries {
+		if i > 0 && e.Section != entries[i-1].Section {
+			n = 0
+		}
+		if e.Track != nil && !e.Track.Realtime {
+			n++
+			numbers[i] = n
+		}
+	}
+	return numbers
+}
+
 // libEntryLabel renders "Title      Detail ›"; tracks use the numbered track
-// row with duration. Browsable rows end in "›".
-func libEntryLabel(e library.Entry, i int) string {
-	if e.Track != nil {
-		return formatTrackRow(i+1, trackViewName(*e.Track), e.Track.DurationSecs)
+// row with duration. A station is a live stream with neither, so it is a
+// plain row. Browsable rows end in "›".
+func libEntryLabel(e library.Entry, number int) string {
+	if e.Track != nil && !e.Track.Realtime {
+		return formatTrackRow(number, trackViewName(*e.Track), e.Track.DurationSecs)
 	}
 	width := ui.PanelWidth - 4 // cursor prefix
 	suffix := ""

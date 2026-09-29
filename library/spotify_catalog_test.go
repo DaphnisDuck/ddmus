@@ -1,9 +1,11 @@
 package library
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,10 +26,29 @@ type fakeCatalog struct {
 	liked       []catalog.Track
 	genres      []catalog.Genre
 	genreAlbs   map[string][]catalog.Album
+	found       catalog.SearchResults
+	queries     []catalog.Query
 	synced      bool
 }
 
-func (f *fakeCatalog) Albums(context.Context, string) ([]catalog.Album, error) { return f.albums, nil }
+func (f *fakeCatalog) Albums(_ context.Context, _ string, order catalog.AlbumOrder) ([]catalog.Album, error) {
+	out := slices.Clone(f.albums)
+	slices.SortStableFunc(out, func(a, b catalog.Album) int {
+		if order == catalog.ByArtist {
+			return cmp.Or(strings.Compare(a.Artist, b.Artist), strings.Compare(a.Title, b.Title))
+		}
+		return cmp.Or(strings.Compare(a.Title, b.Title), strings.Compare(a.Artist, b.Artist))
+	})
+	return out, nil
+}
+func (f *fakeCatalog) Album(_ context.Context, id int64) (catalog.Album, error) {
+	for _, a := range f.albums {
+		if a.ID == id {
+			return a, nil
+		}
+	}
+	return catalog.Album{}, catalog.ErrNotFound
+}
 func (f *fakeCatalog) AlbumTracks(_ context.Context, id int64) ([]catalog.Track, bool, error) {
 	return f.albumTracks[id], f.cached[id], nil
 }
@@ -48,6 +69,16 @@ func (f *fakeCatalog) Genres(context.Context, string) ([]catalog.Genre, error) {
 }
 func (f *fakeCatalog) GenreAlbums(_ context.Context, _, genre string) ([]catalog.Album, error) {
 	return f.genreAlbs[genre], nil
+}
+func (f *fakeCatalog) Search(_ context.Context, q catalog.Query, limit int) (catalog.SearchResults, error) {
+	f.queries = append(f.queries, q)
+	out := catalog.SearchResults{}
+	for kind, rs := range f.found {
+		if q.Wants(kind) {
+			out[kind] = rs[:min(len(rs), limit)]
+		}
+	}
+	return out, nil
 }
 func (f *fakeCatalog) LikedTracks(context.Context, string) ([]catalog.Track, error) {
 	return f.liked, nil
@@ -240,5 +271,35 @@ func TestSpotifyCatalogBrowsesOffline(t *testing.T) {
 	}
 	if len(live.calls) != 0 {
 		t.Errorf("offline browsing called the provider: %v", live.calls)
+	}
+}
+
+func TestAlbumsCanBeReordered(t *testing.T) {
+	cat, live, _ := newCatalogFixture()
+	cat.albums = []catalog.Album{
+		{ID: 1, Title: "Zeta", Artist: "Abbado"},
+		{ID: 2, Title: "Alpha", Artist: "Ozawa"},
+	}
+	root := SpotifyCatalog(cat, live)
+	albums := child(t, root, "Albums")
+	ol, ok := albums.(OrderedLevel)
+	if !ok {
+		t.Fatalf("Albums is %T, not an OrderedLevel", albums)
+	}
+	if got := titles(load(t, albums)); ol.OrderName() != "by title" || !slices.Equal(got, []string{"Alpha", "Zeta"}) {
+		t.Errorf("default %s = %v, want by title", ol.OrderName(), got)
+	}
+	if name := ol.NextOrder(); name != "by artist" {
+		t.Errorf("NextOrder() = %q", name)
+	}
+	// The order is the browser's: reopening the list keeps it.
+	if got := titles(load(t, child(t, root, "Albums"))); !slices.Equal(got, []string{"Zeta", "Alpha"}) {
+		t.Errorf("by artist = %v", got)
+	}
+	if name := ol.NextOrder(); name != "by title" {
+		t.Errorf("NextOrder() back = %q", name)
+	}
+	if _, ok := child(t, root, "Artists").(OrderedLevel); ok {
+		t.Error("Artists offers a reorder it does not have")
 	}
 }

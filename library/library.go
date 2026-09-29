@@ -32,9 +32,19 @@ type AuthLevel interface {
 }
 
 // CatalogLevel is implemented by levels read from the catalog. The UI
-// reloads them when a sync of CatalogProvider changes the catalog.
+// reloads them when a sync of CatalogProvider changes the catalog; an empty
+// CatalogProvider lists every source and reloads after any sync.
 type CatalogLevel interface {
 	CatalogProvider() string
+}
+
+// OrderedLevel is implemented by levels that can list their rows in more
+// than one order. The UI's order key calls NextOrder and reloads the level.
+type OrderedLevel interface {
+	// OrderName describes the current order, e.g. "by title".
+	OrderName() string
+	// NextOrder switches to the next order and returns its name.
+	NextOrder() string
 }
 
 // Intent is a UI action an entry requests instead of navigating.
@@ -42,14 +52,16 @@ type Intent int
 
 const (
 	IntentNone Intent = iota
-	// IntentSearch opens search. Until Milestone 3 this is the existing
-	// provider search.
+	// IntentSearch opens the provider's own live search: with Query set,
+	// already run for it (search's "Search Spotify for …" row); without, the
+	// search screen of a library that has no catalog.
 	IntentSearch
 	// IntentFolders opens the file browser.
 	IntentFolders
 )
 
-// Entry is one row of a Level. Exactly one action field is set.
+// Entry is one row of a Level. Exactly one action field is set, except that
+// a Track row may also have PlayFrom.
 type Entry struct {
 	// ID identifies the row across reloads, so a refreshed list keeps the
 	// cursor on the same item. Empty for rows without a stable identity.
@@ -66,6 +78,9 @@ type Entry struct {
 	Open Level
 	// Track plays this track, with the level's other tracks as context.
 	Track *playlist.Track
+	// PlayFrom, set on a Track row, replaces that context: Enter plays the
+	// tracks it returns from index (a searched track plays its album).
+	PlayFrom func(ctx context.Context) (tracks []playlist.Track, index int, err error)
 	// Play resolves tracks and plays them from the first, replacing the
 	// queue. Used for rows that are playable but not browsable (stations).
 	Play func(ctx context.Context) ([]playlist.Track, error)
@@ -73,6 +88,8 @@ type Entry struct {
 	Intent Intent
 	// Provider owns the entry's content; set for Intent rows that need one.
 	Provider playlist.Provider
+	// Query is the text an IntentSearch row searches for.
+	Query string
 }
 
 // Tracks returns the tracks of the Track entries in entries, in order, and the

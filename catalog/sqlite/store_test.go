@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+
+	"github.com/bjarneo/cliamp/catalog"
 )
 
 func openTemp(t *testing.T) *Store {
@@ -195,5 +197,57 @@ func TestOpenSecuresDirectory(t *testing.T) {
 	info, err := os.Stat(dir)
 	if err != nil || info.Mode().Perm() != 0o700 {
 		t.Errorf("directory mode = %v (%v), want 0700", info.Mode().Perm(), err)
+	}
+}
+
+// A catalog written with older sort keys gets them recomputed on open, once.
+func TestOpenRefreshesSortKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "library.db")
+	s, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(t, s, catalog.Snapshot{Collection: "albums", Albums: []catalog.AlbumRecord{
+		{Ref: sref("a"), Title: "The Planets", Artists: []catalog.ArtistRecord{artistRec("ar", "The Holst Singers")}},
+	}})
+	apply(t, s, catalog.Snapshot{Provider: catalog.Local, Collection: "files", Albums: []catalog.AlbumRecord{
+		{Ref: catalog.Ref{Provider: catalog.Local, ProviderID: "l"}, Title: "A Mix", Credit: "Various Artists",
+			Artists: []catalog.ArtistRecord{{Ref: catalog.Ref{Provider: catalog.Local, ProviderID: "x"}, Name: "X"}}},
+	}})
+	// Simulate keys from the old rule, which dropped leading articles.
+	if _, err := s.wdb.Exec(`UPDATE albums SET sort_title = 'planets', sort_artist = 'holst singers' WHERE provider_id = 'a';
+		UPDATE albums SET sort_title = 'mix', sort_artist = 'x' WHERE provider_id = 'l';
+		UPDATE artists SET sort_name = 'holst singers' WHERE provider_id = 'ar';
+		PRAGMA user_version = 1`); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+
+	s, err = Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	keys := func(query string) string {
+		t.Helper()
+		var a, b string
+		if err := s.db.QueryRow(query).Scan(&a, &b); err != nil {
+			t.Fatal(err)
+		}
+		return a + " / " + b
+	}
+	if got := keys(`SELECT sort_title, sort_artist FROM albums WHERE provider_id = 'a'`); got != "the planets / the holst singers" {
+		t.Errorf("Spotify album keys = %q", got)
+	}
+	if got := keys(`SELECT sort_title, sort_artist FROM albums WHERE provider_id = 'l'`); got != "a mix / various artists" {
+		t.Errorf("local album keys = %q, want its credit's", got)
+	}
+	if got := keys(`SELECT sort_name, name FROM artists WHERE provider_id = 'ar'`); got != "the holst singers / The Holst Singers" {
+		t.Errorf("artist keys = %q", got)
+	}
+	var version int
+	s.db.QueryRow(`PRAGMA user_version`).Scan(&version)
+	if version != catalog.SortKeyVersion {
+		t.Errorf("user_version = %d, want %d", version, catalog.SortKeyVersion)
 	}
 }

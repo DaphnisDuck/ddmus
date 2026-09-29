@@ -417,8 +417,8 @@ func TestBuildURL_AuthParams(t *testing.T) {
 	if q.Get("v") != "1.0.0" {
 		t.Errorf("version = %q, want 1.0.0", q.Get("v"))
 	}
-	if q.Get("c") != "cliamp" {
-		t.Errorf("client = %q, want cliamp", q.Get("c"))
+	if q.Get("c") != "omatunes" {
+		t.Errorf("client = %q, want omatunes", q.Get("c"))
 	}
 	if q.Get("f") != "json" {
 		t.Errorf("format = %q, want json", q.Get("f"))

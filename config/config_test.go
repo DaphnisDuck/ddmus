@@ -422,7 +422,7 @@ func TestLoadLyricsOffsetMs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
 
-			path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatalf("MkdirAll: %v", err)
 			}
@@ -457,7 +457,7 @@ func TestLoadSpotifyBitrate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
 
-			path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatalf("MkdirAll: %v", err)
 			}
@@ -511,7 +511,7 @@ func TestLoadQobuz(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
-			path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatalf("MkdirAll: %v", err)
 			}
@@ -552,7 +552,7 @@ func TestLoadTidal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
-			path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatalf("MkdirAll: %v", err)
 			}
@@ -676,7 +676,7 @@ func TestYouTubeMusicResolveCredentials(t *testing.T) {
 func TestLoadYouTubeMusicWhitespaceCookiesFrom(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -922,7 +922,7 @@ func TestLoadExpanded(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
 
-			path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatalf("MkdirAll: %v", err)
 			}
@@ -963,7 +963,7 @@ func TestLoadNavidromeFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
-			path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatalf("MkdirAll: %v", err)
 			}

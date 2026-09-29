@@ -69,7 +69,7 @@ func TestSaveIgnoresEmptyPath(t *testing.T) {
 	home := withTempHome(t)
 	Save("", 10, "p")
 
-	f := filepath.Join(home, ".config", "cliamp", "resume.json")
+	f := filepath.Join(home, ".config", "omatunes", "resume.json")
 	if _, err := os.Stat(f); !os.IsNotExist(err) {
 		t.Errorf("resume.json should not exist for empty path, got err=%v", err)
 	}
@@ -80,7 +80,7 @@ func TestSaveIgnoresNonPositivePosition(t *testing.T) {
 	Save("/music/song.mp3", 0, "p")
 	Save("/music/song.mp3", -5, "p")
 
-	f := filepath.Join(home, ".config", "cliamp", "resume.json")
+	f := filepath.Join(home, ".config", "omatunes", "resume.json")
 	if _, err := os.Stat(f); !os.IsNotExist(err) {
 		t.Errorf("resume.json should not exist for non-positive position, got err=%v", err)
 	}
@@ -96,7 +96,7 @@ func TestLoadMissingFileReturnsZero(t *testing.T) {
 
 func TestLoadCorruptFileReturnsZero(t *testing.T) {
 	home := withTempHome(t)
-	dir := filepath.Join(home, ".config", "cliamp")
+	dir := filepath.Join(home, ".config", "omatunes")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestSaveCreatesParentDirectory(t *testing.T) {
 	home := withTempHome(t)
 
 	// Parent directory doesn't exist yet.
-	parent := filepath.Join(home, ".config", "cliamp")
+	parent := filepath.Join(home, ".config", "omatunes")
 	if _, err := os.Stat(parent); !os.IsNotExist(err) {
 		t.Fatalf("precondition: parent should not exist, got err=%v", err)
 	}
@@ -130,7 +130,7 @@ func TestSaveWriteFileIsReadable(t *testing.T) {
 	home := withTempHome(t)
 	Save("/music/a.mp3", 77, "pl")
 
-	f := filepath.Join(home, ".config", "cliamp", "resume.json")
+	f := filepath.Join(home, ".config", "omatunes", "resume.json")
 	data, err := os.ReadFile(f)
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)

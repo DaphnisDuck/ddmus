@@ -30,7 +30,7 @@ When a merge conflicts, start by searching for `// omatunes:` markers. Every oma
 
 ## Rules that keep merges cheap
 
-- Keep the Go module path `github.com/bjarneo/cliamp` and the config dir `~/.config/cliamp`.
+- Keep the Go module path `github.com/bjarneo/cliamp`. omatunes keeps its own files; see [files.md](files.md).
 - Put new behavior in new files or packages: `library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`.
 - Keep each necessary edit to an upstream file small and tag it with `// omatunes:` (or `# omatunes:` in Makefiles and TOML).
 - omatunes docs go in `docs/omatunes/`. Leave upstream `docs/` and `site/` alone.

@@ -1,8 +1,10 @@
 package appmeta
 
+import "github.com/bjarneo/cliamp/internal/appdir"
+
 var (
-	clientName = "cliamp"
-	deviceName = "cliamp"
+	clientName = appdir.Name // omatunes: identifies this fork to servers and MPRIS
+	deviceName = appdir.Name
 	version    = "dev"
 )
 

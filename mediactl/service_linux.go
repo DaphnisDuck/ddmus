@@ -12,6 +12,7 @@ import (
 	"github.com/godbus/dbus/v5/introspect"
 	"github.com/godbus/dbus/v5/prop"
 
+	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/internal/playback"
 )
 
@@ -135,7 +136,7 @@ func New(send func(tea.Msg)) (*Service, error) {
 		return nil, fmt.Errorf("mpris: session bus: %w", err)
 	}
 
-	reply, err := conn.RequestName("org.mpris.MediaPlayer2.cliamp",
+	reply, err := conn.RequestName("org.mpris.MediaPlayer2."+appmeta.ClientName(), // omatunes: coexist with cliamp
 		dbus.NameFlagDoNotQueue)
 	if err != nil {
 		conn.Close()
@@ -167,7 +168,7 @@ func New(send func(tea.Msg)) (*Service, error) {
 
 	propsSpec := map[string]map[string]*prop.Prop{
 		"org.mpris.MediaPlayer2": {
-			"Identity":            {Value: "Cliamp", Writable: false, Emit: prop.EmitTrue},
+			"Identity":            {Value: appmeta.ClientName(), Writable: false, Emit: prop.EmitTrue}, // omatunes
 			"CanQuit":             {Value: true, Writable: false, Emit: prop.EmitTrue},
 			"CanRaise":            {Value: false, Writable: false, Emit: prop.EmitTrue},
 			"HasTrackList":        {Value: false, Writable: false, Emit: prop.EmitTrue},

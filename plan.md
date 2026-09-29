@@ -90,7 +90,7 @@ Done when:
 ## Upstream policy
 - The `upstream` remote is `https://github.com/bjarneo/cliamp.git`. `origin` is `DaphnisDuck/omatunes`.
 - To sync, create a branch `sync/upstream-YYYYMMDD`, run `git fetch upstream && git merge upstream/main`, then `make check`, then open a PR. Merge; don't rebase public history.
-- Keep the Go module path `github.com/bjarneo/cliamp` and `~/.config/cliamp`. Only the binary and UI branding say omatunes.
+- Keep the Go module path `github.com/bjarneo/cliamp`. omatunes has its own config, data, downloads and MPRIS name so it runs beside cliamp (see `docs/omatunes/files.md`).
 - Put new code in new files and packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`).
 - Keep each unavoidable edit to an upstream file small, and tag it with a `// omatunes:` comment.
 - omatunes docs live in `docs/omatunes/`. Upstream's `docs/` and `site/` are left untouched to avoid conflicts, so the CLAUDE.md rule "keep site in sync" applies to upstream-style changes only.
@@ -109,10 +109,11 @@ Done when:
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.
-- 2026-09-29: Rename only the binary and UI. The module path and config dir stay cliamp.
+- 2026-09-29: Rename only the binary and UI; the module path stays cliamp. (Config dir superseded below.)
 - 2026-09-29: Providers other than Spotify, Local and Radio are still constructed but hidden from the root until M4.
 - 2026-09-29: Local Albums, Artists and Genres come from an in-memory tag scan in M1 (confirmed). The M2 indexer replaces it.
 - 2026-09-29: Spotify saved albums come through `provider.AlbumBrowser` (`external/spotify/library_browse.go`), not by splitting the provider-pane "Artist - Album" labels. Radio favorites come through `FavoriteTracks()` (`external/radio/library_favorites.go`), so an active catalog search cannot empty them. Adapters only use advertised capabilities.
+- 2026-09-29: omatunes gets its own files so it coexists with cliamp: `internal/appdir.Name = "omatunes"` drives ~/.config/omatunes, ~/.local/share/omatunes, ~/Music/omatunes and the plugin write allowlist; `appmeta` names drive the MPRIS bus name. `CLIAMP_CONFIG_DIR` is checked first (upstream tests set it to isolate themselves), then `OMATUNES_CONFIG_DIR`. User data was copied from ~/.config/cliamp once.
 - 2026-09-29: Deferred to M2: cancelling provider calls on Back (the provider interfaces take no context), and caching followed artists. The catalog replaces both.
 
 ## Open questions

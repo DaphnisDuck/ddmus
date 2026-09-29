@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/internal/fileutil"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/resolve"
@@ -29,11 +30,7 @@ func Directory(directory string) (string, error) {
 		}
 		return resolved, nil
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, "Music", "cliamp"), nil
+	return appdir.DownloadsDir() // omatunes
 }
 
 // SaveTo downloads or copies a track to the configured directory.

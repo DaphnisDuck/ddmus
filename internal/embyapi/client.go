@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/provider"
 )
@@ -66,7 +67,7 @@ func newClient(baseURL, token, userID, user, password string, d dialect) *Client
 		userID:     userID,
 		user:       user,
 		password:   password,
-		deviceID:   "cliamp",
+		deviceID:   appmeta.DeviceName(), // omatunes: distinct session from cliamp
 		dialect:    d,
 		httpClient: defaultHTTPClient,
 	}

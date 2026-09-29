@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/internal/netdiag"
 )
 
@@ -83,8 +84,8 @@ func (c *Client) get(path string, params url.Values, result any) error {
 		return fmt.Errorf("plex: %s: %w", path, err)
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Plex-Product", "cliamp")
-	req.Header.Set("X-Plex-Client-Identifier", "cliamp")
+	req.Header.Set("X-Plex-Product", appmeta.ClientName()) // omatunes: distinct client from cliamp
+	req.Header.Set("X-Plex-Client-Identifier", appmeta.ClientName())
 
 	resp, err := apiClient.Do(req)
 	if err != nil {

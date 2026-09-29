@@ -160,7 +160,7 @@ func TestListNoPlugins(t *testing.T) {
 
 func TestListPluginsShowsInstalled(t *testing.T) {
 	home := withTempHome(t)
-	plugDir := filepath.Join(home, ".config", "cliamp", "plugins")
+	plugDir := filepath.Join(home, ".config", "omatunes", "plugins")
 	if err := os.MkdirAll(plugDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestTrustUsesPluginEntryName(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			home := withTempHome(t)
-			pluginDir := filepath.Join(home, ".config", "cliamp", "plugins")
+			pluginDir := filepath.Join(home, ".config", "omatunes", "plugins")
 			path := filepath.Join(pluginDir, tt.path)
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatalf("MkdirAll: %v", err)
@@ -214,7 +214,7 @@ func TestTrustUsesPluginEntryName(t *testing.T) {
 
 func TestRemoveFile(t *testing.T) {
 	home := withTempHome(t)
-	plugDir := filepath.Join(home, ".config", "cliamp", "plugins")
+	plugDir := filepath.Join(home, ".config", "omatunes", "plugins")
 	if err := os.MkdirAll(plugDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestRemoveFile(t *testing.T) {
 
 func TestRemoveDirectory(t *testing.T) {
 	home := withTempHome(t)
-	plugDir := filepath.Join(home, ".config", "cliamp", "plugins")
+	plugDir := filepath.Join(home, ".config", "omatunes", "plugins")
 	nested := filepath.Join(plugDir, "bar", "init.lua")
 	if err := os.MkdirAll(filepath.Dir(nested), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
@@ -278,7 +278,7 @@ func TestInstallFromRawURL(t *testing.T) {
 
 	// Verify the installed file exists. Use the temp HOME (not os.UserHomeDir,
 	// which ignores HOME on Windows) so this matches where Install wrote it.
-	dest := filepath.Join(home, ".config", "cliamp", "plugins", "example.lua")
+	dest := filepath.Join(home, ".config", "omatunes", "plugins", "example.lua")
 	if _, err := os.Stat(dest); err != nil {
 		t.Errorf("installed plugin missing: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestInstallFromRawURL(t *testing.T) {
 
 func TestInstallAlreadyExists(t *testing.T) {
 	home := withTempHome(t)
-	plugDir := filepath.Join(home, ".config", "cliamp", "plugins")
+	plugDir := filepath.Join(home, ".config", "omatunes", "plugins")
 	if err := os.MkdirAll(plugDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

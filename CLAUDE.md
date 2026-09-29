@@ -8,7 +8,7 @@ This repo is **omatunes**, a fork of cliamp that turns the provider-oriented UI 
 
 Fork rules (keep upstream merges cheap):
 - `upstream` = `https://github.com/bjarneo/cliamp.git`; sync by merging `upstream/main` on a `sync/upstream-YYYYMMDD` branch.
-- Module path stays `github.com/bjarneo/cliamp`; config stays `~/.config/cliamp`. Only the binary/UI branding is omatunes.
+- Module path stays `github.com/bjarneo/cliamp`. The binary, UI branding, and on-disk/runtime identity are omatunes: config `~/.config/omatunes` (`OMATUNES_CONFIG_DIR` overrides; `CLIAMP_CONFIG_DIR` is checked first for upstream test isolation), data `~/.local/share/omatunes`, downloads `~/Music/omatunes`, MPRIS `org.mpris.MediaPlayer2.omatunes`, all derived from `internal/appdir.Name` and `internal/appmeta`. See `docs/omatunes/files.md`.
 - New code goes in new files/packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`). Unavoidable edits to upstream files stay small and are tagged `// omatunes:`.
 - omatunes docs live in `docs/omatunes/`. Don't edit upstream `docs/` or `site/` for omatunes-only changes — the "keep docs/ and site/ in sync" rule below applies to upstream-style changes only.
 

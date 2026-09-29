@@ -11,7 +11,7 @@ import (
 func TestLoadSeekLargeStepSec(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestLoadSeekLargeStepSecClamp(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
 
-			path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatalf("MkdirAll: %v", err)
 			}
@@ -73,7 +73,7 @@ func TestSeekStepLargeDuration(t *testing.T) {
 func TestLoadLowPower(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestLoadLowPower(t *testing.T) {
 func TestLoadSimplified(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

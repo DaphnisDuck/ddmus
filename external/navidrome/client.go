@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/bjarneo/cliamp/config"
+	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/internal/httpclient"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/provider"
@@ -203,7 +204,7 @@ func (c *NavidromeClient) buildURL(endpoint string, params url.Values) string {
 	params.Set("t", token)
 	params.Set("s", salt)
 	params.Set("v", "1.0.0")
-	params.Set("c", "cliamp")
+	params.Set("c", appmeta.ClientName()) // omatunes: distinct client from cliamp
 	params.Set("f", "json")
 
 	return fmt.Sprintf("%s/rest/%s?%s", c.url, endpoint, params.Encode())

@@ -1,6 +1,6 @@
 # Omatunes
 
-**Version 0.1**
+**Version 0.2**
 
 Omatunes is a retro terminal music player built around your library rather than around providers. It is a fork of [cliamp](https://github.com/bjarneo/cliamp) by Bjarne Øverli, made with love and a lot of respect for the original.
 
@@ -20,8 +20,8 @@ Music
 
 The application owns navigation; providers own content and playback. The roadmap:
 
-1. **Library navigation** (v0.1, this release): the hierarchy above for Spotify, local files and internet radio, with vim-style keys, sitting above cliamp's existing now-playing, queue, EQ and visualizer.
-2. **Persistent catalog**: a local SQLite catalog that syncs in the background, so browsing a large Spotify library is instant and works offline.
+1. **Library navigation** (v0.1): the hierarchy above for Spotify, local files and internet radio, with vim-style keys, sitting above cliamp's existing now-playing, queue, EQ and visualizer.
+2. **Persistent catalog** (v0.2, this release): a local SQLite catalog of your Spotify library and music folder that syncs in the background, so browsing a large library is instant and works offline.
 3. **Unified search**: fast full-text search across every source at once.
 4. **More providers**: bring cliamp's other providers (YouTube Music, Plex, Jellyfin, Navidrome, …) into the catalog.
 
@@ -29,9 +29,11 @@ The full plan lives in [plan.md](plan.md).
 
 ## Status
 
-v0.1 is an early release for people comfortable building from source.
+v0.2 is an early release for people comfortable building from source.
 
 - **In the Music hierarchy:** Spotify, local files and internet radio.
+- **Catalog:** Spotify and Local browsing read from a local catalog, so lists open instantly and work offline. Spotify syncs in the background, and album track lists are cached as you open albums and, gradually, for the rest of your saved albums. The local music folder is re-indexed at every start, rereading only changed files. See [docs/omatunes/catalog.md](docs/omatunes/catalog.md).
+- **Search** still opens cliamp's provider search; unified search across the catalog is milestone 3.
 - **Hidden for now:** cliamp's other providers (podcasts, YouTube, SoundCloud, Mixcloud, Navidrome, Plex, Jellyfin, Emby, Qobuz, Tidal, and more) are still in the code but have no entry in the menu yet. They come back in milestone 4.
 - **Disabled keys:** most of cliamp's jump keys (provider switching, theme and visualizer pickers, file browser and similar) are turned off while the new navigation settles. See [docs/omatunes/navigation.md](docs/omatunes/navigation.md).
 - **Runs alongside cliamp:** Omatunes keeps its own config, data and media-key (MPRIS) name, so you can install both. See [docs/omatunes/files.md](docs/omatunes/files.md).
@@ -85,6 +87,7 @@ omatunes ~/Music/some-album       # load a directory into the queue (Tab shows i
 | `h` `Esc` | Back |
 | `g` `G` | Top / bottom |
 | `/` | Search |
+| `r` | Sync the source you're browsing now |
 | `Space` | Play / pause |
 | `Tab` | Switch between the library and the queue |
 | `q` | Back; quits at Music |
@@ -100,13 +103,20 @@ Omatunes reads `~/.config/omatunes/config.toml`. Set `OMATUNES_CONFIG_DIR` to us
 rsync -a --exclude='*.log' --exclude='*.sock' ~/.config/cliamp/ ~/.config/omatunes/
 ```
 
-- **Spotify:** run `omatunes setup` and choose Spotify, or follow [docs/spotify.md](docs/spotify.md), reading `~/.config/omatunes` wherever it says `~/.config/cliamp`. A Spotify Premium account is required. The first time you open Spotify in the library, press `Enter` to sign in.
+- **Spotify:** run `omatunes setup` and choose Spotify, or follow [docs/spotify.md](docs/spotify.md), reading `~/.config/omatunes` wherever it says `~/.config/cliamp`. A Spotify Premium account is required. The first time you open Spotify in the library, press `Enter` to sign in. Your library then syncs in the background: at startup when the last sync is older than 30 minutes, and whenever you press `r`. To change the interval:
+
+  ```toml
+  [omatunes]
+  spotify_refresh = "2h"   # "0s" syncs at every start
+  ```
+
 - **Local music:** Local → Albums, Artists and Genres come from an index of a single directory, updated at startup (only changed files are reread). It is `initial_directory` in `config.toml`, else `$XDG_MUSIC_DIR`, else `~/Music`:
 
   ```toml
   initial_directory = "~/Music"
   ```
 
+- **Catalog:** the catalog lives in `~/.local/share/omatunes/library.db` and holds no passwords or tokens. Delete it (with its `-wal` and `-shm` files) to rebuild it from scratch at the next start.
 - **Radio:** Radio → Browse Stations covers the [Radio Browser](https://www.radio-browser.info/) directory (about 58,000 stations) by country or tag, plus the cliamp radio channels. Add your own stations in `~/.config/omatunes/radios.toml`; see [docs/configuration.md](docs/configuration.md#custom-radio-stations).
 
 cliamp's other documentation in [docs/](docs/) still describes the engine, EQ, themes, plugins and configuration keys accurately. Its keybinding and provider-pane sections describe cliamp's interface rather than Omatunes'.
@@ -132,7 +142,7 @@ Omatunes tracks cliamp and regularly merges its improvements. Fork changes live 
 
 Omatunes would not exist without **[Bjarne Øverli](https://github.com/bjarneo)** ([x.com/iamdothash](https://x.com/iamdothash)), who created cliamp, and everyone who has [contributed to it](https://github.com/bjarneo/cliamp/graphs/contributors). Nearly everything that makes Omatunes sound good is their work: the audio engine, the EQ, the visualizers, the provider integrations and the plugin system. If you enjoy Omatunes, please go and star, use and support [cliamp](https://github.com/bjarneo/cliamp) and visit [cliamp.stream](https://cliamp.stream).
 
-cliamp in turn builds on [Bubbletea](https://github.com/charmbracelet/bubbletea), [Lip Gloss](https://github.com/charmbracelet/lipgloss), [Beep](https://github.com/gopxl/beep) and [go-librespot](https://github.com/devgianlu/go-librespot).
+cliamp in turn builds on [Bubbletea](https://github.com/charmbracelet/bubbletea), [Lip Gloss](https://github.com/charmbracelet/lipgloss), [Beep](https://github.com/gopxl/beep) and [go-librespot](https://github.com/devgianlu/go-librespot). Omatunes' catalog uses [modernc.org/sqlite](https://gitlab.com/cznic/sqlite).
 
 ## License
 

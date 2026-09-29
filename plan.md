@@ -95,6 +95,134 @@ Done when:
 - Keep each unavoidable edit to an upstream file small, and tag it with a `// omatunes:` comment.
 - omatunes docs live in `docs/omatunes/`. Upstream's `docs/` and `site/` are left untouched to avoid conflicts, so the CLAUDE.md rule "keep site in sync" applies to upstream-style changes only.
 
+## M2 implementation plan
+
+Goal: the UI browses a local SQLite catalog instantly. Background sync keeps it current from Spotify and the local music folder. A failed sync never damages the cache. Playback still goes through the providers.
+
+### Packages
+```
+catalog/                 Catalog interface + domain types (no SQL, no Bubbletea)
+catalog/sqlite/          modernc.org/sqlite implementation; migrations/*.sql via embed.FS
+catalog/sqlite/migrations/001_initial.sql, 002_…
+catalogsync/             sync engine (named to avoid clashing with stdlib sync)
+catalogsync/spotifysrc/  Spotify source: pages raw data → catalog records
+catalogsync/localsrc/    local-folder indexer (replaces library/localscan.go)
+```
+- UI and `library/` import only `catalog`, never `catalog/sqlite` (invariant 1).
+- `main_omatunes.go` opens the store, starts the syncer and passes the `Catalog` to `library.Root`.
+
+### Storage
+- **File:** `$XDG_DATA_HOME/omatunes/library.db`, else `~/.local/share/omatunes/library.db`. Add a fork-owned `appdir.LibraryDBPath()` in `internal/appdir/omatunes.go`.
+- **Driver:** `modernc.org/sqlite`. Pin v1.59.0; v1.60.0 is one day old, so only take it if a test needs it. Driver name `"sqlite"`.
+- **DSN:** `_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on&_synchronous=NORMAL`.
+- **Writes:** one connection is enough, because only the syncer writes (`SetMaxOpenConns` on a dedicated write handle). WAL lets reads run while a sync writes.
+- **Migrations:**
+  - A `schema_migrations(version, applied_at)` table.
+  - Each migration file runs in its own transaction at open, in order, and is never edited once merged.
+  - A newer DB than the binary refuses to open read-write and says so.
+- **FTS5:** spike test on day one: `CREATE VIRTUAL TABLE t USING fts5(x)` must succeed with the pinned driver. M3 depends on it.
+
+### Schema v1 (001_initial.sql)
+Every catalog object has an internal integer ID and a unique `(provider, provider_id)` pair (invariant 3). Library membership is kept separate from entities: an album can be in the catalog because an artist's discography was browsed, without being a saved album.
+```
+artists(id PK, provider, provider_id, name, sort_name, image_url, updated_at, UNIQUE(provider, provider_id))
+albums(id PK, provider, provider_id, title, sort_title, year, track_count, artwork_url,
+       tracks_cached_at NULL,               -- lazy album-track cache marker
+       updated_at, UNIQUE(provider, provider_id))
+tracks(id PK, provider, provider_id, title, album_id NULL→albums, disc, track_no, duration_ms,
+       playable_uri,                        -- what the player gets: spotify:track:…, file path
+       genre, year, updated_at, UNIQUE(provider, provider_id))
+album_artists(album_id, artist_id, position, PK(album_id, artist_id))
+track_artists(track_id, artist_id, position, PK(track_id, artist_id))
+playlists(id PK, provider, provider_id, name, owner_kind ('own'|'followed'), snapshot, track_count,
+          updated_at, UNIQUE(provider, provider_id))
+playlist_tracks(playlist_id, position, track_id, PK(playlist_id, position))
+library_items(provider, kind ('saved_album'|'followed_artist'|'liked_track'|'playlist'|'local_album'),
+              item_id, added_at, last_seen_gen, PK(provider, kind, item_id))
+sync_state(provider, collection, generation, last_attempt_at, last_success_at, last_error, PK(provider, collection))
+local_files(path PK, size, mtime_ns, track_id→tracks)   -- change detection for the indexer
+```
+Indexes are on `sort_title`/`sort_name` for browse order and on the foreign keys. Local tracks use `provider='local'`, and `provider_id` is the file path, hashed if paths get long.
+
+### Catalog API (sketch; it will evolve)
+```go
+type Catalog interface {
+    Albums(ctx, provider string, opt ListOpts) ([]Album, error)       // library albums, sorted
+    AlbumTracks(ctx, albumID int64) ([]Track, bool /*cached*/, error)
+    Artists(ctx, provider string) ([]Artist, error)
+    ArtistAlbums(ctx, artistID int64) ([]Album, error)
+    Playlists(ctx, provider string) ([]Playlist, error)
+    PlaylistTracks(ctx, playlistID int64) ([]Track, error)
+    LikedTracks(ctx, provider string) ([]Track, error)
+    SyncStatus(ctx, provider string) (SyncStatus, error)
+    // write side, used only by catalogsync:
+    BeginSync(ctx, provider, collection string) (SyncTx, error)       // opens a tx, bumps generation
+}
+type SyncTx interface { UpsertAlbums(...); UpsertTracks(...); Seen(kind, ids...); Commit() error; Rollback() }
+```
+
+### Sync engine
+- **Sources:** each source implements `Collections()` and `Fetch(ctx, collection) iter/pages`. The engine owns transactions and reconciliation, so sources stay simple and testable with fakes.
+- **One collection run** (saved albums, followed artists, playlists, liked tracks, local files):
+  1. Fetch every page into memory. Spotify's scale (thousands of rows) is fine.
+  2. If any page fails, record `last_error`, leave the catalog untouched and stop.
+  3. Otherwise, in one transaction: bump the generation, upsert entities, mark membership seen with the new generation, delete this provider's membership rows with an older generation (reconciliation happens only here), commit, and record `last_success_at`.
+- **Playlists:** the playlist list reconciles like any collection. Each playlist's tracks re-sync only when its `snapshot` changes, in a per-playlist transaction that replaces its `playlist_tracks` rows.
+- **Album tracks, lazy plus background fill (confirmed):**
+  - Opening an uncached album loads it from the provider, shows it, and writes the tracks to the catalog.
+  - A low-priority filler caches uncached saved albums one at a time, with a delay and exponential backoff on HTTP 429.
+  - It pauses while a foreground load is running and stops on shutdown.
+- **Scheduling:**
+  - At startup, if `now - last_success_at > spotify_refresh` (default 30m), start a background sync. Local folder indexing always runs at startup, incrementally, skipping files whose size and mtime are unchanged.
+  - `r` in the library forces a sync of the current source.
+  - One sync per provider at a time; a second request while one is running is dropped.
+- **Lifecycle:** the syncer runs on a context cancelled when omatunes quits, and `main` waits for it to stop (with a short deadline) before closing the DB.
+- **UI messages:** `prog.Send(catalog.UpdatedMsg{Provider, Collection})` after each commit, and `SyncStatusMsg` on start, fail and success. These message types live in `internal/playback`-style shared code so the UI doesn't import the syncer.
+
+### Spotify source data
+`playlist.Track` has names but no album or artist IDs, so the source needs richer data. Add fork-owned methods in `external/spotify/library_browse.go` that return plain structs defined in a new fork-owned `provider/catalog.go` (for example `CatalogAlbum`, `CatalogTrack` with provider IDs for album and artists). Candidates:
+- `SavedAlbumsPage(ctx, offset)`
+- `FollowedArtistsPage(ctx, after)`
+- `SavedTracksPage(ctx, offset)`
+- `PlaylistItemsPage(ctx, id, offset)`
+- `AlbumTracksCatalog(ctx, id)`
+
+These take a context, which also fixes the M1 "Back can't cancel provider calls" deferral for synced paths.
+
+### UI changes
+- **Library adapters** (`library/sources.go`): Spotify and Local levels read from `catalog.Catalog`, so every level loads instantly from SQLite. Radio stays live; stations aren't catalogued in M2.
+- **Playback** is unchanged. Entries carry `playlist.Track{Path: playable_uri, …}` built from catalog rows, so the player routes to the provider exactly as before.
+- **Refresh on update:** on `UpdatedMsg`, reload the visible frame if it shows that provider/collection, keeping the cursor on the same item ID.
+- **Status:** a right-aligned header indicator shows `↻` while syncing and `✓ 2m` after a success. The footer shows "sync failed · cached library available" when the last attempt failed.
+- **Empty cache:** before the first sync, levels show "Syncing your Spotify library…" instead of blocking.
+
+### Config (confirmed: `[omatunes]` in config.toml)
+```toml
+[omatunes]
+spotify_refresh = "30m"   # background sync if the last success is older than this
+```
+- **Parser:** one small tagged hook in `config/config.go`'s section switch that hands `[omatunes]` keys to a fork-owned `config/omatunes.go`.
+- **Future keys:** `library_db` (path override) and `music_dir` (to split Local's scan folder from `initial_directory`).
+
+### Tests (the M2 bar is automated, not manual)
+- **catalog/sqlite:** migrations apply to an empty DB and are idempotent on reopen; round trips per table; sort order; constraint violations; a newer DB than the binary refuses to open. Every test uses a temp DB.
+- **catalogsync:** table-driven over a fake source:
+  - A: empty DB, and the source returns A B C, gives A B C.
+  - B: a DB holding A B C, synced against a source returning A C D, gives A C D. B's membership is removed; the B entity may remain if something else references it.
+  - C: a DB holding A B C, where page 1 returns A and page 2 errors, leaves A B C intact, records `last_error`, and leaves `last_success_at` unchanged.
+  - Also covered: playlist snapshot unchanged means no track rewrite; the local indexer skips unchanged files and removes deleted files after a complete scan; a cancelled context rolls back.
+- **UI:** `UpdatedMsg` reloads the visible level and keeps the cursor; the status indicator renders; the uncached-album path fetches and then caches.
+- **Race:** `go test -race` covering the syncer running alongside reads.
+
+### Delivery (one PR per slice, each shippable)
+- M2.1 Foundation: dependency, `catalog` types and interface, sqlite store, migration runner, `001_initial.sql`, FTS5 spike, DB path helper. No UI change.
+- M2.2 Sync engine: generations, reconciliation and failure safety with a fake source, plus scenarios A–C.
+- M2.3 Spotify source: fork-owned richer page methods and the source for saved albums, followed artists, liked tracks, and playlists with snapshots.
+- M2.4 UI on the catalog: adapters read the catalog, startup opens the DB and starts the syncer, `UpdatedMsg` refresh, status indicator, `r` refresh, and graceful shutdown.
+- M2.5 Lazy album tracks and the background filler with 429 backoff.
+- M2.6 Local indexer into the catalog, replacing `library/localscan.go` (incremental by mtime and size).
+- M2.7 `[omatunes]` config, docs (`docs/omatunes/catalog.md`), the offline test (browse with the network off), and a `v0.2.0` tag.
+
 ## Status
 - [x] M0: add the `upstream` remote, create `plan.md`, add the CLAUDE.md fork note, write `docs/omatunes/upstream.md`, make the Makefile build `omatunes`, rebrand the UI title and terminal title.
 - [x] M1.1: `library/` Level/Entry model and root menu, with tests.
@@ -106,6 +234,13 @@ Done when:
 - [x] M1.7: `main.go` wiring (`main_omatunes.go`), starting on the Library screen.
 - [x] M1.8: `docs/omatunes/navigation.md`.
 - [x] M1.9: manual test and refinement pass with the user; omatunes given its own files (docs/omatunes/files.md). M1 complete.
+- [ ] M2.1 Foundation: modernc.org/sqlite, catalog interface/types, sqlite store, migrations, 001_initial.sql, FTS5 spike, DB path.
+- [ ] M2.2 Sync engine: generations, reconciliation, failure safety; scenarios A–C.
+- [ ] M2.3 Spotify source: context-aware page methods returning catalog records.
+- [ ] M2.4 UI on the catalog: adapters, startup sync, UpdatedMsg refresh, status indicator, `r` refresh, graceful shutdown.
+- [ ] M2.5 Lazy album tracks plus background filler with 429 backoff.
+- [ ] M2.6 Local indexer into the catalog (replaces library/localscan.go).
+- [ ] M2.7 `[omatunes]` config, docs, offline check, tag v0.2.0.
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.
@@ -117,8 +252,12 @@ Done when:
 - 2026-09-29: Milestone 1 ships as v0.1 (tag v0.1.0). README rewritten for Omatunes; upstream packaging, sponsorship and video removed; credit to cliamp kept prominent.
 - 2026-09-29: Deferred to M2: cancelling provider calls on Back (the provider interfaces take no context), and caching followed artists. The catalog replaces both.
 
+- 2026-09-29: M2 uses `modernc.org/sqlite` (pure Go, FTS5), pinned to v1.59.0 unless a newer one is needed. It is the fork's first new dependency.
+- 2026-09-29: Album tracks are cached lazily on first open, and a background filler completes the rest with rate-limit backoff.
+- 2026-09-29: M2 settings live in an `[omatunes]` section of config.toml, parsed by a fork-owned file through one tagged hook.
+- 2026-09-29: Library membership (`library_items`) is kept separate from catalog entities; reconciliation deletes membership, never shared entities.
+
 ## Open questions
-- M2 SQLite driver: the recommendation is `modernc.org/sqlite` (pure Go, no CGO, FTS5).
-- The M2 migrations layout: `catalog/migrations/NNN_*.sql` embedded with `embed.FS`.
-- Default `spotify_refresh` interval: 15m or 30m?
-- Where Local's `music_dir` config lives: a `[omatunes]` block, or reuse `initial_directory`?
+- Whether `music_dir` should split from `initial_directory` (the Local scan folder vs the file browser's start folder). Default: keep reusing `initial_directory` until someone needs them apart.
+- Artwork: cache album art images locally for offline display, or store URLs only (M2 stores URLs only).
+- Whether radio favorites move into the catalog (M3 needs station search).

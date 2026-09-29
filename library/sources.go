@@ -35,6 +35,11 @@ type Sources struct {
 // Root returns the top of the hierarchy: Music.
 func Root(src Sources) Level {
 	var entries []Entry
+	var search *searcher
+	if src.Catalog != nil {
+		search = newSearcher(src.Catalog, src)
+		entries = append(entries, Entry{Title: "Library", Open: search.libraryMenu()})
+	}
 	if src.Spotify != nil {
 		spotify := Spotify(src.Spotify)
 		if src.Catalog != nil {
@@ -52,13 +57,13 @@ func Root(src Sources) Level {
 	}
 	// With a catalog, Search is the unified search screen; without, the
 	// provider's own search.
-	search := Entry{Title: "Search", Intent: IntentSearch, Provider: src.Spotify}
-	if src.Catalog != nil {
-		search = Entry{Title: "Search", Open: newSearcher(src.Catalog, src).level("")}
-	} else if search.Provider == nil {
-		search.Provider = src.Local
+	searchEntry := Entry{Title: "Search", Intent: IntentSearch, Provider: src.Spotify}
+	if search != nil {
+		searchEntry = Entry{Title: "Search", Open: search.level("")}
+	} else if searchEntry.Provider == nil {
+		searchEntry.Provider = src.Local
 	}
-	entries = append(entries, search)
+	entries = append(entries, searchEntry)
 	return Menu("Music", entries...)
 }
 

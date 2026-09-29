@@ -32,7 +32,8 @@ type AuthLevel interface {
 }
 
 // CatalogLevel is implemented by levels read from the catalog. The UI
-// reloads them when a sync of CatalogProvider changes the catalog.
+// reloads them when a sync of CatalogProvider changes the catalog; an empty
+// CatalogProvider lists every source and reloads after any sync.
 type CatalogLevel interface {
 	CatalogProvider() string
 }

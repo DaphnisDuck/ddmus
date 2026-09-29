@@ -197,3 +197,35 @@ func TestAlbum(t *testing.T) {
 		t.Errorf("Album(-1) = %v, want ErrNotFound", err)
 	}
 }
+
+// An empty provider lists every provider's albums and artists together.
+func TestAlbumsAndArtistsAcrossProviders(t *testing.T) {
+	s, ctx := seeded(t)
+	albums, err := s.Albums(ctx, "", catalog.ByTitle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, a := range albums {
+		got = append(got, a.Ref.Provider+":"+a.Title)
+	}
+	spotify, _ := s.Albums(ctx, catalog.Spotify, catalog.ByTitle)
+	local, _ := s.Albums(ctx, catalog.Local, catalog.ByTitle)
+	if len(albums) != len(spotify)+len(local) || len(local) == 0 {
+		t.Errorf("all albums = %v, want Spotify's %d and Local's %d", got, len(spotify), len(local))
+	}
+	if !slices.IsSortedFunc(albums, func(a, b catalog.Album) int {
+		return strings.Compare(catalog.SortKey(a.Title), catalog.SortKey(b.Title))
+	}) {
+		t.Errorf("all albums not by title: %v", got)
+	}
+	artists, err := s.Artists(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sa, _ := s.Artists(ctx, catalog.Spotify)
+	la, _ := s.Artists(ctx, catalog.Local)
+	if len(artists) != len(sa)+len(la) {
+		t.Errorf("all artists = %d, want %d + %d", len(artists), len(sa), len(la))
+	}
+}

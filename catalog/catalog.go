@@ -135,14 +135,16 @@ const (
 // Catalog is the read side the UI uses. Every method is a local query: none
 // reaches the network.
 type Catalog interface {
-	// Albums returns provider's library albums in order.
+	// Albums returns provider's library albums in order; an empty
+	// provider means every provider's.
 	Albums(ctx context.Context, provider string, order AlbumOrder) ([]Album, error)
 	// Album returns one album by its catalog ID, or ErrNotFound.
 	Album(ctx context.Context, id int64) (Album, error)
 	// AlbumTracks returns an album's tracks in disc and track order, and
 	// whether its track list has been cached at all.
 	AlbumTracks(ctx context.Context, albumID int64) (tracks []Track, cached bool, err error)
-	// Artists returns provider's library artists, by name.
+	// Artists returns provider's library artists, by name; an empty
+	// provider means every provider's.
 	Artists(ctx context.Context, provider string) ([]Artist, error)
 	// ArtistAlbums returns every catalog album credited to the artist,
 	// newest first.

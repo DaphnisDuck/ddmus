@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/playlist"
@@ -48,8 +49,9 @@ type stationSearcher interface {
 	SearchStationTracks(query string) ([]playlist.Track, error)
 }
 
-// searcher searches the catalog and builds result rows with each source's
-// own builders, so a result opens exactly as it does while browsing.
+// searcher reads the catalog across sources, for search and the Library
+// menu, and builds rows with each source's own builders, so a row opens
+// exactly as it does while browsing that source.
 type searcher struct {
 	cat     catalog.Catalog
 	spotify *catalogBrowser // nil without Spotify
@@ -57,6 +59,8 @@ type searcher struct {
 	// Beyond the catalog: live Spotify search and the radio directory.
 	spotifyProv playlist.Provider
 	radioProv   playlist.Provider
+	// albumOrder is the Library Albums list's order, a catalog.AlbumOrder.
+	albumOrder atomic.Int32
 }
 
 func newSearcher(cat catalog.Catalog, src Sources) *searcher {
@@ -157,27 +161,16 @@ func (s *searcher) beyond(q catalog.Query) []Entry {
 // source. ok is false for a result whose source is not configured.
 func (s *searcher) entry(r catalog.SearchResult) (Entry, bool) {
 	var e Entry
+	var ok bool
 	switch {
 	case r.Artist != nil:
-		switch {
-		case r.Provider == catalog.Spotify && s.spotify != nil:
-			e = s.spotify.artistEntry(*r.Artist)
-		case r.Provider == catalog.Local:
-			e = s.local.localArtistEntry(*r.Artist)
-		default:
+		if e, ok = s.artistRow(*r.Artist); !ok {
 			return Entry{}, false
 		}
-		e.Detail = sourceLabel(r.Provider)
 	case r.Album != nil:
-		switch {
-		case r.Provider == catalog.Spotify && s.spotify != nil:
-			e = s.spotify.albumEntry(*r.Album, r.Album.Artist)
-		case r.Provider == catalog.Local:
-			e = s.local.localAlbumEntry(*r.Album)
-		default:
+		if e, ok = s.albumRow(*r.Album); !ok {
 			return Entry{}, false
 		}
-		e.Detail = joinDetail(e.Detail, sourceLabel(r.Provider))
 	case r.Playlist != nil:
 		if s.spotify == nil || r.Provider != catalog.Spotify {
 			return Entry{}, false
@@ -203,6 +196,39 @@ func (s *searcher) entry(r catalog.SearchResult) (Entry, bool) {
 		e.ID = catalogID(r.Track.ID)
 	}
 	e.ID = string(r.Kind) + ":" + e.ID
+	return e, true
+}
+
+// artistRow is an artist's row, built by its source and labelled with it.
+// ok is false when the source is not configured.
+func (s *searcher) artistRow(a catalog.Artist) (Entry, bool) {
+	var e Entry
+	switch {
+	case a.Ref.Provider == catalog.Spotify && s.spotify != nil:
+		e = s.spotify.artistEntry(a)
+	case a.Ref.Provider == catalog.Local:
+		e = s.local.localArtistEntry(a)
+	default:
+		return Entry{}, false
+	}
+	e.Detail = sourceLabel(a.Ref.Provider)
+	return e, true
+}
+
+// albumRow is an album's row, built by its source and labelled with it.
+// ok is false when the source is not configured.
+func (s *searcher) albumRow(a catalog.Album) (Entry, bool) {
+	var e Entry
+	switch {
+	case a.Ref.Provider == catalog.Spotify && s.spotify != nil:
+		e = s.spotify.albumEntry(a, a.Artist)
+	case a.Ref.Provider == catalog.Local:
+		e = s.local.localAlbumEntry(a)
+	default:
+		return Entry{}, false
+	}
+	// The source comes first so a long credit cannot truncate it away.
+	e.Detail = joinDetail(sourceLabel(a.Ref.Provider), e.Detail)
 	return e, true
 }
 

@@ -241,9 +241,10 @@ func (m *Model) libraryCatalogChanged(provider string) tea.Cmd {
 	if !m.libraryEnabled() {
 		return nil
 	}
+	// A level of every source (CatalogProvider "") changes with each.
 	isCatalog := func(f *libFrame) bool {
 		cl, ok := f.level.(library.CatalogLevel)
-		return ok && cl.CatalogProvider() == provider
+		return ok && (cl.CatalogProvider() == provider || cl.CatalogProvider() == "")
 	}
 	for i := range m.lib.stack[:len(m.lib.stack)-1] {
 		if isCatalog(&m.lib.stack[i]) {

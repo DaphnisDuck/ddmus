@@ -86,8 +86,8 @@ func TestSearchResultsBySection(t *testing.T) {
 	want := []row{
 		{"Artists", "Ozawa", "Spotify"},
 		{"Artists", "Holst", "Local"},
-		{"Albums", "Cached", "Ozawa · Spotify"},
-		{"Albums", "The Planets", "Holst · 1990 · Local"},
+		{"Albums", "Cached", "Spotify · Ozawa"},
+		{"Albums", "The Planets", "Local · Holst · 1990"},
 		{"Tracks", "Venus", ""},
 		{"Playlists", "Mine", "1 tracks"},
 		{"Stations", "WBGO", ""},
@@ -125,7 +125,7 @@ func TestSearchNoMatchesAndMore(t *testing.T) {
 	var many []catalog.SearchResult
 	for i := range 30 {
 		many = append(many, catalog.SearchResult{Kind: catalog.SearchArtist, Provider: catalog.Local,
-			Artist: &catalog.Artist{ID: int64(100 + i), Name: fmt.Sprintf("Artist %d", i)}})
+			Artist: &catalog.Artist{ID: int64(100 + i), Ref: lref3(catalog.Local, fmt.Sprint(i)), Name: fmt.Sprintf("Artist %d", i)}})
 	}
 	cat.found = catalog.SearchResults{catalog.SearchArtist: many}
 	rows := searchFor(t, search, "artist")

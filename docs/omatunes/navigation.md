@@ -4,12 +4,14 @@ omatunes opens on **Music**, a library hierarchy that sits above cliamp's playba
 
 ```
 Music
+├── Library   Albums · Artists (every source together)
 ├── Spotify   Albums · Artists · Playlists · Liked Songs
 ├── Local     Albums · Artists · Genres · Folders · Playlists
 ├── Radio     Favorites · Browse Stations (cliamp radio · Countries · Genres & Tags)
 └── Search
 ```
 
+- **Library:** Albums and Artists from Spotify and Local in one list each, every row labelled with its source. The same album or artist in both stays two rows, side by side. Opening a row goes to that source's own album or artist.
 - **Spotify:**
   - **Albums** are your saved albums.
   - **Artists** are the artists you follow; each one opens their albums and singles.

@@ -114,6 +114,7 @@ Done when:
 - 2026-09-29: Local Albums, Artists and Genres come from an in-memory tag scan in M1 (confirmed). The M2 indexer replaces it.
 - 2026-09-29: Spotify saved albums come through `provider.AlbumBrowser` (`external/spotify/library_browse.go`), not by splitting the provider-pane "Artist - Album" labels. Radio favorites come through `FavoriteTracks()` (`external/radio/library_favorites.go`), so an active catalog search cannot empty them. Adapters only use advertised capabilities.
 - 2026-09-29: omatunes gets its own files so it coexists with cliamp: `internal/appdir.Name = "omatunes"` drives ~/.config/omatunes, ~/.local/share/omatunes, ~/Music/omatunes and the plugin write allowlist; `appmeta` names drive the MPRIS bus name. `CLIAMP_CONFIG_DIR` is checked first (upstream tests set it to isolate themselves), then `OMATUNES_CONFIG_DIR`. User data was copied from ~/.config/cliamp once.
+- 2026-09-29: Milestone 1 ships as v0.1 (tag v0.1.0). README rewritten for Omatunes; upstream packaging, sponsorship and video removed; credit to cliamp kept prominent.
 - 2026-09-29: Deferred to M2: cancelling provider calls on Back (the provider interfaces take no context), and caching followed artists. The catalog replaces both.
 
 ## Open questions

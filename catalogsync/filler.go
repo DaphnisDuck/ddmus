@@ -31,6 +31,7 @@ type AlbumStore interface {
 	// CacheAlbumTracks stores an album's complete track list and marks the
 	// album cached.
 	CacheAlbumTracks(ctx context.Context, album catalog.Ref, tracks []catalog.TrackRecord) error
+	// AlbumTracks reads an album's tracks back, and whether they are cached.
 	AlbumTracks(ctx context.Context, albumID int64) ([]catalog.Track, bool, error)
 }
 
@@ -161,8 +162,14 @@ type fillState struct {
 }
 
 func (st *fillState) next(p Pacing) time.Duration {
-	st.backoff = min(max(st.backoff*2, p.MinBackoff), p.MaxBackoff)
+	st.backoff = NextBackoff(st.backoff, p.MinBackoff, p.MaxBackoff)
 	return st.backoff
+}
+
+// NextBackoff is the wait after cur: double it, at least lo and at most hi.
+// Zero cur starts at lo.
+func NextBackoff(cur, lo, hi time.Duration) time.Duration {
+	return min(max(cur*2, lo), hi)
 }
 
 // fill caches one album, retrying it through rate limits and transient

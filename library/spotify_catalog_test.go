@@ -219,3 +219,26 @@ func TestSpotifyCatalogCachesUncachedAlbums(t *testing.T) {
 		t.Errorf("fetched %v, live calls %v", fc.fetched, live.calls)
 	}
 }
+
+// Offline, everything the catalog holds still opens: every list, a cached
+// album and a synced playlist, without one provider call.
+func TestSpotifyCatalogBrowsesOffline(t *testing.T) {
+	cat, live, root := newCatalogFixture()
+	live.offline = true
+	for _, name := range []string{"Albums", "Artists", "Playlists", "Liked Songs"} {
+		if rows := load(t, child(t, root, name)); len(rows) == 0 {
+			t.Errorf("%s is empty offline", name)
+		}
+	}
+	albums := load(t, child(t, root, "Albums"))
+	if got := load(t, albums[0].Open); len(got) != len(cat.albumTracks[1]) {
+		t.Errorf("cached album offline = %+v", got)
+	}
+	playlists := load(t, child(t, root, "Playlists"))
+	if got := load(t, playlists[0].Open); len(got) != 1 {
+		t.Errorf("synced playlist offline = %+v", got)
+	}
+	if len(live.calls) != 0 {
+		t.Errorf("offline browsing called the provider: %v", live.calls)
+	}
+}

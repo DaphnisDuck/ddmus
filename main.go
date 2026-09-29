@@ -580,7 +580,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	}
 	// omatunes: the library navigation is the main screen, backed by the
 	// synced catalog when one is available.
-	cat := openCatalog(spotifyProv, musicDir(cfg.InitialDirectory))
+	cat := openCatalog(spotifyProv, cfg)
 	defer cat.close()
 	m.SetLibrary(library.Root(librarySources(providers, cfg.InitialDirectory, cat.catalog())))
 	cat.configure(&m)

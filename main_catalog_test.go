@@ -56,7 +56,7 @@ func testRuntime(t *testing.T, src *flakySource) *catalogRuntime {
 		retryMin: 5 * time.Millisecond, retryMax: 10 * time.Millisecond}
 	rt.ctx, rt.cancel = context.WithCancel(context.Background())
 	rt.filler = catalogsync.NewFiller(store, src, catalogsync.DefaultPacing)
-	rt.setSources(src)
+	rt.setSources(source{Source: src, refresh: time.Hour, fill: true})
 	t.Cleanup(rt.close)
 	return rt
 }
@@ -118,8 +118,8 @@ func TestRetryBacksOffAndStopsOnClose(t *testing.T) {
 	}
 }
 
-// Every configured source gets its status and startup decision: Spotify
-// syncs only when stale, the local index always runs.
+// Every configured source gets its status and startup decision: a source
+// syncs when older than its refresh, and a zero refresh syncs every time.
 func TestSourcesStartupPolicy(t *testing.T) {
 	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
 	if err != nil {
@@ -134,9 +134,13 @@ func TestSourcesStartupPolicy(t *testing.T) {
 	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
 	rt.ctx, rt.cancel = context.WithCancel(context.Background())
 	defer rt.cancel()
-	rt.setSources(&namedSource{catalog.Spotify}, &namedSource{catalog.Local})
+	rt.setSources(source{Source: &namedSource{catalog.Spotify}, refresh: time.Hour, fill: true},
+		source{Source: &namedSource{catalog.Local}})
 	if sp := rt.providers[catalog.Spotify]; sp == nil || sp.stale || sp.startup.LastSuccess.IsZero() {
 		t.Errorf("fresh Spotify = %+v, want not stale", sp)
+	}
+	if sp := rt.providers[catalog.Spotify]; sp.fill {
+		t.Error("fill set without a filler")
 	}
 	if lp := rt.providers[catalog.Local]; lp == nil || !lp.stale {
 		t.Errorf("local = %+v, want indexed at every startup", lp)

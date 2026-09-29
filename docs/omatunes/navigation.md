@@ -28,17 +28,7 @@ Enter on a track replaces the queue with the list it's in and starts at that tra
 
 ## The catalog and sync
 
-Spotify and Local browsing read from a local catalog (`~/.local/share/omatunes/library.db`), so lists open instantly and work offline.
-
-- **When Spotify syncs:** at startup, if the last successful sync is more than 30 minutes old, and whenever you press `r`. The sync runs in the background while you browse. A failed sync retries on its own after 1 minute, then 2, 4, and so on up to every 30 minutes.
-- **Album tracks:** opening a Spotify album whose tracks aren't cached fetches and caches them, so it opens offline from then on. In the background, omatunes caches the rest of your saved albums one at a time, newest saved first. It pauses while you open an album or a sync runs, and backs off when Spotify rate-limits it.
-- **When Local indexes:** at every startup and whenever you press `r` in Local. Only files whose size or modification time changed have their tags read again, so an index with nothing new takes about a second. If the music directory is missing, or is empty while the index holds files (an unmounted drive), the index is kept as it is and the header reports the failure. Files under a folder omatunes can't read are kept too.
-- **`r`:** syncs the source you're browsing; at the Music root it syncs every source.
-- **Status:** the header shows `↻ syncing`, `✓ synced 2m ago`, or `sync failed · cached` when the last attempt failed and you're seeing the cached library. With both Spotify and Local, each status is prefixed with its source.
-- **Updates:** screens refresh in place when a sync lands, keeping the cursor on the same item.
-- **What stays live:**
-  - a playlist Spotify won't let the sync read
-  - an artist's full discography; offline, you get the albums the catalog knows instead
+Spotify and Local browsing read from a local catalog (`~/.local/share/omatunes/library.db`), so lists open instantly and work offline. Spotify syncs at startup when its last sync is older than 30 minutes, Local re-indexes changed files at every startup, and `r` syncs the source you're browsing. The header shows each source's status (`↻ syncing`, `✓ synced 2m ago`, `sync failed · cached`). See [catalog.md](catalog.md) for what's cached, failure safety, and the `[omatunes]` settings.
 
 ## Keys
 

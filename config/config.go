@@ -396,6 +396,7 @@ type Config struct {
 	Plugins          map[string]map[string]string // per-plugin config from [plugins.*] sections
 	LogLevel         string                       // log level: debug, info, warn, error (default "info")
 	LowPower         bool                         // reduce CPU by lowering UI cadence and disabling visualization
+	Omatunes         OmatunesConfig               // omatunes: the [omatunes] section (config/omatunes.go)
 }
 
 // defaultConfig returns a Config with sensible defaults.
@@ -404,6 +405,7 @@ type Config struct {
 // that require a specific rate (commonly 48 kHz) work out of the box.
 func defaultConfig() Config {
 	return Config{
+		Omatunes:        defaultOmatunesConfig(), // omatunes
 		VolumeMin:       -50,
 		VisVolumeLinked: true,
 		Repeat:          "off",
@@ -489,6 +491,8 @@ func Load() (Config, error) {
 		val = strings.TrimSpace(val)
 
 		switch section {
+		case "omatunes": // omatunes: fork settings, parsed in config/omatunes.go
+			cfg.Omatunes.parseKey(key, val)
 		case "downloads":
 			if key == "directory" {
 				cfg.Downloads.Directory = parseString(val)

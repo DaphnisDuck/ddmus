@@ -158,7 +158,7 @@ func count(t *testing.T, s *Store, table string) int {
 
 // A cached album keeps its whole track list after leaving the library, even
 // when one of its tracks is still liked: the cache is never left partial.
-func TestSweepKeepsCachedAlbumsWhole(t *testing.T) {
+func TestSweepKeepsCachedLibraryAlbumsWhole(t *testing.T) {
 	s := openTemp(t)
 	album := catalog.AlbumRecord{Ref: sref("al"), Title: "Mahler 5", Artists: []catalog.ArtistRecord{artistRec("ar", "Ozawa")}}
 	tracks := func(ids ...string) (out []catalog.TrackRecord) {
@@ -172,18 +172,27 @@ func TestSweepKeepsCachedAlbumsWhole(t *testing.T) {
 	if _, err := s.db.Exec(`UPDATE albums SET tracks_cached_at = 1`); err != nil {
 		t.Fatal(err)
 	}
-	// The album leaves the library and only t1 stays liked.
-	apply(t, s, catalog.Snapshot{Collection: "albums"})
+	// Only t1 stays liked: the saved, cached album keeps its whole list.
 	apply(t, s, catalog.Snapshot{Collection: "liked", Tracks: tracks("t1")})
 	sweep(t, s)
 	if got := count(t, s, "tracks"); got != 3 {
 		t.Errorf("tracks after sweep = %d, want the cached album's 3", got)
 	}
 
-	// Once uncached and unreferenced, everything goes, credits included.
-	if _, err := s.db.Exec(`UPDATE albums SET tracks_cached_at = NULL`); err != nil {
+	// The album leaves the library: its cache goes, and only the liked t1
+	// (and the album row it needs) stays.
+	apply(t, s, catalog.Snapshot{Collection: "albums"})
+	sweep(t, s)
+	var cached int
+	if err := s.db.QueryRow(`SELECT count(*) FROM albums WHERE tracks_cached_at IS NOT NULL`).Scan(&cached); err != nil {
 		t.Fatal(err)
 	}
+	if got := count(t, s, "tracks"); got != 1 || count(t, s, "albums") != 1 || cached != 0 {
+		t.Errorf("after un-saving: tracks %d, albums %d, cached %d; want t1, its album, uncached",
+			got, count(t, s, "albums"), cached)
+	}
+
+	// Once unreferenced, everything goes, credits included.
 	apply(t, s, catalog.Snapshot{Collection: "liked"})
 	sweep(t, s)
 	for _, table := range []string{"tracks", "albums", "artists"} {

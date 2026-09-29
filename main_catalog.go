@@ -19,15 +19,13 @@ import (
 	"github.com/bjarneo/cliamp/catalogsync"
 	"github.com/bjarneo/cliamp/catalogsync/localsrc"
 	"github.com/bjarneo/cliamp/catalogsync/spotifysrc"
+	"github.com/bjarneo/cliamp/config"
 	"github.com/bjarneo/cliamp/external/spotify"
 	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/ui/model"
 )
 
 const (
-	// catalogRefreshAfter is how old the last successful sync may get before
-	// startup syncs again. M2.7 makes it configurable.
-	catalogRefreshAfter = 30 * time.Minute
 	// catalogOpenTimeout bounds opening and migrating the catalog at startup.
 	catalogOpenTimeout = 10 * time.Second
 	// catalogStopTimeout bounds how long quitting waits for a sync to stop.
@@ -49,7 +47,7 @@ type catalogRuntime struct {
 	cancel context.CancelFunc
 
 	// providers holds each synced provider's state; its keys are fixed by
-	// openCatalog, and the values are guarded by mu.
+	// openCatalog, and retry fields are guarded by mu.
 	providers map[string]*providerSync
 
 	mu       sync.Mutex
@@ -60,8 +58,19 @@ type catalogRuntime struct {
 	retryMax time.Duration
 }
 
+// source is a sync source and how the runtime schedules it.
+type source struct {
+	catalogsync.Source
+	// refresh is how old the last successful sync may get before startup
+	// syncs again; 0 syncs at every startup.
+	refresh time.Duration
+	// fill runs the album-track filler after each sync.
+	fill bool
+}
+
 // providerSync is one provider's sync state.
 type providerSync struct {
+	fill        bool                // from source.fill
 	collections int                 // how many collections a complete sync covers
 	startup     model.CatalogStatus // stored status, read once at startup
 	stale       bool                // startup should sync
@@ -70,9 +79,9 @@ type providerSync struct {
 }
 
 // openCatalog opens the catalog with a sync source for Spotify, when it is
-// configured, and for musicDir, when it is set. A catalog that cannot open
-// is logged and left out.
-func openCatalog(sp *spotify.SpotifyProvider, musicDir string) *catalogRuntime {
+// configured, and for the music folder, when there is one. A catalog that
+// cannot open is logged and left out.
+func openCatalog(sp *spotify.SpotifyProvider, cfg config.Config) *catalogRuntime {
 	rt := &catalogRuntime{providers: map[string]*providerSync{}, retryMin: syncRetryMin, retryMax: syncRetryMax}
 	rt.ctx, rt.cancel = context.WithCancel(context.Background())
 	path, err := appdir.LibraryDBPath()
@@ -85,34 +94,37 @@ func openCatalog(sp *spotify.SpotifyProvider, musicDir string) *catalogRuntime {
 		applog.Warn("catalog unavailable, browsing live: %v", err)
 		return rt
 	}
-	var sources []catalogsync.Source
+	var sources []source
 	if sp != nil {
 		src := spotifysrc.New(sp)
-		sources = append(sources, src)
+		sources = append(sources, source{Source: src, refresh: cfg.Omatunes.SpotifyRefresh, fill: true})
 		rt.filler = catalogsync.NewFiller(rt.store, src, catalogsync.DefaultPacing)
 	}
-	if musicDir != "" {
-		sources = append(sources, localsrc.New(musicDir, rt.store))
+	if dir := musicDir(cfg.InitialDirectory); dir != "" {
+		// Indexed at every startup: it rereads only changed files and
+		// writes nothing when none changed.
+		sources = append(sources, source{Source: localsrc.New(dir, rt.store)})
 	}
 	rt.setSources(sources...)
 	return rt
 }
 
 // setSources creates the engine for sources and reads their stored status.
-// Spotify syncs at startup when stale or incomplete; the local index always
-// runs, since it rereads only changed files and writes nothing when none
-// changed.
-func (rt *catalogRuntime) setSources(sources ...catalogsync.Source) {
-	if len(sources) == 0 {
+// A source syncs at startup when incomplete or older than its refresh.
+func (rt *catalogRuntime) setSources(sources ...source) {
+	if len(sources) == 0 || rt.store == nil {
 		return
 	}
-	rt.engine = catalogsync.New(rt.store, rt.notify, sources...)
+	engineSources := make([]catalogsync.Source, len(sources))
+	for i, src := range sources {
+		engineSources[i] = src.Source
+	}
+	rt.engine = catalogsync.New(rt.store, rt.notify, engineSources...)
 	for _, src := range sources {
-		ps := &providerSync{collections: len(src.Collections())}
+		ps := &providerSync{fill: src.fill && rt.filler != nil, collections: len(src.Collections())}
 		var complete bool
 		ps.startup, complete = rt.status(src.Provider(), ps.collections)
-		ps.stale = src.Provider() == catalog.Local || !complete ||
-			time.Since(ps.startup.LastSuccess) > catalogRefreshAfter
+		ps.stale = !complete || time.Since(ps.startup.LastSuccess) > src.refresh
 		rt.providers[src.Provider()] = ps
 	}
 }
@@ -127,6 +139,8 @@ func (rt *catalogRuntime) catalog() catalog.Catalog {
 	}
 	return fillingCatalog{rt.store, rt.filler}
 }
+
+var _ catalogsync.AlbumStore = (*sqlite.Store)(nil)
 
 // fillingCatalog is the store plus the filler's on-demand album fetch, so
 // opening an uncached album caches it.
@@ -187,7 +201,7 @@ func (rt *catalogRuntime) start(prog *tea.Program) {
 	for provider, ps := range rt.providers {
 		if ps.stale {
 			rt.sync(provider)
-		} else if provider == catalog.Spotify {
+		} else if ps.fill {
 			rt.fill()
 		}
 	}
@@ -205,21 +219,21 @@ func (rt *catalogRuntime) refresh(provider string) {
 	}
 }
 
-// sync starts a sync of provider in the background. A Spotify sync pauses
-// the album fill while it runs and fills newly saved albums after. A sync
-// already running makes it a no-op.
+// sync starts a sync of provider in the background. A sync of a provider
+// with an album fill pauses the fill while it runs and fills newly saved
+// albums after. A sync already running makes it a no-op.
 func (rt *catalogRuntime) sync(provider string) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
-	if rt.engine == nil || rt.closed || rt.providers[provider] == nil {
+	ps := rt.providers[provider]
+	if rt.engine == nil || rt.closed || ps == nil {
 		return
 	}
-	spotify := provider == catalog.Spotify && rt.filler != nil
 	rt.wg.Add(1)
 	go func() {
 		defer rt.wg.Done()
 		release := func() {}
-		if spotify {
+		if ps.fill {
 			release = rt.filler.Hold()
 		}
 		err := rt.engine.Sync(rt.ctx, provider)
@@ -231,7 +245,7 @@ func (rt *catalogRuntime) sync(provider string) {
 			applog.Info("catalog sync: %v", err)
 		}
 		rt.scheduleRetry(provider, err != nil)
-		if spotify {
+		if ps.fill {
 			rt.fill()
 		}
 	}()
@@ -244,6 +258,9 @@ func (rt *catalogRuntime) scheduleRetry(provider string, failed bool) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	ps := rt.providers[provider]
+	if ps == nil {
+		return
+	}
 	if ps.retry != nil {
 		ps.retry.Stop()
 		ps.retry = nil
@@ -255,7 +272,7 @@ func (rt *catalogRuntime) scheduleRetry(provider string, failed bool) {
 	if rt.closed {
 		return
 	}
-	ps.retryDelay = min(max(ps.retryDelay*2, rt.retryMin), rt.retryMax)
+	ps.retryDelay = catalogsync.NextBackoff(ps.retryDelay, rt.retryMin, rt.retryMax)
 	applog.Info("catalog sync %s: retrying in %v", provider, ps.retryDelay)
 	ps.retry = time.AfterFunc(ps.retryDelay, func() { rt.sync(provider) })
 }

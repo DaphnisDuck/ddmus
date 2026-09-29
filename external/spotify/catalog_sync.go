@@ -135,7 +135,7 @@ func (p *SpotifyProvider) PlaylistRecords(ctx context.Context) ([]catalog.Playli
 // depends on it, and a sync must not record them all as followed after a
 // network blip.
 func (p *SpotifyProvider) userIDForSync(ctx context.Context) (string, error) {
-	if err := p.ensureSession(); err != nil {
+	if err := p.ensureWebAPI(); err != nil {
 		return "", err
 	}
 	resp, err := p.webAPI(ctx, "GET", "/v1/me", nil)
@@ -156,7 +156,7 @@ func (p *SpotifyProvider) userIDForSync(ctx context.Context) (string, error) {
 
 // FollowedArtistRecords returns every followed artist (cursor paging).
 func (p *SpotifyProvider) FollowedArtistRecords(ctx context.Context) ([]catalog.ArtistRecord, error) {
-	if err := p.ensureSession(); err != nil {
+	if err := p.ensureWebAPI(); err != nil {
 		return nil, err
 	}
 	var out []catalog.ArtistRecord
@@ -261,7 +261,7 @@ func (p *SpotifyProvider) webAPIOnce(ctx context.Context, method, path string, q
 // every item Spotify reported was read and the total held steady across
 // pages.
 func pageRecords[T, R any](ctx context.Context, p *SpotifyProvider, get webGetter, path string, extra url.Values, conv func(T) (R, bool)) ([]R, error) {
-	if err := p.ensureSession(); err != nil {
+	if err := p.ensureWebAPI(); err != nil {
 		return nil, err
 	}
 	var out []R

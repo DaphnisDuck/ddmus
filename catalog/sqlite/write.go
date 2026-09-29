@@ -26,7 +26,7 @@ func (s *Store) ApplySnapshot(ctx context.Context, snap catalog.Snapshot) error 
 	defer tx.Rollback() // no-op after Commit
 
 	w := newWriter(ctx, tx, snap.Provider)
-	w.snap = &snap
+	w.snap, w.exact = &snap, snap.Files
 	if err := w.apply(); err != nil {
 		return fmt.Errorf("apply snapshot %s/%s: %w", snap.Provider, snap.Collection, err)
 	}
@@ -115,11 +115,14 @@ type snapWriter struct {
 	tx       *sql.Tx
 	provider string            // every record's provider
 	snap     *catalog.Snapshot // set when applying a snapshot
-	now      int64             // Unix ms
-	gen      int64
+	// exact writes records as they are, blanks included: a local index is
+	// the files' whole truth, so a cleared tag must clear. Other records may
+	// be partial, and their zero values keep what is stored.
+	exact bool
+	now   int64 // Unix ms
+	gen   int64
 
 	// Artists already written by this snapshot; many tracks share one.
-	// Albums are not cached: a later, fuller record of one must still land.
 	artistIDs map[catalog.Ref]int64
 	// Albums written from the snapshot's own album list, whose tracks may
 	// reuse the ID. An album seen only through a track is not cached here:
@@ -132,6 +135,16 @@ func newWriter(ctx context.Context, tx *sql.Tx, provider string) *snapWriter {
 		ctx: ctx, tx: tx, provider: provider, now: time.Now().UnixMilli(),
 		artistIDs: map[catalog.Ref]int64{}, listedAlbums: map[catalog.Ref]int64{},
 	}
+}
+
+// merge is the upsert value of col: the new value when writing exactly,
+// otherwise the stored value wherever the new one is zero. col and zero are
+// constants from this file.
+func (w *snapWriter) merge(col, zero string) string {
+	if w.exact {
+		return "excluded." + col
+	}
+	return "COALESCE(NULLIF(excluded." + col + ", " + zero + "), " + col + ")"
 }
 
 func (w *snapWriter) exec(query string, args ...any) error {
@@ -290,18 +303,18 @@ func (w *snapWriter) album(a catalog.AlbumRecord) (int64, error) {
 	case len(a.Artists) > 0:
 		sortArtist = catalog.SortKey(a.Artists[0].Name)
 	}
-	// Zero values are unknown: COALESCE(NULLIF(new, zero), old) keeps what is
-	// stored, here and in the track upsert.
+	// Zero values are unknown unless writing exactly (see merge), here and
+	// in the track upsert.
 	id, err := w.queryID(`INSERT INTO albums (provider, provider_id, title, sort_title, artist_credit, sort_artist,
 			year, track_count, artwork_url, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (provider, provider_id) DO UPDATE SET
 			title = excluded.title, sort_title = excluded.sort_title,
-			artist_credit = COALESCE(NULLIF(excluded.artist_credit, ''), artist_credit),
-			sort_artist = COALESCE(NULLIF(excluded.sort_artist, ''), sort_artist),
-			year = COALESCE(NULLIF(excluded.year, 0), year),
-			track_count = COALESCE(NULLIF(excluded.track_count, 0), track_count),
-			artwork_url = COALESCE(NULLIF(excluded.artwork_url, ''), artwork_url),
+			artist_credit = `+w.merge("artist_credit", "''")+`,
+			sort_artist = `+w.merge("sort_artist", "''")+`,
+			year = `+w.merge("year", "0")+`,
+			track_count = `+w.merge("track_count", "0")+`,
+			artwork_url = `+w.merge("artwork_url", "''")+`,
 			updated_at = excluded.updated_at
 		RETURNING id`, ref.Provider, ref.ProviderID, a.Title, catalog.SortKey(a.Title), credit, sortArtist,
 		a.Year, a.TrackCount, a.ArtworkURL, w.now)
@@ -400,15 +413,15 @@ func (w *snapWriter) writeTrack(t catalog.TrackRecord, albumID sql.NullInt64) (i
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (provider, provider_id) DO UPDATE SET
 			title = excluded.title,
-			artist_credit = COALESCE(NULLIF(excluded.artist_credit, ''), artist_credit),
+			artist_credit = `+w.merge("artist_credit", "''")+`,
 			album_id = COALESCE(excluded.album_id, album_id),
-			album_title = COALESCE(NULLIF(excluded.album_title, ''), album_title),
-			disc = COALESCE(NULLIF(excluded.disc, 0), disc),
-			track_no = COALESCE(NULLIF(excluded.track_no, 0), track_no),
-			duration_ms = COALESCE(NULLIF(excluded.duration_ms, 0), duration_ms),
-			playable_uri = COALESCE(NULLIF(excluded.playable_uri, ''), playable_uri),
-			genre = COALESCE(NULLIF(excluded.genre, ''), genre),
-			year = COALESCE(NULLIF(excluded.year, 0), year),
+			album_title = `+w.merge("album_title", "''")+`,
+			disc = `+w.merge("disc", "0")+`,
+			track_no = `+w.merge("track_no", "0")+`,
+			duration_ms = `+w.merge("duration_ms", "0")+`,
+			playable_uri = `+w.merge("playable_uri", "''")+`,
+			genre = `+w.merge("genre", "''")+`,
+			year = `+w.merge("year", "0")+`,
 			updated_at = excluded.updated_at
 		RETURNING id`, ref.Provider, ref.ProviderID, t.Title, credit, albumID, t.AlbumTitle,
 		t.Disc, t.TrackNo, t.Duration.Milliseconds(), t.PlayableURI, t.Genre, t.Year, w.now)
@@ -510,24 +523,31 @@ func (w *snapWriter) playlist(p catalog.PlaylistRecord) (int64, error) {
 	return id, nil
 }
 
-// Sweep implements catalog.Writer. It deletes provider's entities that
+// Sweep implements catalog.Writer. First, albums that left the library
+// drop their cached track lists. Then it deletes provider's entities that
 // nothing keeps alive, in dependency order: playlists, then tracks, then
 // albums, then artists. What keeps an entity alive:
 //
 //	playlist: library membership
 //	track:    membership, a playlist, the local file index, or an album
-//	          whose track list is cached
+//	          whose track list is cached (only library albums are)
 //	album:    membership, a cached track list, or a surviving track
 //	artist:   membership, or a credit on a surviving album or track
 //
 // A cached album keeps its whole track list, so the album-track cache is
-// never left partial.
+// never left partial. An album kept only by a surviving track (say, one
+// still-liked song) is uncached and fetches its tracks again when opened.
 func (s *Store) Sweep(ctx context.Context, provider string) error {
 	const members = `SELECT item_id FROM library_items WHERE provider = ? AND kind = ?`
 	stmts := []struct {
 		query string
 		args  []any
 	}{
+		// An album that left the library drops its cached track list, so
+		// the cache follows the library instead of growing forever.
+		{`UPDATE albums SET tracks_cached_at = NULL
+			WHERE provider = ? AND tracks_cached_at IS NOT NULL AND id NOT IN (` + members + `)`,
+			[]any{provider, provider, catalog.KindAlbum}},
 		{`DELETE FROM playlists WHERE provider = ? AND id NOT IN (` + members + `)`,
 			[]any{provider, provider, catalog.KindPlaylist}},
 		{`DELETE FROM tracks WHERE provider = ?

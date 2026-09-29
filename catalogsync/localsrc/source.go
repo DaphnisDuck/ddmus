@@ -1,11 +1,13 @@
 // Package localsrc is the catalog sync source for the local music folder.
 // It walks the folder, rereads tags only for files whose size or modification
-// time changed, and groups every file into albums and artists the way the
-// v0.1 in-memory scan did.
+// time changed, and groups every file into albums (by album tag within an
+// album folder, disc folders merged) and artists (a multi-artist album is
+// credited to Various Artists and to each of its artists).
 package localsrc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -44,9 +46,6 @@ func New(dir string, index Index) *Source {
 	return &Source{dir: dir, index: index, readTags: resolve.TracksFromPaths}
 }
 
-// Dir is the indexed folder.
-func (s *Source) Dir() string { return s.dir }
-
 // Provider implements catalogsync.Source.
 func (*Source) Provider() string { return catalog.Local }
 
@@ -77,11 +76,13 @@ func (s *Source) Fetch(ctx context.Context, collection string, _ catalogsync.Kno
 	for _, f := range indexed {
 		stored[f.Path] = f
 	}
+	// Unchanged files keep their stored track, converted only once the
+	// index is known to need a rewrite: nothing changing is the common case.
 	files := make([]file, 0, len(found))
 	var changed []int // indexes into files
 	for _, st := range found {
 		if prev, ok := stored[st.Path]; ok && prev.Size == st.Size && prev.MTimeNS == st.MTimeNS {
-			files = append(files, file{stat: st, track: storedTrack(prev.Track, st.Path)})
+			files = append(files, file{stat: st, stored: &prev.Track})
 		} else {
 			changed = append(changed, len(files))
 			files = append(files, file{stat: st})
@@ -93,13 +94,18 @@ func (s *Source) Fetch(ctx context.Context, collection string, _ catalogsync.Kno
 	removed := 0
 	for _, prev := range stored {
 		if under(prev.Path, unreadable) {
-			files = append(files, file{stat: prev.FileStat, track: storedTrack(prev.Track, prev.Path)})
+			files = append(files, file{stat: prev.FileStat, stored: &prev.Track})
 		} else {
 			removed++
 		}
 	}
 	if len(changed) == 0 && removed == 0 {
 		return catalog.Snapshot{}, catalogsync.ErrUnchanged
+	}
+	for i := range files {
+		if f := &files[i]; f.stored != nil {
+			f.track = storedTrack(*f.stored, f.stat.Path)
+		}
 	}
 
 	for start := 0; start < len(changed); start += tagBatch {
@@ -121,8 +127,9 @@ func (s *Source) Fetch(ctx context.Context, collection string, _ catalogsync.Kno
 
 // file is one indexed audio file and its track.
 type file struct {
-	stat  catalog.FileStat
-	track playlist.Track
+	stat   catalog.FileStat
+	track  playlist.Track
+	stored *catalog.Track // an unchanged file's catalog row, until converted to track
 }
 
 // walk lists the audio files under dir with their size and modification
@@ -146,19 +153,26 @@ func walk(ctx context.Context, dir string) ([]catalog.FileStat, []string, error)
 			if path == dir {
 				return fmt.Errorf("music folder: %w", err)
 			}
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil // deleted mid-walk: gone
+			}
+			unreadable = append(unreadable, path) // keeps its stored files
 			if d == nil || d.IsDir() {
-				unreadable = append(unreadable, path)
 				return fs.SkipDir
 			}
-			unreadable = append(unreadable, path) // an unreadable file keeps its entry
 			return nil
 		}
 		if d.IsDir() || !player.SupportedExts[strings.ToLower(filepath.Ext(path))] {
 			return nil
 		}
 		fi, err := os.Stat(path) // follows symlinks, as playback does
-		if err != nil || !fi.Mode().IsRegular() {
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return nil // a dangling symlink, or deleted mid-walk: gone
+		case err != nil:
 			unreadable = append(unreadable, path)
+			return nil
+		case !fi.Mode().IsRegular():
 			return nil
 		}
 		files = append(files, catalog.FileStat{Path: path, Size: fi.Size(), MTimeNS: fi.ModTime().UnixNano()})

@@ -377,3 +377,61 @@ func TestIndexCancelled(t *testing.T) {
 		t.Errorf("a cancelled index wrote %v", got)
 	}
 }
+
+// A tag cleared in the file is cleared in the catalog: the index writes
+// exactly what the files say.
+func TestIndexClearsRemovedTags(t *testing.T) {
+	l := newLibrary(t)
+	l.write("a/1.mp3", "1", playlist.Track{Title: "1", Artist: "A", Album: "One", Genre: "Rock", Year: 1999, TrackNumber: 3})
+	if err := l.sync(); err != nil {
+		t.Fatal(err)
+	}
+	l.write("a/1.mp3", "1, retagged", playlist.Track{Title: "1", Artist: "A", Album: "One"})
+	if err := l.sync(); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	albums, err := l.store.Albums(ctx, catalog.Local)
+	if err != nil || len(albums) != 1 {
+		t.Fatalf("albums = %+v, %v", albums, err)
+	}
+	tracks, _, err := l.store.AlbumTracks(ctx, albums[0].ID)
+	if err != nil || len(tracks) != 1 {
+		t.Fatalf("tracks = %+v, %v", tracks, err)
+	}
+	if tr := tracks[0]; tr.Genre != "" || tr.Year != 0 || tr.TrackNo != 0 || albums[0].Year != 0 {
+		t.Errorf("after clearing tags: track %+v, album year %d; want them blank", tr, albums[0].Year)
+	}
+	if genres, _ := l.store.Genres(ctx, catalog.Local); len(genres) != 0 {
+		t.Errorf("genres = %+v, want none", genres)
+	}
+}
+
+// A symlink whose target is gone counts as deleted, not unreadable.
+func TestIndexDropsDanglingSymlinks(t *testing.T) {
+	l := newLibrary(t)
+	l.write("a/1.mp3", "1", playlist.Track{Title: "1", Artist: "A", Album: "One"})
+	l.write("b/2.mp3", "2", playlist.Track{Title: "2", Artist: "B", Album: "Two"})
+	target := filepath.Join(l.dir, "b/2.mp3")
+	link := filepath.Join(l.dir, "a/link.mp3")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	l.tags["a/link.mp3"] = playlist.Track{Title: "linked", Artist: "A", Album: "One"}
+	if err := l.sync(); err != nil {
+		t.Fatal(err)
+	}
+	if got := l.albums()["One"]; !slices.Equal(got, []string{"1", "linked"}) {
+		t.Fatalf("One = %v, want the symlink indexed", got)
+	}
+	if err := os.RemoveAll(filepath.Join(l.dir, "b")); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.sync(); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][]string{"One": {"1"}}
+	if got := l.albums(); !equalAlbums(got, want) {
+		t.Errorf("albums = %v, want %v", got, want)
+	}
+}

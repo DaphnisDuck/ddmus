@@ -111,7 +111,7 @@ rsync -a --exclude='*.log' --exclude='*.sock' ~/.config/cliamp/ ~/.config/omatun
 
 cliamp's other documentation in [docs/](docs/) still describes the engine, EQ, themes, plugins and configuration keys accurately. Its keybinding and provider-pane sections describe cliamp's interface rather than Omatunes'.
 
-> **Don't run `omatunes upgrade`.** The self-updater still points at cliamp's releases and would replace Omatunes with cliamp. Update by pulling and rebuilding.
+> **Updating:** `omatunes upgrade` is disabled, because cliamp's self-updater would install cliamp over Omatunes. Update by pulling and rebuilding: `git pull && make install`.
 
 ## Troubleshooting
 

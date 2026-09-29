@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -23,7 +24,6 @@ import (
 	"github.com/bjarneo/cliamp/pluginmgr"
 	"github.com/bjarneo/cliamp/theme"
 	"github.com/bjarneo/cliamp/ui"
-	"github.com/bjarneo/cliamp/upgrade"
 )
 
 func buildApp() *cli.Command {
@@ -230,15 +230,21 @@ func overridesFromFlags(c *cli.Command) (config.Overrides, error) {
 	return ov, nil
 }
 
+// omatunes: the self-updater downloads cliamp's releases, which would replace
+// omatunes with cliamp. It stays registered (hidden) so `omatunes upgrade`
+// explains itself instead of failing as an unknown command.
+var errUpgradeDisabled = errors.New("upgrade is disabled in omatunes: it would install cliamp over omatunes; update by pulling and rebuilding (git pull && make install)")
+
 func upgradeCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "upgrade",
-		Usage: "upgrade cliamp to the latest stable release",
+		Name:   "upgrade",
+		Usage:  "disabled in omatunes; update by pulling and rebuilding",
+		Hidden: true,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "prerelease", Usage: "upgrade to the latest prerelease"},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			return upgrade.Run(version, c.Bool("prerelease"))
+			return errUpgradeDisabled
 		},
 	}
 }

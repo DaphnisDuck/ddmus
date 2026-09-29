@@ -18,6 +18,11 @@ import (
 // ErrNotFound means a requested object is not in the catalog.
 var ErrNotFound = errors.New("not in catalog")
 
+// ErrForbidden means a provider refuses this client access to one item, for
+// example a Spotify playlist it may list but not read. A sync skips the item
+// and keeps what the catalog already holds for it.
+var ErrForbidden = errors.New("provider refused access")
+
 // Provider names used in the catalog.
 const (
 	Spotify = "spotify"

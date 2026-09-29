@@ -227,7 +227,8 @@ spotify_refresh = "30m"   # background sync if the last success is older than th
 - [x] M2.1 Foundation: modernc.org/sqlite v1.59.0, `catalog` types/interface + `SortKey`, `catalog/sqlite` store (WAL, immediate transactions, 0700 dir, race-safe migrations), `001_initial.sql`, read queries, FTS5 verified, `appdir.LibraryDBPath`.
 - [x] M2.2 Sync engine (`catalogsync`): per-collection snapshots applied in one transaction (generation bump, upsert that never blanks known data, reconcile) or a recorded failure that leaves the cache untouched; `Writer.Sweep` once per provider sync with explicit keep-alive rules (membership, playlists, local files, cached albums kept whole); single-connection writer; scenarios A–C plus cancellation, collection isolation and concurrency tests.
 - Deferred from M2.2 review: prepare statements once per transaction; skip rewriting unchanged rows (WAL churn); per-playlist transactions so a large first playlist sync doesn't hold the writer for seconds (M2.3); a source-side guard against a suspiciously empty "complete" snapshot, e.g. Spotify returning 0 saved albums when the catalog holds 2,000 (M2.3).
-- [ ] M2.3 Spotify source: context-aware page methods returning catalog records.
+- [x] M2.3 Spotify source: `external/spotify/catalog_sync.go` (context-aware whole-collection fetchers returning catalog records with Spotify IDs; every paged read must match Spotify's reported total or fails with ErrIncomplete; 403/404 playlists map to catalog.ErrForbidden and keep their stored tracks) and `catalogsync/spotifysrc` (albums, artists, liked, playlists; playlist tracks fetched only when the snapshot changed). The Spotify session is now read under its lock (tagged upstream edit), since sync calls it from a background goroutine.
+- Deferred from M2.3 review: ensureSession ignores the sync context (upstream code); a typed HTTP status error instead of matching "http status 403/404" text (pinned by a test through the real request path); skipping unchanged albums/liked with a one-request total+newest check, as savedTracksUnchanged does; detecting a same-total edit mid-read (rare; the next sync corrects it).
 - [ ] M2.4 UI on the catalog: adapters, startup sync, UpdatedMsg refresh, status indicator, `r` refresh, graceful shutdown.
 - [ ] M2.5 Lazy album tracks plus background filler with 429 backoff.
 - [ ] M2.6 Local indexer into the catalog (replaces library/localscan.go).
@@ -247,6 +248,8 @@ spotify_refresh = "30m"   # background sync if the last success is older than th
 - 2026-09-29: Album tracks are cached lazily on first open, and a background filler completes the rest with rate-limit backoff.
 - 2026-09-29: M2 settings live in an `[omatunes]` section of config.toml, parsed by a fork-owned file through one tagged hook.
 - 2026-09-29: Library membership (`library_items`) is kept separate from catalog entities; reconciliation deletes membership, never shared entities.
+- 2026-09-29: Spotify maps its API responses to catalog records inside the fork-owned `external/spotify/catalog_sync.go` (the provider knows its data best); `spotifysrc` only chooses what to fetch. This supersedes "plain structs in provider/catalog.go".
+- 2026-09-29: The "suspiciously empty snapshot" guard is the completeness check: a read must return exactly the total Spotify reports. An API that reports total 0 is trusted (you really emptied the collection).
 
 ## Open questions
 - Whether `music_dir` should split from `initial_directory` (the Local scan folder vs the file browser's start folder). Default: keep reusing `initial_directory` until someone needs them apart.

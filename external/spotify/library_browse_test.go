@@ -41,11 +41,13 @@ func fakeSpotifyAPI(t *testing.T, handler func(req *http.Request) (any, int)) *S
 func TestArtistsFollowsCursorAndSortsByName(t *testing.T) {
 	pages := map[string]map[string]any{
 		"": {"artists": map[string]any{
+			"total":   4,
 			"items":   []map[string]any{{"id": "a1", "name": "Ravel"}, {"id": "a2", "name": "mahler"}},
 			"next":    "https://api.spotify.com/v1/me/following?after=a2",
 			"cursors": map[string]any{"after": "a2"},
 		}},
 		"a2": {"artists": map[string]any{
+			"total":   4,
 			"items":   []map[string]any{{"id": "a3", "name": "Beethoven"}, {"id": "", "name": "unavailable"}},
 			"next":    nil,
 			"cursors": map[string]any{"after": nil},

@@ -1,0 +1,319 @@
+// omatunes: whole-collection fetchers for the catalog sync. Each pages one
+// library collection with the caller's context and returns catalog records
+// carrying Spotify IDs, or an error: never a partial collection. Kept in its
+// own file so upstream merges of provider.go stay conflict-free.
+//
+// The response types below are separate from spotifyItem/spotifyArtist in
+// provider_shared.go because the catalog needs the IDs those omit, and adding
+// them upstream would conflict on every merge.
+
+package spotify
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/bjarneo/cliamp/catalog"
+	"github.com/bjarneo/cliamp/provider"
+)
+
+// catalogPageSize is the largest page the library endpoints accept.
+// /v1/playlists/{id}/items silently truncates larger pages, so 50 holds
+// there too (see spotifyTrackPageSize).
+const catalogPageSize = 50
+
+// playlistItemFields limits playlist item pages to what the catalog stores.
+const playlistItemFields = "items(added_at,item(id,name,type,uri,duration_ms,track_number,disc_number,is_local," +
+	"artists(id,name),album(id,name,release_date,total_tracks,images,artists(id,name)))),total"
+
+// ErrIncomplete means a paged read ended with a different number of items
+// than Spotify reported, usually because the library changed mid-read.
+// Applying it could drop items, so the sync fails and retries later.
+var ErrIncomplete = errors.New("spotify: library changed while reading")
+
+type catalogArtist struct {
+	ID     string         `json:"id"`
+	Name   string         `json:"name"`
+	Images []spotifyImage `json:"images"`
+}
+
+type catalogAlbum struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	ReleaseDate string          `json:"release_date"`
+	TotalTracks int             `json:"total_tracks"`
+	Images      []spotifyImage  `json:"images"`
+	Artists     []catalogArtist `json:"artists"`
+}
+
+type catalogTrack struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Type        string          `json:"type"`
+	URI         string          `json:"uri"`
+	DurationMS  int             `json:"duration_ms"`
+	TrackNumber int             `json:"track_number"`
+	DiscNumber  int             `json:"disc_number"`
+	IsLocal     bool            `json:"is_local"`
+	Artists     []catalogArtist `json:"artists"`
+	Album       *catalogAlbum   `json:"album"`
+}
+
+// savedEntry is one saved album or liked track. Playlist items name the track
+// "item" (older responses: "track").
+type savedEntry struct {
+	AddedAt string        `json:"added_at"`
+	Album   *catalogAlbum `json:"album"`
+	Track   *catalogTrack `json:"track"`
+	Item    *catalogTrack `json:"item"`
+}
+
+func (e savedEntry) track() *catalogTrack {
+	if e.Item != nil {
+		return e.Item
+	}
+	return e.Track
+}
+
+// SavedAlbumRecords returns every saved album.
+func (p *SpotifyProvider) SavedAlbumRecords(ctx context.Context) ([]catalog.AlbumRecord, error) {
+	return pageRecords(ctx, p, "/v1/me/albums", nil, func(e savedEntry) (catalog.AlbumRecord, bool) {
+		return albumRecord(e.Album, e.AddedAt)
+	})
+}
+
+// LikedTrackRecords returns every liked track with its album and artists.
+func (p *SpotifyProvider) LikedTrackRecords(ctx context.Context) ([]catalog.TrackRecord, error) {
+	return pageRecords(ctx, p, "/v1/me/tracks", nil, func(e savedEntry) (catalog.TrackRecord, bool) {
+		return trackRecord(e.track(), e.AddedAt)
+	})
+}
+
+// PlaylistTrackRecords returns a playlist's tracks in order. A playlist this
+// app may list but not read (403) or that no longer resolves (404) fails
+// with an error wrapping catalog.ErrForbidden.
+func (p *SpotifyProvider) PlaylistTrackRecords(ctx context.Context, playlistID string) ([]catalog.TrackRecord, error) {
+	path := "/v1/playlists/" + url.PathEscape(playlistID) + "/items"
+	return pageRecords(ctx, p, path, url.Values{"fields": {playlistItemFields}}, func(e savedEntry) (catalog.TrackRecord, bool) {
+		return trackRecord(e.track(), e.AddedAt)
+	})
+}
+
+// PlaylistRecords returns the user's library playlists without tracks. Own
+// is set for playlists the user owns; Snapshot is Spotify's version token.
+func (p *SpotifyProvider) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error) {
+	userID, err := p.userIDForSync(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return pageRecords(ctx, p, "/v1/me/playlists", nil, func(it spotifyPlaylistItem) (catalog.PlaylistRecord, bool) {
+		if it.ID == "" {
+			return catalog.PlaylistRecord{}, false
+		}
+		count := 0
+		if it.Items != nil {
+			count = it.Items.Total
+		}
+		return catalog.PlaylistRecord{
+			Ref: spotifyRef(it.ID), Name: it.Name, Own: it.Owner.ID == userID,
+			Snapshot: it.SnapshotID, TrackCount: count,
+		}, true
+	})
+}
+
+// userIDForSync fetches the signed-in user's ID. Unlike currentUserID it
+// fails instead of remembering an empty ID: every playlist's ownership
+// depends on it, and a sync must not record them all as followed after a
+// network blip.
+func (p *SpotifyProvider) userIDForSync(ctx context.Context) (string, error) {
+	if err := p.ensureSession(); err != nil {
+		return "", err
+	}
+	resp, err := p.webAPI(ctx, "GET", "/v1/me", nil)
+	if err != nil {
+		return "", fmt.Errorf("spotify: current user: %w", err)
+	}
+	var me struct {
+		ID string `json:"id"`
+	}
+	if err := decodeBody(resp, &me); err != nil {
+		return "", fmt.Errorf("spotify: parse current user: %w", err)
+	}
+	if me.ID == "" {
+		return "", errors.New("spotify: current user has no ID")
+	}
+	return me.ID, nil
+}
+
+// FollowedArtistRecords returns every followed artist (cursor paging).
+func (p *SpotifyProvider) FollowedArtistRecords(ctx context.Context) ([]catalog.ArtistRecord, error) {
+	if err := p.ensureSession(); err != nil {
+		return nil, err
+	}
+	var out []catalog.ArtistRecord
+	after, total, read := "", -1, 0
+	for {
+		q := url.Values{"type": {"artist"}, "limit": {strconv.Itoa(catalogPageSize)}}
+		if after != "" {
+			q.Set("after", after)
+		}
+		resp, err := p.webAPI(ctx, "GET", "/v1/me/following", q)
+		if err != nil {
+			return nil, fmt.Errorf("spotify: followed artists: %w", err)
+		}
+		var r struct {
+			Artists struct {
+				Items   []catalogArtist `json:"items"`
+				Next    string          `json:"next"`
+				Total   int             `json:"total"`
+				Cursors struct {
+					After string `json:"after"`
+				} `json:"cursors"`
+			} `json:"artists"`
+		}
+		if err := decodeBody(resp, &r); err != nil {
+			return nil, fmt.Errorf("spotify: parse followed artists: %w", err)
+		}
+		if total >= 0 && r.Artists.Total != total {
+			return nil, fmt.Errorf("followed artists: %w", ErrIncomplete)
+		}
+		total = r.Artists.Total
+		read += len(r.Artists.Items)
+		out = append(out, artistRecords(r.Artists.Items)...)
+		// A repeated cursor would loop forever; treat it as the end.
+		next := r.Artists.Cursors.After
+		if r.Artists.Next == "" || next == "" || next == after || len(r.Artists.Items) == 0 {
+			break
+		}
+		after = next
+	}
+	if read != total {
+		return nil, fmt.Errorf("followed artists: read %d of %d: %w", read, total, ErrIncomplete)
+	}
+	return out, nil
+}
+
+// pageRecords GETs path with offset paging and maps each item with conv,
+// which may skip items (local files, episodes). It fails unless every item
+// Spotify reported was read and the total held steady across pages.
+func pageRecords[T, R any](ctx context.Context, p *SpotifyProvider, path string, extra url.Values, conv func(T) (R, bool)) ([]R, error) {
+	if err := p.ensureSession(); err != nil {
+		return nil, err
+	}
+	var out []R
+	read, total := 0, -1
+	for {
+		q := url.Values{"limit": {strconv.Itoa(catalogPageSize)}, "offset": {strconv.Itoa(read)}}
+		for k, v := range extra {
+			q[k] = v
+		}
+		resp, err := p.webAPI(ctx, "GET", path, q)
+		if err != nil {
+			return nil, fmt.Errorf("spotify: %s: %w", path, unreadable(err))
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("spotify: read %s: %w", path, err)
+		}
+		var page struct {
+			Items []T `json:"items"`
+			Total int `json:"total"`
+		}
+		if err := json.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("spotify: parse %s: %w", path, err)
+		}
+		if total >= 0 && page.Total != total {
+			return nil, fmt.Errorf("%s: %w", path, ErrIncomplete)
+		}
+		total = page.Total
+		read += len(page.Items)
+		for _, item := range page.Items {
+			if r, ok := conv(item); ok {
+				out = append(out, r)
+			}
+		}
+		if len(page.Items) == 0 || read >= total {
+			break
+		}
+	}
+	if read != total {
+		return nil, fmt.Errorf("%s: read %d of %d: %w", path, read, total, ErrIncomplete)
+	}
+	return out, nil
+}
+
+// unreadable marks 403 and 404 as catalog.ErrForbidden: Development Mode
+// apps may list followed playlists but not read their items, and removed or
+// editorial playlists can 404. The status text comes from webAPIWithBody;
+// TestPlaylistRecordsAndForbiddenItems pins the match through it.
+func unreadable(err error) error {
+	msg := err.Error()
+	if strings.Contains(msg, "http status 403") || strings.Contains(msg, "http status 404") {
+		return fmt.Errorf("%w: %w", catalog.ErrForbidden, err)
+	}
+	return err
+}
+
+func spotifyRef(id string) catalog.Ref { return catalog.Ref{Provider: catalog.Spotify, ProviderID: id} }
+
+func artistRecords(in []catalogArtist) []catalog.ArtistRecord {
+	out := make([]catalog.ArtistRecord, 0, len(in))
+	for _, a := range in {
+		if a.ID != "" {
+			out = append(out, catalog.ArtistRecord{Ref: spotifyRef(a.ID), Name: a.Name, ImageURL: pickCoverImage(a.Images)})
+		}
+	}
+	return out
+}
+
+func albumRecord(a *catalogAlbum, addedAt string) (catalog.AlbumRecord, bool) {
+	if a == nil || a.ID == "" {
+		return catalog.AlbumRecord{}, false
+	}
+	return catalog.AlbumRecord{
+		Ref: spotifyRef(a.ID), Title: a.Name, Artists: artistRecords(a.Artists),
+		Year: provider.YearFromDate(a.ReleaseDate), TrackCount: a.TotalTracks, ArtworkURL: pickCoverImage(a.Images),
+		AddedAt: parseAdded(addedAt),
+	}, true
+}
+
+// trackRecord maps a track. Local files, podcast episodes and unavailable
+// items have no catalog identity yet and are skipped.
+func trackRecord(t *catalogTrack, addedAt string) (catalog.TrackRecord, bool) {
+	if t == nil || t.ID == "" || t.IsLocal || (t.Type != "" && t.Type != "track") {
+		return catalog.TrackRecord{}, false
+	}
+	uri := t.URI
+	if uri == "" {
+		uri = "spotify:track:" + t.ID
+	}
+	rec := catalog.TrackRecord{
+		Ref: spotifyRef(t.ID), Title: t.Name, Artists: artistRecords(t.Artists),
+		Disc: t.DiscNumber, TrackNo: t.TrackNumber, Duration: time.Duration(t.DurationMS) * time.Millisecond,
+		PlayableURI: uri, AddedAt: parseAdded(addedAt),
+	}
+	if album, ok := albumRecord(t.Album, ""); ok {
+		rec.Album, rec.Year = &album, album.Year
+	} else if t.Album != nil {
+		rec.AlbumTitle = t.Album.Name
+	}
+	return rec, true
+}
+
+// parseAdded reads Spotify's RFC 3339 added_at. Unknown is the zero time,
+// which keeps the catalog's stored time.
+func parseAdded(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}

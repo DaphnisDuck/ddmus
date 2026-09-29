@@ -33,55 +33,16 @@ const artistAlbumGroups = "album,single"
 // Artists returns the artists the user follows, sorted by name.
 // Implements provider.ArtistBrowser.
 func (p *SpotifyProvider) Artists() ([]provider.ArtistInfo, error) {
-	if err := p.ensureSession(); err != nil {
-		return nil, err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-
-	var all []provider.ArtistInfo
-	after := ""
-	for {
-		query := url.Values{
-			"type":  {"artist"},
-			"limit": {strconv.Itoa(spotifyArtistPageSize)},
-		}
-		if after != "" {
-			query.Set("after", after)
-		}
-		resp, err := p.webAPI(ctx, "GET", "/v1/me/following", query)
-		if err != nil {
-			return nil, fmt.Errorf("spotify: followed artists: %w", err)
-		}
-		var result struct {
-			Artists struct {
-				Items []struct {
-					ID   string `json:"id"`
-					Name string `json:"name"`
-				} `json:"items"`
-				Next    string `json:"next"`
-				Cursors struct {
-					After string `json:"after"`
-				} `json:"cursors"`
-			} `json:"artists"`
-		}
-		if err := decodeBody(resp, &result); err != nil {
-			return nil, fmt.Errorf("spotify: parse followed artists: %w", err)
-		}
-		for _, a := range result.Artists.Items {
-			if a.ID == "" {
-				continue
-			}
-			all = append(all, provider.ArtistInfo{ID: a.ID, Name: a.Name})
-		}
-		next := result.Artists.Cursors.After
-		// A repeated cursor would loop forever; treat it as the end.
-		if result.Artists.Next == "" || next == "" || next == after {
-			break
-		}
-		after = next
+	records, err := p.FollowedArtistRecords(ctx)
+	if err != nil {
+		return nil, err
 	}
-
+	all := make([]provider.ArtistInfo, len(records))
+	for i, a := range records {
+		all[i] = provider.ArtistInfo{ID: a.Ref.ProviderID, Name: a.Name}
+	}
 	sort.SliceStable(all, func(i, j int) bool {
 		return strings.ToLower(all[i].Name) < strings.ToLower(all[j].Name)
 	})

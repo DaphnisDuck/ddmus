@@ -59,7 +59,7 @@ func newSearchFixture(t *testing.T) (*fakeCatalog, *searchable, Level) {
 	}
 	sp := &searchable{liveSpotify{fakeProvider: fakeProvider{name: "Spotify"}}}
 	root := Root(Sources{Spotify: sp, Local: &fakeProvider{name: "Local"}, Radio: &directoryRadio{fakeProvider{name: "Radio"}},
-		MusicDir: "/m", Catalog: cat})
+		MusicDir: "/m", Catalog: cat, Synced: spotifySynced(sp)})
 	return cat, sp, child(t, root, "Search")
 }
 
@@ -89,7 +89,7 @@ func TestSearchResultsBySection(t *testing.T) {
 		{"Albums", "Cached", "Spotify · Ozawa"},
 		{"Albums", "The Planets", "Local · Holst · 1990"},
 		{"Tracks", "Venus", ""},
-		{"Playlists", "Mine", "1 tracks"},
+		{"Playlists", "Mine", "Spotify · 1 tracks"},
 		{"Stations", "WBGO", ""},
 		{beyondSection, "Search Spotify for “holst”", ""},
 		{beyondSection, "Search the radio directory for “holst”", ""},
@@ -255,5 +255,23 @@ func TestSearchTrackNeverPlaysAPartialAlbum(t *testing.T) {
 	e, _ := s.entry(catalog.SearchResult{Kind: catalog.SearchTrack, Provider: catalog.Spotify, Track: &liked})
 	if got, i := playFrom(t, e); !slices.Equal(got, []string{"One", "Two"}) || i != 1 {
 		t.Errorf("online: plays %v from %d, want the fetched album", got, i)
+	}
+}
+
+// A playlist of any synced source opens from search, labelled with it.
+func TestSearchPlaylistOfAnySyncedSource(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	mix := catalog.Playlist{ID: 90, Ref: lref3("youtube", "PLmix"), Name: "Road Trip", TrackCount: 1}
+	cat.plTracks[90] = []catalog.Track{{ID: 91, Title: "Song", PlayableURI: "https://music.youtube.com/watch?v=x"}}
+	cat.found = catalog.SearchResults{catalog.SearchPlaylist: {{Kind: catalog.SearchPlaylist, Provider: "youtube", Playlist: &mix}}}
+	yt := SyncedSource{Provider: "youtube", Title: "YouTube Music", Player: &fakeProvider{name: "YouTube Music"},
+		Collections: []string{catalog.CollectionPlaylists}}
+	search := child(t, Root(Sources{Catalog: cat, Synced: []SyncedSource{yt}}), "Search")
+	rows := searchFor(t, search, "road")
+	if len(rows) == 0 || rows[0].Title != "Road Trip" || rows[0].Detail != "YouTube · 1 tracks" {
+		t.Fatalf("rows = %+v", rows)
+	}
+	if got := load(t, rows[0].Open); len(got) != 1 || got[0].Track.Path != "https://music.youtube.com/watch?v=x" {
+		t.Errorf("playlist tracks = %+v", got)
 	}
 }

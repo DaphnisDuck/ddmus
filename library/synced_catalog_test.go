@@ -136,7 +136,7 @@ func newCatalogFixture() (*fakeCatalog, *liveSpotify, Level) {
 		liked:    []catalog.Track{{ID: 12, Title: "Liked", PlayableURI: "spotify:track:t12"}},
 	}
 	live := &liveSpotify{fakeProvider: fakeProvider{name: "Spotify"}}
-	return cat, live, SpotifyCatalog(cat, live)
+	return cat, live, spotifyMenu(cat, live)
 }
 
 func TestSpotifyCatalogReadsTheCatalog(t *testing.T) {
@@ -198,7 +198,7 @@ func TestSpotifyCatalogArtistDiscography(t *testing.T) {
 func TestSpotifyCatalogBeforeFirstSync(t *testing.T) {
 	cat, live, _ := newCatalogFixture()
 	cat.synced, cat.albums = false, nil
-	root := SpotifyCatalog(cat, live)
+	root := spotifyMenu(cat, live)
 	got := load(t, child(t, root, "Albums"))
 	if len(got) != 1 || got[0].Open != nil || got[0].Track != nil {
 		t.Errorf("empty unsynced albums = %+v, want one placeholder row", got)
@@ -212,7 +212,7 @@ func TestSpotifyCatalogBeforeFirstSync(t *testing.T) {
 
 func TestRootUsesCatalogWhenSet(t *testing.T) {
 	cat, live, _ := newCatalogFixture()
-	spotify := child(t, Root(Sources{Spotify: live, Catalog: cat}), "Spotify")
+	spotify := child(t, Root(Sources{Spotify: live, Catalog: cat, Synced: spotifySynced(live)}), "Spotify")
 	if _, ok := child(t, spotify, "Albums").(CatalogLevel); !ok {
 		t.Error("Root with a catalog did not use catalog levels")
 	}
@@ -238,7 +238,7 @@ func (f *fetchingCatalog) FetchAlbumTracks(_ context.Context, a catalog.Album) (
 func TestSpotifyCatalogCachesUncachedAlbums(t *testing.T) {
 	cat, live, _ := newCatalogFixture()
 	fc := &fetchingCatalog{fakeCatalog: cat}
-	albums := load(t, child(t, SpotifyCatalog(fc, live), "Albums"))
+	albums := load(t, child(t, spotifyMenu(fc, live), "Albums"))
 	for range 2 {
 		got := load(t, albums[1].Open)
 		if len(got) != 1 || got[0].ID != "30" || got[0].Track.Path != "spotify:track:t30" {
@@ -280,7 +280,7 @@ func TestAlbumsCanBeReordered(t *testing.T) {
 		{ID: 1, Title: "Zeta", Artist: "Abbado"},
 		{ID: 2, Title: "Alpha", Artist: "Ozawa"},
 	}
-	root := SpotifyCatalog(cat, live)
+	root := spotifyMenu(cat, live)
 	albums := child(t, root, "Albums")
 	ol, ok := albums.(OrderedLevel)
 	if !ok {
@@ -301,5 +301,52 @@ func TestAlbumsCanBeReordered(t *testing.T) {
 	}
 	if _, ok := child(t, root, "Artists").(OrderedLevel); ok {
 		t.Error("Artists offers a reorder it does not have")
+	}
+}
+
+// spotifySource is Spotify as main configures it: every collection.
+func spotifySource(prov playlist.Provider) SyncedSource {
+	return SyncedSource{Provider: catalog.Spotify, Title: "Spotify", Player: prov, Collections: []string{
+		catalog.CollectionAlbums, catalog.CollectionArtists, catalog.CollectionLiked, catalog.CollectionPlaylists}}
+}
+
+func spotifySynced(prov playlist.Provider) []SyncedSource { return []SyncedSource{spotifySource(prov)} }
+
+func spotifyMenu(cat catalog.Catalog, prov playlist.Provider) Level {
+	return SyncedMenu(cat, spotifySource(prov))
+}
+
+// A source's menu offers only the lists its sync provides, in menu order.
+func TestSyncedMenuFollowsCollections(t *testing.T) {
+	cat, live, _ := newCatalogFixture()
+	tests := []struct {
+		name string
+		src  SyncedSource
+		want []string
+	}{
+		{"everything", spotifySource(live), []string{"Albums", "Artists", "Playlists", "Liked Songs"}},
+		{"playlists and liked", SyncedSource{Provider: "youtube", Title: "YouTube Music", Player: live, LikedTitle: "Liked Music",
+			Collections: []string{catalog.CollectionLiked, catalog.CollectionPlaylists}}, []string{"Playlists", "Liked Music"}},
+		{"nothing synced", SyncedSource{Provider: "x", Title: "X", Player: live}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			menu := SyncedMenu(cat, tt.src)
+			if menu.Title() != tt.src.Title {
+				t.Errorf("title = %q", menu.Title())
+			}
+			if got := titles(load(t, menu)); !slices.Equal(got, tt.want) {
+				t.Errorf("menu = %v, want %v", got, tt.want)
+			}
+		})
+	}
+	// Each synced source is in Music; Spotify without a sync browses live.
+	yt := SyncedSource{Provider: "youtube", Title: "YouTube Music", Player: live, Collections: []string{catalog.CollectionPlaylists}}
+	root := Root(Sources{Spotify: live, Catalog: cat, Synced: []SyncedSource{yt}})
+	if got := titles(load(t, root)); !slices.Equal(got, []string{"Library", "YouTube Music", "Spotify", "Search"}) {
+		t.Errorf("Music = %v", got)
+	}
+	if _, ok := child(t, root, "Spotify").(CatalogLevel); ok {
+		t.Error("unsynced Spotify used catalog levels")
 	}
 }

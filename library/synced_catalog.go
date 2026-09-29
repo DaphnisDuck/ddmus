@@ -1,8 +1,10 @@
 package library
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"sync/atomic"
 
@@ -44,24 +46,48 @@ func (l *catalogAlbumsLevel) NextOrder() string {
 	return albumOrderNames[next]
 }
 
-// SpotifyCatalog returns the Spotify menu backed by the synced catalog.
-// An album whose tracks are not cached yet is fetched through the catalog
-// when it is a catalog.AlbumTrackFetcher, and cached on the way. prov plays
-// tracks and fills the other gaps: albums a plain catalog cannot fetch, a
-// playlist whose items could not be synced, and an artist's full
-// discography, which only the live API has.
-func SpotifyCatalog(cat catalog.Catalog, prov playlist.Provider) Level {
-	b := spotifyBrowser(cat, prov)
-	return Menu("Spotify",
-		Entry{Title: "Albums", Open: b.albumsList(b.albums)},
-		Entry{Title: "Artists", Open: b.list("Artists", b.artists)},
-		Entry{Title: "Playlists", Open: b.list("Playlists", b.playlists)},
-		Entry{Title: "Liked Songs", Open: b.list("Liked Songs", b.liked)},
-	)
+// SyncedSource is a provider the catalog syncs, as its menu needs it.
+// Collections are what its sync provides (catalog.Collection*): the menu
+// offers a list for each, so a source that has no albums shows none.
+type SyncedSource struct {
+	Provider    string // catalog provider name, e.g. catalog.Spotify
+	Title       string // menu title, e.g. "Spotify"
+	Collections []string
+	// Player plays the source's tracks and fills gaps the catalog cannot:
+	// an album whose tracks are not cached (when the catalog is no
+	// catalog.AlbumTrackFetcher), a playlist whose items could not be
+	// synced, and an artist's full discography, which only its live API has.
+	Player playlist.Provider
+	// LikedTitle names the liked list; "Liked Songs" when empty.
+	LikedTitle string
 }
 
-func spotifyBrowser(cat catalog.Catalog, prov playlist.Provider) *catalogBrowser {
-	return &catalogBrowser{cat: cat, prov: prov, provider: catalog.Spotify,
+// SyncedMenu returns a synced source's menu, backed by the catalog. It
+// offers, in this order, Albums, Artists, Playlists and the liked list, each
+// only if the source syncs that collection.
+func SyncedMenu(cat catalog.Catalog, src SyncedSource) Level {
+	b := syncedBrowser(cat, src)
+	liked := cmp.Or(src.LikedTitle, "Liked Songs")
+	lists := []struct {
+		collection string
+		entry      Entry
+	}{
+		{catalog.CollectionAlbums, Entry{Title: "Albums", Open: b.albumsList(b.albums)}},
+		{catalog.CollectionArtists, Entry{Title: "Artists", Open: b.list("Artists", b.artists)}},
+		{catalog.CollectionPlaylists, Entry{Title: "Playlists", Open: b.list("Playlists", b.playlists)}},
+		{catalog.CollectionLiked, Entry{Title: liked, Open: b.list(liked, b.liked)}},
+	}
+	var entries []Entry
+	for _, l := range lists {
+		if slices.Contains(src.Collections, l.collection) {
+			entries = append(entries, l.entry)
+		}
+	}
+	return Menu(src.Title, entries...)
+}
+
+func syncedBrowser(cat catalog.Catalog, src SyncedSource) *catalogBrowser {
+	return &catalogBrowser{cat: cat, prov: src.Player, provider: src.Provider,
 		pending: "Syncing your library… (press r to retry if this persists)"}
 }
 

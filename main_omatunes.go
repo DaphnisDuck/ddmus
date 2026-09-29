@@ -17,8 +17,8 @@ import (
 // librarySources picks the providers the Music root shows. Other configured
 // providers stay constructed (playback, resume and IPC still use them) but
 // have no root entry until Milestone 4.
-func librarySources(providers []model.ProviderEntry, initialDir string, cat catalog.Catalog) library.Sources {
-	src := library.Sources{MusicDir: musicDir(initialDir), Catalog: cat}
+func librarySources(providers []model.ProviderEntry, initialDir string, rt *catalogRuntime) library.Sources {
+	src := library.Sources{MusicDir: musicDir(initialDir), Catalog: rt.catalog()}
 	for _, p := range providers {
 		switch p.Key {
 		case "spotify":
@@ -30,6 +30,11 @@ func librarySources(providers []model.ProviderEntry, initialDir string, cat cata
 		case "cliamp":
 			src.Channels = p.Provider
 		}
+	}
+	// A synced provider's menu offers the lists its sync provides.
+	if cols := rt.collections(catalog.Spotify); len(cols) > 0 && src.Spotify != nil {
+		src.Synced = append(src.Synced, library.SyncedSource{
+			Provider: catalog.Spotify, Title: "Spotify", Player: src.Spotify, Collections: cols})
 	}
 	return src
 }

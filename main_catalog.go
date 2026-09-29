@@ -77,7 +77,7 @@ type source struct {
 type providerSync struct {
 	fill        bool                // from source.fill
 	quiet       bool                // from source.quiet
-	collections int                 // how many collections a complete sync covers
+	collections []string            // what a complete sync covers
 	startup     model.CatalogStatus // stored status, read once at startup
 	stale       bool                // startup should sync
 	retry       *time.Timer         // pending retry of a failed sync
@@ -137,12 +137,21 @@ func (rt *catalogRuntime) setSources(sources ...source) {
 	}
 	rt.engine = catalogsync.New(rt.store, rt.notify, engineSources...)
 	for _, src := range sources {
-		ps := &providerSync{fill: src.fill && rt.filler != nil, quiet: src.quiet, collections: len(src.Collections())}
+		ps := &providerSync{fill: src.fill && rt.filler != nil, quiet: src.quiet, collections: src.Collections()}
 		var complete bool
-		ps.startup, complete = rt.status(src.Provider(), ps.collections)
+		ps.startup, complete = rt.status(src.Provider(), len(ps.collections))
 		ps.stale = !complete || time.Since(ps.startup.LastSuccess) > src.refresh
 		rt.providers[src.Provider()] = ps
 	}
+}
+
+// collections returns what provider's sync covers, or nil when it is not
+// synced, so its library menu offers matching lists.
+func (rt *catalogRuntime) collections(provider string) []string {
+	if ps := rt.providers[provider]; ps != nil && rt.catalog() != nil {
+		return ps.collections
+	}
+	return nil
 }
 
 // catalog returns the catalog for the library, or nil to browse live.

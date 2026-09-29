@@ -582,7 +582,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	// synced catalog when one is available.
 	cat := openCatalog(spotifyProv, radioProv, cfg)
 	defer cat.close()
-	m.SetLibrary(library.Root(librarySources(providers, cfg.InitialDirectory, cat.catalog())))
+	m.SetLibrary(library.Root(librarySources(providers, cfg.InitialDirectory, cat)))
 	cat.configure(&m)
 	if cfg.EQPreset != "" && cfg.EQPreset != "Custom" {
 		m.SetEQPreset(cfg.EQPreset, nil)

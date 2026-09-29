@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"errors"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/catalog/sqlite"
 	"github.com/bjarneo/cliamp/catalogsync"
+	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/ui/model"
 )
 
@@ -230,5 +232,35 @@ func TestQuietSyncRequestedMidRunRunsAgain(t *testing.T) {
 	defer src.mu.Unlock()
 	if src.runs != 2 {
 		t.Errorf("runs = %d, want 2", src.runs)
+	}
+}
+
+// fakePlayer is a minimal provider for wiring tests.
+type fakePlayer struct{ name string }
+
+func (p fakePlayer) Name() string                              { return p.name }
+func (fakePlayer) Playlists() ([]playlist.PlaylistInfo, error) { return nil, nil }
+func (fakePlayer) Tracks(string) ([]playlist.Track, error)     { return nil, nil }
+
+// Spotify's menu is built from what its sync covers; without a catalog it
+// browses live.
+func TestLibrarySourcesSyncedMenus(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
+	defer rt.cancel()
+	rt.setSources(source{Source: &namedSource{catalog.Spotify}})
+	providers := []model.ProviderEntry{{Key: "spotify", Provider: fakePlayer{"Spotify"}}}
+
+	src := librarySources(providers, "", rt)
+	if len(src.Synced) != 1 || src.Synced[0].Provider != catalog.Spotify || !slices.Equal(src.Synced[0].Collections, []string{"albums"}) {
+		t.Errorf("synced = %+v, want Spotify with its sync's collections", src.Synced)
+	}
+	if src := librarySources(providers, "", &catalogRuntime{providers: map[string]*providerSync{}}); len(src.Synced) != 0 || src.Catalog != nil {
+		t.Errorf("without a catalog: synced %+v, catalog %v", src.Synced, src.Catalog)
 	}
 }

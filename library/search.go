@@ -60,9 +60,9 @@ type stationSearcher interface {
 // menu, and builds rows with each source's own builders, so a row opens
 // exactly as it does while browsing that source.
 type catalogView struct {
-	cat     catalog.Catalog
-	spotify *catalogBrowser // nil without Spotify
-	local   *catalogBrowser
+	cat    catalog.Catalog
+	synced map[string]*catalogBrowser // by catalog provider name
+	local  *catalogBrowser
 	// Beyond the catalog: live Spotify search and the radio directory.
 	spotifyProv playlist.Provider
 	radioProv   playlist.Provider
@@ -71,9 +71,10 @@ type catalogView struct {
 }
 
 func newCatalogView(cat catalog.Catalog, src Sources) *catalogView {
-	s := &catalogView{cat: cat, local: localBrowser(cat, src.Local, src.MusicDir), radioProv: src.Radio}
-	if src.Spotify != nil {
-		s.spotify, s.spotifyProv = spotifyBrowser(cat, src.Spotify), src.Spotify
+	s := &catalogView{cat: cat, synced: map[string]*catalogBrowser{},
+		local: localBrowser(cat, src.Local, src.MusicDir), spotifyProv: src.Spotify, radioProv: src.Radio}
+	for _, ss := range src.Synced {
+		s.synced[ss.Provider] = syncedBrowser(cat, ss)
 	}
 	return s
 }
@@ -175,8 +176,9 @@ func (s *catalogView) entry(r catalog.SearchResult) (e Entry, ok bool) {
 		e, ok = s.artistRow(*r.Artist)
 	case r.Album != nil:
 		e, ok = s.albumRow(*r.Album)
-	case r.Playlist != nil && r.Provider == catalog.Spotify && s.spotify != nil:
-		e, ok = s.spotify.playlistEntry(*r.Playlist), true
+	case r.Playlist != nil && s.synced[r.Playlist.Ref.Provider] != nil:
+		e, ok = s.synced[r.Playlist.Ref.Provider].playlistEntry(*r.Playlist), true
+		e.Detail = joinDetail(SourceLabel(r.Playlist.Ref.Provider), e.Detail)
 	case r.Track != nil:
 		e, ok = s.trackRow(*r.Track, r.Kind == catalog.SearchStation), true
 	}
@@ -203,9 +205,9 @@ func (s *catalogView) trackRow(t catalog.Track, station bool) Entry {
 // ok is false when the source is not configured.
 func (s *catalogView) artistRow(a catalog.Artist) (Entry, bool) {
 	var e Entry
-	switch {
-	case a.Ref.Provider == catalog.Spotify && s.spotify != nil:
-		e = s.spotify.artistEntry(a)
+	switch b := s.synced[a.Ref.Provider]; {
+	case b != nil:
+		e = b.artistEntry(a)
 	case a.Ref.Provider == catalog.Local:
 		e = s.local.localArtistEntry(a)
 	default:
@@ -219,9 +221,9 @@ func (s *catalogView) artistRow(a catalog.Artist) (Entry, bool) {
 // ok is false when the source is not configured.
 func (s *catalogView) albumRow(a catalog.Album) (Entry, bool) {
 	var e Entry
-	switch {
-	case a.Ref.Provider == catalog.Spotify && s.spotify != nil:
-		e = s.spotify.albumEntry(a, a.Artist)
+	switch b := s.synced[a.Ref.Provider]; {
+	case b != nil:
+		e = b.albumEntry(a, a.Artist)
 	case a.Ref.Provider == catalog.Local:
 		e = s.local.localAlbumEntry(a)
 	default:
@@ -282,8 +284,15 @@ func (s *catalogView) fetchAlbum(ctx context.Context, albumID int64) []catalog.T
 	return tracks
 }
 
-// SourceLabel names a catalog provider for display: "spotify" → "Spotify".
+// sourceLabels spells the providers whose names do not simply capitalize.
+var sourceLabels = map[string]string{"youtube": "YouTube"}
+
+// SourceLabel names a catalog provider for display: "spotify" → "Spotify",
+// "youtube" → "YouTube".
 func SourceLabel(provider string) string {
+	if label, ok := sourceLabels[provider]; ok {
+		return label
+	}
 	if provider == "" {
 		return ""
 	}

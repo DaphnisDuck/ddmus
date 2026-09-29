@@ -197,17 +197,23 @@ func queryAll[T any](ctx context.Context, db *sql.DB, scan func(*sql.Rows) (T, e
 	return out, nil
 }
 
-func scanAlbum(r *sql.Rows) (a catalog.Album, err error) {
-	err = r.Scan(&a.ID, &a.Ref.Provider, &a.Ref.ProviderID, &a.Title, &a.Artist,
-		&a.Year, &a.TrackCount, &a.ArtworkURL, &a.TracksCached)
+func scanAlbum(r *sql.Rows) (catalog.Album, error) { return scanAlbumWith(r) }
+
+// scanAlbumWith scans albumColumns, then extra columns into extra.
+func scanAlbumWith(r *sql.Rows, extra ...any) (a catalog.Album, err error) {
+	err = r.Scan(append([]any{&a.ID, &a.Ref.Provider, &a.Ref.ProviderID, &a.Title, &a.Artist,
+		&a.Year, &a.TrackCount, &a.ArtworkURL, &a.TracksCached}, extra...)...)
 	return a, err
 }
 
-func scanTrack(r *sql.Rows) (t catalog.Track, err error) {
+func scanTrack(r *sql.Rows) (catalog.Track, error) { return scanTrackWith(r) }
+
+// scanTrackWith scans trackColumns, then extra columns into extra.
+func scanTrackWith(r *sql.Rows, extra ...any) (t catalog.Track, err error) {
 	var durationMS int64
-	err = r.Scan(&t.ID, &t.Ref.Provider, &t.Ref.ProviderID, &t.Title, &t.Artist,
+	err = r.Scan(append([]any{&t.ID, &t.Ref.Provider, &t.Ref.ProviderID, &t.Title, &t.Artist,
 		&t.AlbumID, &t.AlbumTitle, &t.Disc, &t.TrackNo, &durationMS, &t.PlayableURI,
-		&t.Genre, &t.Year, &t.ArtworkURL)
+		&t.Genre, &t.Year, &t.ArtworkURL}, extra...)...)
 	t.Duration = time.Duration(durationMS) * time.Millisecond
 	return t, err
 }

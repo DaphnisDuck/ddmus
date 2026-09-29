@@ -68,19 +68,6 @@ func (q Query) Text() string {
 	return strings.Join(words, " ")
 }
 
-// Plain is the query's any-field text, words joined by spaces: what the user
-// typed, minus operators. Ranking uses it to favor exact title matches.
-func (q Query) Plain() string {
-	var words []string
-	for _, t := range q.Terms {
-		if t.Field != FieldAny {
-			return ""
-		}
-		words = append(words, t.Text)
-	}
-	return strings.Join(words, " ")
-}
-
 // ParseQuery parses what the user typed:
 //
 //	bee sym               words, each matching as a prefix

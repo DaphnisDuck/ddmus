@@ -35,9 +35,9 @@ type Sources struct {
 // Root returns the top of the hierarchy: Music.
 func Root(src Sources) Level {
 	var entries []Entry
-	var search *searcher
+	var search *catalogView
 	if src.Catalog != nil {
-		search = newSearcher(src.Catalog, src)
+		search = newCatalogView(src.Catalog, src)
 		entries = append(entries, Entry{Title: "Library", Open: search.libraryMenu()})
 	}
 	if src.Spotify != nil {

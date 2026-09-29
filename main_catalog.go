@@ -82,6 +82,9 @@ type providerSync struct {
 	stale       bool                // startup should sync
 	retry       *time.Timer         // pending retry of a failed sync
 	retryDelay  time.Duration       // the last retry's delay; zero after a success
+	// requests counts sync requests. A quiet source's running sync that
+	// sees it grow runs once more, serving requests made while it ran.
+	requests int
 }
 
 // openCatalog opens the catalog with a sync source for Spotify, when it is
@@ -236,7 +239,9 @@ func (rt *catalogRuntime) refresh(provider string) {
 
 // sync starts a sync of provider in the background. A sync of a provider
 // with an album fill pauses the fill while it runs and fills newly saved
-// albums after. A sync already running makes it a no-op.
+// albums after. A sync already running makes it a no-op, except for a quiet
+// source: its sync is instant and follows a local change (a favorite
+// toggled), so the running sync runs once more to include it.
 func (rt *catalogRuntime) sync(provider string) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
@@ -244,6 +249,7 @@ func (rt *catalogRuntime) sync(provider string) {
 	if rt.engine == nil || rt.closed || ps == nil {
 		return
 	}
+	ps.requests++
 	rt.wg.Add(1)
 	go func() {
 		defer rt.wg.Done()
@@ -251,7 +257,21 @@ func (rt *catalogRuntime) sync(provider string) {
 		if ps.fill {
 			release = rt.filler.Hold()
 		}
-		err := rt.engine.Sync(rt.ctx, provider)
+		var err error
+		for {
+			rt.mu.Lock()
+			seen := ps.requests
+			rt.mu.Unlock()
+			// A request whose Sync finds one running (ErrRunning) returns
+			// below; the running one sees its count and runs again.
+			err = rt.engine.Sync(rt.ctx, provider)
+			rt.mu.Lock()
+			again := ps.quiet && err == nil && ps.requests != seen && !rt.closed
+			rt.mu.Unlock()
+			if !again {
+				break
+			}
+		}
 		release()
 		if errors.Is(err, catalogsync.ErrRunning) || rt.ctx.Err() != nil {
 			return // the running sync, or quitting, owns what happens next

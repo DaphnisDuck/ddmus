@@ -37,10 +37,11 @@ type libraryState struct {
 
 	// Search: whether the search frame's input has focus (else its
 	// results), the last query (kept when search reopens), and the
-	// generation of the pending debounced query.
-	searchInput bool
-	lastQuery   string
-	searchGen   uint64
+	// debounced query waiting to run.
+	searchInput   bool
+	lastQuery     string
+	searchGen     uint64
+	searchPending bool // a typed query is waiting for its debounce tick
 }
 
 // libSync is one provider's catalog sync status as the library shows it.

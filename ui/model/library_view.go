@@ -130,19 +130,11 @@ func (m *Model) libSyncBadge() string {
 			continue
 		}
 		if len(m.lib.sync) > 1 {
-			badge = providerLabel(provider) + " " + badge
+			badge = library.SourceLabel(provider) + " " + badge
 		}
 		badges = append(badges, badge)
 	}
 	return strings.Join(badges, " · ")
-}
-
-// providerLabel is a catalog provider name for display: "spotify" → "Spotify".
-func providerLabel(provider string) string {
-	if provider == "" {
-		return ""
-	}
-	return strings.ToUpper(provider[:1]) + provider[1:]
 }
 
 func syncAge(d time.Duration) string {

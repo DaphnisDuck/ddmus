@@ -82,7 +82,8 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 		wdb.Close()
 		return nil, fmt.Errorf("open catalog %s: %w", dbPath, err)
 	}
-	// Search reads each kind on its own connection at once; keep them open.
+	// Search reads each kind on its own connection at once, and a browse
+	// query may run beside it: keep one connection per kind plus one open.
 	db.SetMaxIdleConns(len(catalog.SearchKinds) + 1)
 	return &Store{db: db, wdb: wdb}, nil
 }
@@ -241,62 +242,79 @@ func refreshSortKeys(ctx context.Context, db *sql.DB) error {
 	if version >= catalog.SortKeyVersion {
 		return nil
 	}
+	if err := rewriteSortKeys(ctx, db); err != nil {
+		return fmt.Errorf("refresh sort keys: %w", err)
+	}
+	return nil
+}
+
+// rewriteSortKeys recomputes every artist's and album's sort keys and
+// records the key version, in one transaction.
+func rewriteSortKeys(ctx context.Context, db *sql.DB) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("refresh sort keys: %w", err)
+		return err
 	}
 	defer tx.Rollback()
 
-	type row struct {
-		id           int64
-		title, other string
-	}
-	read := func(query string) ([]row, error) {
+	// rekey runs update, prepared once, with the keys of each (id, name,
+	// credit) row that query reads.
+	rekey := func(query, update string, keys func(name, credit string) []any) error {
+		type row struct {
+			id           int64
+			name, credit string
+		}
 		rows, err := tx.QueryContext(ctx, query)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		defer rows.Close()
-		var out []row
+		var all []row
 		for rows.Next() {
 			var r row
-			if err := rows.Scan(&r.id, &r.title, &r.other); err != nil {
-				return nil, err
+			if err := rows.Scan(&r.id, &r.name, &r.credit); err != nil {
+				rows.Close()
+				return err
 			}
-			out = append(out, r)
+			all = append(all, r)
 		}
-		return out, rows.Err()
-	}
-	artists, err := read(`SELECT id, name, '' FROM artists`)
-	if err != nil {
-		return fmt.Errorf("refresh sort keys: %w", err)
-	}
-	for _, a := range artists {
-		if _, err := tx.ExecContext(ctx, `UPDATE artists SET sort_name = ? WHERE id = ?`, catalog.SortKey(a.title), a.id); err != nil {
-			return fmt.Errorf("refresh sort keys: %w", err)
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
 		}
+		stmt, err := tx.PrepareContext(ctx, update)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+		for _, r := range all {
+			if _, err := stmt.ExecContext(ctx, append(keys(r.name, r.credit), r.id)...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := rekey(`SELECT id, name, '' FROM artists`, `UPDATE artists SET sort_name = ? WHERE id = ?`,
+		func(name, _ string) []any { return []any{catalog.SortKey(name)} }); err != nil {
+		return err
 	}
 	// An album sorts under its display credit when the writer set one (a
 	// local index: the artist or Various Artists), else its first artist.
-	albums, err := read(`SELECT al.id, al.title, CASE WHEN al.provider = '` + catalog.Local + `' THEN al.artist_credit
+	if err := rekey(`SELECT al.id, al.title, CASE WHEN al.provider = '`+catalog.Local+`' THEN al.artist_credit
 			ELSE COALESCE((SELECT ar.name FROM album_artists x JOIN artists ar ON ar.id = x.artist_id
 				WHERE x.album_id = al.id ORDER BY x.position LIMIT 1), '') END
-		FROM albums al`)
-	if err != nil {
-		return fmt.Errorf("refresh sort keys: %w", err)
-	}
-	for _, a := range albums {
-		sortArtist := ""
-		if a.other != "" {
-			sortArtist = catalog.SortKey(a.other)
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE albums SET sort_title = ?, sort_artist = ? WHERE id = ?`,
-			catalog.SortKey(a.title), sortArtist, a.id); err != nil {
-			return fmt.Errorf("refresh sort keys: %w", err)
-		}
+		FROM albums al`, `UPDATE albums SET sort_title = ?, sort_artist = ? WHERE id = ?`,
+		func(title, credit string) []any {
+			sortArtist := ""
+			if credit != "" {
+				sortArtist = catalog.SortKey(credit)
+			}
+			return []any{catalog.SortKey(title), sortArtist}
+		}); err != nil {
+		return err
 	}
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`PRAGMA user_version = %d`, catalog.SortKeyVersion)); err != nil {
-		return fmt.Errorf("record sort key version: %w", err)
+		return err
 	}
 	return tx.Commit()
 }

@@ -43,11 +43,12 @@ func (m *Model) libSearchLevel() (library.SearchLevel, bool) {
 func (m *Model) librarySearch() tea.Cmd {
 	for i, f := range m.lib.stack {
 		if _, ok := f.level.(library.SearchLevel); ok {
+			var cmd tea.Cmd
 			for len(m.lib.stack) > i+1 {
-				m.libraryPop()
+				cmd = m.libraryPop() // only the last, the new top's, matters
 			}
 			m.lib.searchInput = true
-			return nil
+			return cmd
 		}
 	}
 	for _, e := range m.lib.stack[0].entries {
@@ -83,6 +84,15 @@ func (m *Model) handleLibrarySearchInput(msg tea.KeyPressMsg, sl library.SearchL
 		m.lib.searchInput = false
 		return m.libraryPop()
 	case "enter", "down", "tab":
+		// A query still settling runs now, so the results focused are its
+		// own and no late reload moves the cursor.
+		if m.lib.searchPending {
+			m.lib.searchPending = false
+			nextRequest(&m.lib.searchGen) // drops the pending tick
+			m.lib.searchInput = false
+			f.cursor, f.scroll = 0, 0
+			return m.libraryLoad()
+		}
 		if len(f.entries) > 0 {
 			m.lib.searchInput = false
 			f.cursor, f.scroll = 0, 0
@@ -102,9 +112,11 @@ func (m *Model) handleLibrarySearchInput(msg tea.KeyPressMsg, sl library.SearchL
 	}
 	f.gen = nextRequest(&m.lib.gen) // drops a load of the old query
 	if query == "" {
+		m.lib.searchPending = false
 		f.entries, f.err, f.cursor, f.scroll = nil, nil, 0, 0
 		return nil
 	}
+	m.lib.searchPending = true
 	gen := nextRequest(&m.lib.searchGen)
 	return tea.Tick(librarySearchDebounce, func(time.Time) tea.Msg { return librarySearchTickMsg{gen: gen} })
 }
@@ -114,6 +126,7 @@ func (m *Model) handleLibrarySearchTick(msg librarySearchTickMsg) tea.Cmd {
 	if msg.gen != m.lib.searchGen {
 		return nil
 	}
+	m.lib.searchPending = false
 	if _, ok := m.libSearchLevel(); !ok {
 		return nil
 	}

@@ -33,10 +33,17 @@ var searchSections = []struct {
 	{catalog.SearchStation, "Stations", 5},
 }
 
+// searchFetch is one more than the largest section, so a full section
+// knows it has more.
+var searchFetch = func() int {
+	n := 0
+	for _, sec := range searchSections {
+		n = max(n, sec.limit)
+	}
+	return n + 1
+}()
+
 const (
-	// searchFetch is one more than the largest section, so a full section
-	// knows it has more.
-	searchFetch = 21
 	// moreLimit caps a "More…" list.
 	moreLimit = 200
 
@@ -49,10 +56,10 @@ type stationSearcher interface {
 	SearchStationTracks(query string) ([]playlist.Track, error)
 }
 
-// searcher reads the catalog across sources, for search and the Library
+// catalogView reads the catalog across sources, for search and the Library
 // menu, and builds rows with each source's own builders, so a row opens
 // exactly as it does while browsing that source.
-type searcher struct {
+type catalogView struct {
 	cat     catalog.Catalog
 	spotify *catalogBrowser // nil without Spotify
 	local   *catalogBrowser
@@ -63,18 +70,18 @@ type searcher struct {
 	albumOrder atomic.Int32
 }
 
-func newSearcher(cat catalog.Catalog, src Sources) *searcher {
-	s := &searcher{cat: cat, local: localBrowser(cat, src.Local, src.MusicDir), radioProv: src.Radio}
+func newCatalogView(cat catalog.Catalog, src Sources) *catalogView {
+	s := &catalogView{cat: cat, local: localBrowser(cat, src.Local, src.MusicDir), radioProv: src.Radio}
 	if src.Spotify != nil {
 		s.spotify, s.spotifyProv = spotifyBrowser(cat, src.Spotify), src.Spotify
 	}
 	return s
 }
 
-func (s *searcher) level(query string) SearchLevel { return &searchLevel{s: s, query: query} }
+func (s *catalogView) level(query string) SearchLevel { return &searchLevel{s: s, query: query} }
 
 type searchLevel struct {
-	s     *searcher
+	s     *catalogView
 	query string
 }
 
@@ -87,7 +94,7 @@ func (l *searchLevel) Load(ctx context.Context) ([]Entry, error) {
 
 // results is the search screen for query: each kind's best results under
 // its heading, then rows that search beyond the catalog.
-func (s *searcher) results(ctx context.Context, query string) ([]Entry, error) {
+func (s *catalogView) results(ctx context.Context, query string) ([]Entry, error) {
 	q := catalog.ParseQuery(query)
 	if q.Empty() {
 		return nil, nil
@@ -99,11 +106,9 @@ func (s *searcher) results(ctx context.Context, query string) ([]Entry, error) {
 	var entries []Entry
 	for _, sec := range searchSections {
 		rs := found[sec.kind]
-		for _, r := range rs[:min(len(rs), sec.limit)] {
-			if e, ok := s.entry(r); ok {
-				e.Section = sec.heading
-				entries = append(entries, e)
-			}
+		for _, e := range s.rows(rs[:min(len(rs), sec.limit)]) {
+			e.Section = sec.heading
+			entries = append(entries, e)
 		}
 		if len(rs) > sec.limit {
 			entries = append(entries, Entry{
@@ -119,26 +124,31 @@ func (s *searcher) results(ctx context.Context, query string) ([]Entry, error) {
 }
 
 // more lists up to moreLimit results of one kind.
-func (s *searcher) more(q catalog.Query, kind catalog.SearchKind, heading string) Level {
+func (s *catalogView) more(q catalog.Query, kind catalog.SearchKind, heading string) Level {
 	q.Kinds = []catalog.SearchKind{kind}
 	return NewLevel(heading, func(ctx context.Context) ([]Entry, error) {
 		found, err := s.cat.Search(ctx, q, moreLimit)
 		if err != nil {
 			return nil, err
 		}
-		var entries []Entry
-		for _, r := range found[kind] {
-			if e, ok := s.entry(r); ok {
-				entries = append(entries, e)
-			}
-		}
-		return entries, nil
+		return s.rows(found[kind]), nil
 	})
+}
+
+// rows builds the results' rows, skipping those of unconfigured sources.
+func (s *catalogView) rows(results []catalog.SearchResult) []Entry {
+	var entries []Entry
+	for _, r := range results {
+		if e, ok := s.entry(r); ok {
+			entries = append(entries, e)
+		}
+	}
+	return entries
 }
 
 // beyond is the rows that search outside the catalog: live Spotify search
 // and the radio directory, run only when chosen.
-func (s *searcher) beyond(q catalog.Query) []Entry {
+func (s *catalogView) beyond(q catalog.Query) []Entry {
 	text := q.Text()
 	if text == "" {
 		return nil
@@ -159,49 +169,39 @@ func (s *searcher) beyond(q catalog.Query) []Entry {
 
 // entry builds a result's row with its source's builder, labelled with the
 // source. ok is false for a result whose source is not configured.
-func (s *searcher) entry(r catalog.SearchResult) (Entry, bool) {
-	var e Entry
-	var ok bool
+func (s *catalogView) entry(r catalog.SearchResult) (e Entry, ok bool) {
 	switch {
 	case r.Artist != nil:
-		if e, ok = s.artistRow(*r.Artist); !ok {
-			return Entry{}, false
-		}
+		e, ok = s.artistRow(*r.Artist)
 	case r.Album != nil:
-		if e, ok = s.albumRow(*r.Album); !ok {
-			return Entry{}, false
-		}
-	case r.Playlist != nil:
-		if s.spotify == nil || r.Provider != catalog.Spotify {
-			return Entry{}, false
-		}
-		e = s.spotify.playlistEntry(*r.Playlist)
+		e, ok = s.albumRow(*r.Album)
+	case r.Playlist != nil && r.Provider == catalog.Spotify && s.spotify != nil:
+		e, ok = s.spotify.playlistEntry(*r.Playlist), true
 	case r.Track != nil:
-		t := *r.Track
-		track := PlayableTrack(t)
-		e = Entry{Title: t.Title, Track: &track}
-		if r.Kind == catalog.SearchStation {
-			track.Stream, track.Realtime = true, true
-			e.PlayFrom = func(context.Context) ([]playlist.Track, int, error) {
-				return []playlist.Track{track}, 0, nil
-			}
-		} else {
-			e.PlayFrom = s.albumFrom(t)
-		}
-	default:
-		return Entry{}, false
+		e, ok = s.trackRow(*r.Track, r.Kind == catalog.SearchStation), true
 	}
 	// Kinds share catalog IDs; the kind keeps a row's ID unique.
-	if r.Track != nil {
-		e.ID = catalogID(r.Track.ID)
-	}
 	e.ID = string(r.Kind) + ":" + e.ID
-	return e, true
+	return e, ok
+}
+
+// trackRow is a searched track's row: Enter plays its album from it, or
+// plays a station alone as a live stream.
+func (s *catalogView) trackRow(t catalog.Track, station bool) Entry {
+	track := PlayableTrack(t)
+	e := Entry{ID: catalogID(t.ID), Title: t.Title, Track: &track, PlayFrom: s.albumFrom(t)}
+	if station {
+		track.Stream, track.Realtime = true, true
+		e.PlayFrom = func(context.Context) ([]playlist.Track, int, error) {
+			return []playlist.Track{track}, 0, nil
+		}
+	}
+	return e
 }
 
 // artistRow is an artist's row, built by its source and labelled with it.
 // ok is false when the source is not configured.
-func (s *searcher) artistRow(a catalog.Artist) (Entry, bool) {
+func (s *catalogView) artistRow(a catalog.Artist) (Entry, bool) {
 	var e Entry
 	switch {
 	case a.Ref.Provider == catalog.Spotify && s.spotify != nil:
@@ -211,13 +211,13 @@ func (s *searcher) artistRow(a catalog.Artist) (Entry, bool) {
 	default:
 		return Entry{}, false
 	}
-	e.Detail = sourceLabel(a.Ref.Provider)
+	e.Detail = SourceLabel(a.Ref.Provider)
 	return e, true
 }
 
 // albumRow is an album's row, built by its source and labelled with it.
 // ok is false when the source is not configured.
-func (s *searcher) albumRow(a catalog.Album) (Entry, bool) {
+func (s *catalogView) albumRow(a catalog.Album) (Entry, bool) {
 	var e Entry
 	switch {
 	case a.Ref.Provider == catalog.Spotify && s.spotify != nil:
@@ -228,14 +228,14 @@ func (s *searcher) albumRow(a catalog.Album) (Entry, bool) {
 		return Entry{}, false
 	}
 	// The source comes first so a long credit cannot truncate it away.
-	e.Detail = joinDetail(sourceLabel(a.Ref.Provider), e.Detail)
+	e.Detail = joinDetail(SourceLabel(a.Ref.Provider), e.Detail)
 	return e, true
 }
 
 // albumFrom plays a searched track's album from that track: the catalog's
 // track list, fetched and cached first for an uncached Spotify album. When
 // the album cannot be had (offline, no album) it plays just the track.
-func (s *searcher) albumFrom(t catalog.Track) func(ctx context.Context) ([]playlist.Track, int, error) {
+func (s *catalogView) albumFrom(t catalog.Track) func(ctx context.Context) ([]playlist.Track, int, error) {
 	return func(ctx context.Context) ([]playlist.Track, int, error) {
 		single := []playlist.Track{PlayableTrack(t)}
 		if t.AlbumID == 0 {
@@ -245,14 +245,11 @@ func (s *searcher) albumFrom(t catalog.Track) func(ctx context.Context) ([]playl
 		if err != nil {
 			return single, 0, nil
 		}
-		if !cached && t.Ref.Provider == catalog.Spotify {
-			if f, ok := s.cat.(catalog.AlbumTrackFetcher); ok {
-				if album, err := s.cat.Album(ctx, t.AlbumID); err == nil {
-					if fetched, err := f.FetchAlbumTracks(ctx, album); err == nil {
-						tracks = fetched
-					}
-				}
-			}
+		// An uncached Spotify album holds only the tracks the catalog met
+		// elsewhere (liked, in a playlist); playing those as the album would
+		// silently skip the rest. A local album is always whole.
+		if !cached && t.Ref.Provider != catalog.Local {
+			tracks = s.fetchAlbum(ctx, t.AlbumID)
 		}
 		for i, at := range tracks {
 			if at.ID == t.ID {
@@ -267,17 +264,30 @@ func (s *searcher) albumFrom(t catalog.Track) func(ctx context.Context) ([]playl
 	}
 }
 
-// sourceLabel names a catalog provider for display.
-func sourceLabel(provider string) string {
-	switch provider {
-	case catalog.Spotify:
-		return "Spotify"
-	case catalog.Local:
-		return "Local"
-	case catalog.Radio:
-		return "Radio"
+// fetchAlbum fetches and caches an album's tracks, or returns none when it
+// cannot (offline, or a catalog without a fetcher).
+func (s *catalogView) fetchAlbum(ctx context.Context, albumID int64) []catalog.Track {
+	f, ok := s.cat.(catalog.AlbumTrackFetcher)
+	if !ok {
+		return nil
 	}
-	return provider
+	album, err := s.cat.Album(ctx, albumID)
+	if err != nil {
+		return nil
+	}
+	tracks, err := f.FetchAlbumTracks(ctx, album)
+	if err != nil {
+		return nil
+	}
+	return tracks
+}
+
+// SourceLabel names a catalog provider for display: "spotify" → "Spotify".
+func SourceLabel(provider string) string {
+	if provider == "" {
+		return ""
+	}
+	return strings.ToUpper(provider[:1]) + provider[1:]
 }
 
 func joinDetail(parts ...string) string {

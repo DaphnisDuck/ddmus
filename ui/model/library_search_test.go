@@ -246,3 +246,22 @@ func TestStationRowsHaveNoNumber(t *testing.T) {
 		t.Errorf("numbers = %v, want stations skipped", got)
 	}
 }
+
+// Enter within the debounce runs the typed query at once and focuses its
+// results; the late tick changes nothing.
+func TestLibrarySearchEnterRunsPendingQuery(t *testing.T) {
+	m, loads := newSearchModel(t)
+	m = libPress(t, m, "/")
+	m = typeText(t, m, "a") // settled: rows for "a"
+	updated, tick := m.Update(libKey("b"))
+	m = updated.(Model)
+	m = libPress(t, m, "enter") // before the tick for "ab"
+	if m.lib.searchInput || m.libTop().entries[0].Title != "An Album ab" {
+		t.Fatalf("after enter: input %v, rows %+v", m.lib.searchInput, m.libTop().entries)
+	}
+	m = libPress(t, m, "j")
+	m = libRun(t, m, tick) // the stale tick
+	if m.libTop().cursor != 1 || !slices.Equal(*loads, []string{"a", "ab"}) {
+		t.Errorf("after the late tick: cursor %d, loads %q", m.libTop().cursor, *loads)
+	}
+}

@@ -205,7 +205,7 @@ func (f *fetchCatalog) FetchAlbumTracks(_ context.Context, a catalog.Album) ([]c
 func TestSearchTrackFetchesUncachedAlbum(t *testing.T) {
 	cat, _, _ := newCatalogFixture()
 	fc := &fetchCatalog{fakeCatalog: cat}
-	s := &searcher{cat: fc}
+	s := &catalogView{cat: fc}
 	two := catalog.Track{ID: 61, Ref: sref2("t61"), Title: "Two", AlbumID: 2, PlayableURI: "spotify:track:t61"}
 	e, ok := s.entry(catalog.SearchResult{Kind: catalog.SearchTrack, Provider: catalog.Spotify, Track: &two})
 	if !ok {
@@ -231,5 +231,29 @@ func TestRootSearchWithoutCatalog(t *testing.T) {
 		if e.Title == "Search" && (e.Intent != IntentSearch || e.Open != nil) {
 			t.Errorf("Search without a catalog = %+v, want the provider search intent", e)
 		}
+	}
+}
+
+// An uncached album holds only the tracks the catalog met elsewhere; when it
+// cannot be fetched, only the searched track plays, never that fragment.
+func TestSearchTrackNeverPlaysAPartialAlbum(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	liked := catalog.Track{ID: 61, Ref: sref2("t61"), Title: "Two", AlbumID: 2, PlayableURI: "spotify:track:t61"}
+	other := catalog.Track{ID: 62, Ref: sref2("t62"), Title: "Also liked", AlbumID: 2, PlayableURI: "spotify:track:t62"}
+	cat.albumTracks[2] = []catalog.Track{liked, other} // album 2 is uncached
+	for name, c := range map[string]catalog.Catalog{
+		"no fetcher": cat,
+		"offline":    &fetchCatalog{fakeCatalog: cat, offline: true},
+	} {
+		s := &catalogView{cat: c}
+		e, _ := s.entry(catalog.SearchResult{Kind: catalog.SearchTrack, Provider: catalog.Spotify, Track: &liked})
+		if got, i := playFrom(t, e); !slices.Equal(got, []string{"Two"}) || i != 0 {
+			t.Errorf("%s: plays %v from %d, want just the track", name, got, i)
+		}
+	}
+	s := &catalogView{cat: &fetchCatalog{fakeCatalog: cat}}
+	e, _ := s.entry(catalog.SearchResult{Kind: catalog.SearchTrack, Provider: catalog.Spotify, Track: &liked})
+	if got, i := playFrom(t, e); !slices.Equal(got, []string{"One", "Two"}) || i != 1 {
+		t.Errorf("online: plays %v from %d, want the fetched album", got, i)
 	}
 }

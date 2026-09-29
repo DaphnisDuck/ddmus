@@ -24,7 +24,7 @@ Music
 - **Radio:**
   - **Favorites** are your starred stations. Enter plays one.
   - **Browse Stations** lists the cliamp radio channels and the station directory by country or tag.
-- **Search:** until unified search (Milestone 3) lands, this opens the existing provider search (Spotify if configured, else Local).
+- **Search:** searches everything the catalog holds as you type; `/` opens it from anywhere. See [search.md](search.md). Without a catalog it is the provider's own search (Spotify if configured, else Local).
 
 Lists sort A–Z as names are written ("The Planets" under T), ignoring case, accents and leading punctuation. Albums sort by title; press `o` to sort by artist instead. Radio favorites sort by name; stations under a country or tag keep the directory's most-voted-first order.
 

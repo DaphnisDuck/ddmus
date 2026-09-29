@@ -273,6 +273,11 @@ func TestSearchQuotesUserInput(t *testing.T) {
 	if got := search(t, s, "planets*")[catalog.SearchPlaylist]; !slices.Equal(got, []string{"Planets for Work"}) {
 		t.Errorf("planets* = %q, want the * searched as text", got)
 	}
+	// Punctuation does not make a one-letter word a prefix: "h!" is the
+	// whole word "h", which no title has, not every "h…".
+	if got := search(t, s, "h!"); len(got) != 0 {
+		t.Errorf("h! = %q, want nothing", got)
+	}
 }
 
 // Upgrading a v1 catalog indexes what it already holds.

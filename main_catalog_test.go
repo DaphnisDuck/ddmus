@@ -188,3 +188,47 @@ func TestQuietSourceReportsNothing(t *testing.T) {
 		t.Error("Spotify's events were not sent")
 	}
 }
+
+// gatedSource blocks each Fetch until released and counts the runs.
+type gatedSource struct {
+	namedSource
+	mu      sync.Mutex
+	runs    int
+	started chan struct{}
+	release chan struct{}
+}
+
+func (g *gatedSource) Fetch(ctx context.Context, c string, k catalogsync.Known) (catalog.Snapshot, error) {
+	g.mu.Lock()
+	g.runs++
+	g.mu.Unlock()
+	g.started <- struct{}{}
+	<-g.release
+	return g.namedSource.Fetch(ctx, c, k)
+}
+
+// A quiet source's sync requested while one runs (a favorite toggled
+// mid-sync) is served by one more run, not dropped.
+func TestQuietSyncRequestedMidRunRunsAgain(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &gatedSource{namedSource: namedSource{catalog.Radio}, started: make(chan struct{}, 4), release: make(chan struct{})}
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
+	rt.setSources(source{Source: src, quiet: true})
+	t.Cleanup(rt.close)
+
+	rt.sync(catalog.Radio)
+	<-src.started          // the first run is fetching
+	rt.sync(catalog.Radio) // requested mid-run: finds it running
+	close(src.release)
+	<-src.started // the running sync ran again
+	rt.wg.Wait()
+	src.mu.Lock()
+	defer src.mu.Unlock()
+	if src.runs != 2 {
+		t.Errorf("runs = %d, want 2", src.runs)
+	}
+}

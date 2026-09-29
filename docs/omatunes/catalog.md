@@ -6,7 +6,9 @@ omatunes keeps your Spotify library and an index of your local music folder in o
 
 - **Spotify:** saved albums, followed artists, liked songs, and the playlists you own or follow, with their tracks. Album track lists are cached as you open albums, and in the background for the rest of your saved albums.
 - **Local:** every audio file under the music folder, grouped into albums, artists and genres. The folder is `initial_directory` in `config.toml`, else `$XDG_MUSIC_DIR`, else `~/Music`.
-- **Not in the catalog:** radio stations, local playlists, and an artist's full Spotify discography. These are always loaded live.
+- **Radio:** your favorite stations and the built-in and `radios.toml` stations, so [search](search.md) finds them. They are read from local files at every start and whenever you star or unstar a station. Browsing Radio still reads them directly.
+- **Search index:** a full-text index of everything above, kept in step with every change. See [search.md](search.md).
+- **Not in the catalog:** the radio directory, local playlists, and an artist's full Spotify discography. These are always loaded live.
 
 No passwords or tokens are stored in the catalog. Spotify credentials stay in `~/.config/omatunes/spotify_credentials.json`.
 

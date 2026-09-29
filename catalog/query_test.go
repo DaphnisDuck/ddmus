@@ -44,11 +44,11 @@ func TestParseQuery(t *testing.T) {
 
 func TestQueryHelpers(t *testing.T) {
 	q := ParseQuery("new world")
-	if q.Plain() != "new world" || q.Empty() || !q.Wants(SearchTrack) {
-		t.Errorf("plain query: Plain %q, Empty %v, Wants %v", q.Plain(), q.Empty(), q.Wants(SearchTrack))
+	if q.Text() != "new world" || q.Empty() || !q.Wants(SearchTrack) {
+		t.Errorf("plain query: Text %q, Empty %v, Wants %v", q.Text(), q.Empty(), q.Wants(SearchTrack))
 	}
-	q = ParseQuery("artist:holst type:album")
-	if q.Plain() != "" || q.Wants(SearchTrack) || !q.Wants(SearchAlbum) {
-		t.Errorf("operator query: Plain %q, Wants track %v, album %v", q.Plain(), q.Wants(SearchTrack), q.Wants(SearchAlbum))
+	q = ParseQuery("artist:holst type:album mars")
+	if q.Text() != "holst mars" || q.Wants(SearchTrack) || !q.Wants(SearchAlbum) {
+		t.Errorf("operator query: Text %q, Wants track %v, album %v", q.Text(), q.Wants(SearchTrack), q.Wants(SearchAlbum))
 	}
 }

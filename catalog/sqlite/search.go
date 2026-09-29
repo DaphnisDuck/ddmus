@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
-	"unicode/utf8"
+	"unicode"
 
 	"github.com/bjarneo/cliamp/catalog"
 )
@@ -64,15 +63,13 @@ var searchKinds = map[catalog.SearchKind]searchKind{
 				hits.rank * (1 + ` + boost("al.id", catalog.KindAlbum) + ` + ` + exact("al.title") + `) AS score
 			FROM hits JOIN albums al ON al.id = hits.id`,
 		scan: func(r *sql.Rows) (res catalog.SearchResult, err error) {
-			a := &catalog.Album{}
-			err = r.Scan(&a.ID, &a.Ref.Provider, &a.Ref.ProviderID, &a.Title, &a.Artist,
-				&a.Year, &a.TrackCount, &a.ArtworkURL, &a.TracksCached, &res.Score)
-			res.Album = a
+			a, err := scanAlbumWith(r, &res.Score)
+			res.Album = &a
 			return res, err
 		},
 	},
-	catalog.SearchTrack:   trackKind(false),
-	catalog.SearchStation: trackKind(true),
+	catalog.SearchTrack:   trackKind(),
+	catalog.SearchStation: stationKind(),
 	catalog.SearchPlaylist: {
 		table: "playlists_fts",
 		cols:  map[string]string{catalog.FieldTitle: "name"},
@@ -88,39 +85,45 @@ var searchKinds = map[catalog.SearchKind]searchKind{
 	},
 }
 
-// trackKind searches ordinary tracks, boosting library members, or radio
-// stations, which rank favorites first.
-func trackKind(stations bool) searchKind {
-	k := searchKind{
-		table: "tracks_fts",
-		cols: map[string]string{catalog.FieldTitle: "title", catalog.FieldArtist: "artist",
-			catalog.FieldAlbum: "album", catalog.FieldGenre: "genre"},
-		where: `provider <> '` + catalog.Radio + `'`,
-		selects: `SELECT ` + trackColumns + `,
-				hits.rank * (1 + ` + boost("t.id", catalog.KindTrack) + ` + ` + exact("t.title") + `) AS score
-			FROM hits JOIN tracks t ON t.id = hits.id
-			LEFT JOIN albums al ON al.id = t.album_id`,
-		scan: func(r *sql.Rows) (res catalog.SearchResult, err error) {
-			tr := &catalog.Track{}
-			var durationMS int64
-			err = r.Scan(&tr.ID, &tr.Ref.Provider, &tr.Ref.ProviderID, &tr.Title, &tr.Artist,
-				&tr.AlbumID, &tr.AlbumTitle, &tr.Disc, &tr.TrackNo, &durationMS, &tr.PlayableURI,
-				&tr.Genre, &tr.Year, &tr.ArtworkURL, &res.Score)
-			tr.Duration = time.Duration(durationMS) * time.Millisecond
-			res.Track = tr
-			return res, err
-		},
+// trackKind searches ordinary tracks, boosting library members.
+func trackKind() searchKind {
+	return searchKind{
+		table:   "tracks_fts",
+		cols:    trackCols,
+		where:   `provider <> '` + catalog.Radio + `'`,
+		selects: trackSelect(`hits.rank * (1 + ` + boost("t.id", catalog.KindTrack) + ` + ` + exact("t.title") + `)`),
+		scan:    scanTrackResult,
 	}
-	if stations {
-		k.where = `provider = '` + catalog.Radio + `'`
-		k.selects = `SELECT ` + trackColumns + `,
-				hits.rank * (1 + ` + exact("t.title") + `) AS score
+}
+
+// stationKind searches radio stations, which rank favorites first.
+func stationKind() searchKind {
+	return searchKind{
+		table:   "tracks_fts",
+		cols:    trackCols,
+		where:   `provider = '` + catalog.Radio + `'`,
+		selects: trackSelect(`hits.rank * (1 + ` + exact("t.title") + `)`),
+		favorite: `EXISTS (SELECT 1 FROM library_items li WHERE li.kind = '` + string(catalog.KindTrack) + `'
+			AND li.item_id = t.id AND li.provider = '` + catalog.Radio + `' AND li.collection = 'favorites')`,
+		scan: scanTrackResult,
+	}
+}
+
+// trackCols maps query fields to tracks_fts columns.
+var trackCols = map[string]string{catalog.FieldTitle: "title", catalog.FieldArtist: "artist",
+	catalog.FieldAlbum: "album", catalog.FieldGenre: "genre"}
+
+// trackSelect reads the hits' tracks with score as their score.
+func trackSelect(score string) string {
+	return `SELECT ` + trackColumns + `, ` + score + ` AS score
 			FROM hits JOIN tracks t ON t.id = hits.id
 			LEFT JOIN albums al ON al.id = t.album_id`
-		k.favorite = `EXISTS (SELECT 1 FROM library_items li WHERE li.kind = '` + string(catalog.KindTrack) + `'
-			AND li.item_id = t.id AND li.provider = '` + catalog.Radio + `' AND li.collection = 'favorites')`
-	}
-	return k
+}
+
+func scanTrackResult(r *sql.Rows) (res catalog.SearchResult, err error) {
+	t, err := scanTrackWith(r, &res.Score)
+	res.Track = &t
+	return res, err
 }
 
 // boost is the membership boost of an entity of kind, as SQL.
@@ -183,7 +186,7 @@ func (s *Store) searchKind(ctx context.Context, kind catalog.SearchKind, q catal
 	}
 	// Numbered parameters: ?1 the match, ?2 the plain text, then providers,
 	// the candidate pool and the limit.
-	args := []any{match, q.Plain()}
+	args := []any{match, exactTitleText(q)}
 	where := ""
 	if spec.where != "" {
 		where = " AND " + spec.where
@@ -231,6 +234,30 @@ func resultProvider(r catalog.SearchResult) string {
 	return ""
 }
 
+// exactTitleText is what a title must equal to earn the exact-title boost:
+// the query's words, when none is limited to a field.
+func exactTitleText(q catalog.Query) string {
+	words := make([]string, len(q.Terms))
+	for i, t := range q.Terms {
+		if t.Field != catalog.FieldAny {
+			return ""
+		}
+		words[i] = t.Text
+	}
+	return strings.Join(words, " ")
+}
+
+// wordRunes counts the letters and digits in s: what the tokenizer keeps.
+func wordRunes(s string) int {
+	n := 0
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			n++
+		}
+	}
+	return n
+}
+
 // ftsMatch builds an FTS5 MATCH expression requiring every term, each
 // quoted so no user text is read as FTS syntax, and each a prefix query so
 // results follow typing. A single character matches only as a whole word:
@@ -241,7 +268,7 @@ func ftsMatch(terms []catalog.Term, cols map[string]string) (string, bool) {
 	parts := make([]string, len(terms))
 	for i, t := range terms {
 		expr := `"` + strings.ReplaceAll(t.Text, `"`, `""`) + `"`
-		if utf8.RuneCountInString(strings.TrimSpace(t.Text)) > 1 {
+		if wordRunes(t.Text) > 1 {
 			expr += " *"
 		}
 		if t.Field != catalog.FieldAny {

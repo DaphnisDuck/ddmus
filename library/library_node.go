@@ -13,7 +13,7 @@ const emptyLibrary = "Your library is empty. Press r to sync."
 // list each. Rows are labelled with their source and open that source's own
 // level; the same album or artist in two sources stays two rows, sorted
 // side by side. Its lists reload after any source syncs.
-func (s *searcher) libraryMenu() Level {
+func (s *catalogView) libraryMenu() Level {
 	return Menu("Library",
 		Entry{Title: "Albums", Open: &catalogAlbumsLevel{catalogLevel{funcLevel{"Albums", s.allAlbums}, anyProvider}, &s.albumOrder}},
 		Entry{Title: "Artists", Open: &catalogLevel{funcLevel{"Artists", s.allArtists}, anyProvider}},
@@ -23,7 +23,7 @@ func (s *searcher) libraryMenu() Level {
 // anyProvider is the CatalogProvider of a level that lists every source.
 const anyProvider = ""
 
-func (s *searcher) allAlbums(ctx context.Context) ([]Entry, error) {
+func (s *catalogView) allAlbums(ctx context.Context) ([]Entry, error) {
 	albums, err := s.cat.Albums(ctx, anyProvider, catalog.AlbumOrder(s.albumOrder.Load()))
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (s *searcher) allAlbums(ctx context.Context) ([]Entry, error) {
 	return orEmpty(entries), nil
 }
 
-func (s *searcher) allArtists(ctx context.Context) ([]Entry, error) {
+func (s *catalogView) allArtists(ctx context.Context) ([]Entry, error) {
 	artists, err := s.cat.Artists(ctx, anyProvider)
 	if err != nil {
 		return nil, err

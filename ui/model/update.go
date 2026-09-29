@@ -60,6 +60,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.publishIPCRuntimeState()
 	}()
 
+	// omatunes: library navigation messages.
+	if cmd, ok := m.handleLibraryMsg(msg); ok {
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.PasteMsg:
 		cmd := m.handlePaste(msg.Content)

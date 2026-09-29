@@ -185,6 +185,7 @@ const (
 	screenLyrics
 	screenJump
 	screenFullVisualizer
+	screenLibrary // omatunes: library navigation
 )
 
 func (s topLevelScreen) label() string {
@@ -223,6 +224,8 @@ func (s topLevelScreen) label() string {
 		return "Jump to Time"
 	case screenFullVisualizer:
 		return "Visualizer"
+	case screenLibrary: // omatunes
+		return "Library"
 	default:
 		return ""
 	}
@@ -358,6 +361,8 @@ type Model struct {
 	speedSaveAfter time.Duration
 	eqSaveAfter    time.Duration
 	termTitle      terminalTitleState
+
+	lib libraryState // omatunes: library navigation stack
 
 	// Jump to time mode
 	jumping   bool
@@ -553,6 +558,8 @@ func (m Model) activeScreen() topLevelScreen {
 		return screenSearch
 	case m.netSearch.active:
 		return screenNetSearch
+	case m.libraryVisible(): // omatunes
+		return screenLibrary
 	default:
 		return screenMain
 	}
@@ -576,7 +583,8 @@ func (m Model) usesContentFirstLayout() bool {
 	// playlist and reads as a view of it, so it keeps the playback chrome and
 	// the settings pane rather than taking the frame.
 	if m.keymap.visible || m.devicePicker.visible || m.fileBrowser.visible ||
-		m.navBrowser.visible || m.themePicker.visible || m.subs.visible || m.search.active {
+		m.navBrowser.visible || m.themePicker.visible || m.subs.visible || m.search.active ||
+		m.libraryVisible() { // omatunes: library is a list screen
 		return true
 	}
 	if m.plPicker.visible && m.plPicker.screen == plPickerChoose {

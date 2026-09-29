@@ -1,5 +1,6 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-BINARY  ?= cliamp
+# omatunes: fork binary name; `make build BINARY=cliamp` for the upstream name
+BINARY  ?= omatunes
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: build test vet lint staticcheck fmt fmt-check coverage security ci check clean install

@@ -17,7 +17,8 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite" // registers the "sqlite" driver
+	msqlite "modernc.org/sqlite" // also registers the "sqlite" driver
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"github.com/bjarneo/cliamp/catalog"
 )
@@ -34,12 +35,18 @@ var ErrSchemaTooNew = errors.New("catalog database schema is newer than this oma
 // begins, so a sync never fails upgrading a read lock mid-transaction.
 const dsnParams = "_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on&_synchronous=NORMAL&_txlock=immediate"
 
-// Store is a catalog.Catalog backed by SQLite.
+// Store is a catalog.Catalog and catalog.Writer backed by SQLite. Reads use
+// a pooled handle; writes go through a single-connection handle, so writers
+// queue in Go rather than contending for SQLite's write lock.
 type Store struct {
-	db *sql.DB
+	db  *sql.DB // reads
+	wdb *sql.DB // writes; one connection
 }
 
-var _ catalog.Catalog = (*Store)(nil)
+var (
+	_ catalog.Catalog = (*Store)(nil)
+	_ catalog.Writer  = (*Store)(nil)
+)
 
 // Open opens (creating if needed) the catalog at dbPath and applies pending
 // migrations. Several processes may open the same new database at once.
@@ -56,19 +63,54 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("secure catalog directory: %w", err)
 	}
-	db, err := sql.Open("sqlite", dbPath+"?"+dsnParams)
+	dsn := dbPath + "?" + dsnParams
+	wdb, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open catalog %s: %w", dbPath, err)
 	}
-	if err := migrate(ctx, db, migrationFS); err != nil {
-		db.Close()
+	wdb.SetMaxOpenConns(1)
+	if err := retryBusy(ctx, func() error { return migrate(ctx, wdb, migrationFS) }); err != nil {
+		wdb.Close()
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		wdb.Close()
+		return nil, fmt.Errorf("open catalog %s: %w", dbPath, err)
+	}
+	return &Store{db: db, wdb: wdb}, nil
 }
 
 // Close closes the database.
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error { return errors.Join(s.db.Close(), s.wdb.Close()) }
+
+// migrationBusyWindow bounds how long Open retries a migration that another
+// process is initializing the same new database file for.
+const migrationBusyWindow = 5 * time.Second
+
+// retryBusy retries fn while it fails with SQLITE_BUSY. SQLite returns BUSY
+// without waiting on busy_timeout while another connection initializes a new
+// WAL database, so two processes opening one new catalog can collide. fn must
+// be idempotent; migrate is, because each step re-checks the version.
+func retryBusy(ctx context.Context, fn func() error) error {
+	deadline := time.Now().Add(migrationBusyWindow)
+	for attempt := 1; ; attempt++ {
+		err := fn()
+		if !isBusy(err) || time.Now().After(deadline) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(min(time.Duration(attempt)*20*time.Millisecond, 200*time.Millisecond)):
+		}
+	}
+}
+
+func isBusy(err error) bool {
+	var e *msqlite.Error
+	return errors.As(err, &e) && e.Code()&0xff == sqlite3.SQLITE_BUSY
+}
 
 type migration struct {
 	version int
@@ -116,15 +158,9 @@ func migrate(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 	if err != nil {
 		return err
 	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
-		version    INTEGER PRIMARY KEY,
-		applied_at INTEGER NOT NULL
-	)`); err != nil {
-		return fmt.Errorf("create schema_migrations: %w", err)
-	}
-	var current int
-	if err := db.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current); err != nil {
-		return fmt.Errorf("read schema version: %w", err)
+	current, err := schemaVersion(ctx, db)
+	if err != nil {
+		return err
 	}
 	if current > len(migrations) {
 		return fmt.Errorf("%w (database v%d, supported v%d)", ErrSchemaTooNew, current, len(migrations))
@@ -135,6 +171,31 @@ func migrate(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		}
 	}
 	return nil
+}
+
+// schemaVersion creates the version table if needed and returns the applied
+// version. It runs in a write transaction because SQLite's busy handler does
+// not always wait for a plain CREATE racing another process on a new file.
+func schemaVersion(ctx context.Context, db *sql.DB) (int, error) {
+	tx, err := db.BeginTx(ctx, nil) // BEGIN IMMEDIATE via _txlock
+	if err != nil {
+		return 0, fmt.Errorf("read schema version: begin: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version    INTEGER PRIMARY KEY,
+		applied_at INTEGER NOT NULL
+	)`); err != nil {
+		return 0, fmt.Errorf("create schema_migrations: %w", err)
+	}
+	var current int
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current); err != nil {
+		return 0, fmt.Errorf("read schema version: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("read schema version: commit: %w", err)
+	}
+	return current, nil
 }
 
 func applyMigration(ctx context.Context, db *sql.DB, m migration) error {

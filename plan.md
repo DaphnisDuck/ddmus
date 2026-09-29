@@ -130,7 +130,7 @@ The schema lives in `catalog/sqlite/migrations/001_initial.sql`, which is author
   - Sort columns always come from `catalog.SortKey`.
   - `albums.tracks_cached_at` marks the lazy album-track cache.
   - `playlists.own` records ownership, and `playlists.snapshot` is the provider's change marker.
-- **Membership:** `library_items(provider, collection, kind, item_id, added_at, last_seen_gen)`, where `kind` is one of album, artist, track or playlist. Each row belongs to the sync collection that saw it, so reconciling a collection deletes only its own stale rows (`DELETE … WHERE provider=? AND collection=? AND last_seen_gen<?`), never entities. `item_id` is polymorphic with no foreign key; orphan cleanup triggers can come in a later migration.
+- **Membership:** `library_items(provider, collection, kind, item_id, added_at, last_seen_gen)`, where `kind` is one of album, artist, track or playlist. Each row belongs to the sync collection that saw it, so reconciling a collection deletes only its own stale rows (`DELETE … WHERE provider=? AND collection=? AND last_seen_gen<?`), never entities. `item_id` is polymorphic with no foreign key. Unreferenced entities are removed by `Writer.Sweep`, which runs once per provider sync with explicit keep-alive rules (see `catalog/sqlite/write.go`).
 - **Sync bookkeeping:** `sync_state(provider, collection, generation, last_attempt_at, last_success_at, last_error)`, and `local_files(path, size, mtime_ns, track_id)` for the indexer.
 - **Storage details:** junction and membership tables are `WITHOUT ROWID`. Every foreign-key child column is indexed, so track deletes don't scan whole tables. Times are Unix milliseconds.
 
@@ -225,7 +225,8 @@ spotify_refresh = "30m"   # background sync if the last success is older than th
 - [x] M1.8: `docs/omatunes/navigation.md`.
 - [x] M1.9: manual test and refinement pass with the user; omatunes given its own files (docs/omatunes/files.md). M1 complete.
 - [x] M2.1 Foundation: modernc.org/sqlite v1.59.0, `catalog` types/interface + `SortKey`, `catalog/sqlite` store (WAL, immediate transactions, 0700 dir, race-safe migrations), `001_initial.sql`, read queries, FTS5 verified, `appdir.LibraryDBPath`.
-- [ ] M2.2 Sync engine: generations, reconciliation, failure safety; scenarios A–C. Also: a dedicated single-connection writer pool, and an orphan sweep (entities with no membership, playlist, album or artist references) after successful reconciliation.
+- [x] M2.2 Sync engine (`catalogsync`): per-collection snapshots applied in one transaction (generation bump, upsert that never blanks known data, reconcile) or a recorded failure that leaves the cache untouched; `Writer.Sweep` once per provider sync with explicit keep-alive rules (membership, playlists, local files, cached albums kept whole); single-connection writer; scenarios A–C plus cancellation, collection isolation and concurrency tests.
+- Deferred from M2.2 review: prepare statements once per transaction; skip rewriting unchanged rows (WAL churn); per-playlist transactions so a large first playlist sync doesn't hold the writer for seconds (M2.3); a source-side guard against a suspiciously empty "complete" snapshot, e.g. Spotify returning 0 saved albums when the catalog holds 2,000 (M2.3).
 - [ ] M2.3 Spotify source: context-aware page methods returning catalog records.
 - [ ] M2.4 UI on the catalog: adapters, startup sync, UpdatedMsg refresh, status indicator, `r` refresh, graceful shutdown.
 - [ ] M2.5 Lazy album tracks plus background filler with 429 backoff.

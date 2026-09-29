@@ -20,7 +20,7 @@ func openTemp(t *testing.T) *Store {
 	return s
 }
 
-func schemaVersion(t *testing.T, db *sql.DB) int {
+func appliedVersion(t *testing.T, db *sql.DB) int {
 	t.Helper()
 	var v int
 	if err := db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&v); err != nil {
@@ -37,7 +37,7 @@ func TestOpenMigratesAndReopens(t *testing.T) {
 		t.Fatal(err)
 	}
 	want, _ := loadMigrations(migrationFS)
-	if got := schemaVersion(t, s.db); got != len(want) {
+	if got := appliedVersion(t, s.db); got != len(want) {
 		t.Fatalf("schema version = %d, want %d", got, len(want))
 	}
 	var mode string
@@ -87,7 +87,7 @@ func TestFailedMigrationRollsBack(t *testing.T) {
 	if err := migrate(context.Background(), db, fsys); err == nil {
 		t.Fatal("migrate() error = nil, want the broken migration to fail")
 	}
-	if got := schemaVersion(t, db); got != 1 {
+	if got := appliedVersion(t, db); got != 1 {
 		t.Errorf("schema version = %d, want 1", got)
 	}
 	var n int

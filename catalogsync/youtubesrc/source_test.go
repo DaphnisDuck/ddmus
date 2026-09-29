@@ -3,6 +3,7 @@ package youtubesrc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/catalog/sqlite"
 	"github.com/bjarneo/cliamp/catalogsync"
+	"github.com/bjarneo/cliamp/playlist"
 )
 
 func ref(id string) catalog.Ref { return catalog.Ref{Provider: catalog.YouTube, ProviderID: id} }
@@ -127,4 +129,36 @@ func TestUnchangedMarkerSkipsTracks(t *testing.T) {
 	if !slices.Equal(client.fetched, []string{"PLa"}) {
 		t.Errorf("fetched %v, want once", client.fetched)
 	}
+}
+
+// Signed in both ways: liked through OAuth, playlists through cookies, and
+// liked through cookies when OAuth needs signing in.
+func TestMixedReadsEachCollectionItsBestWay(t *testing.T) {
+	ctx := context.Background()
+	oauth := &fakeClient{liked: []catalog.TrackRecord{track("v1", "From OAuth")}, listErr: errors.New("oauth lists nothing")}
+	cookies := &fakeClient{
+		lists: []catalog.PlaylistRecord{{Ref: ref("PLa"), Name: "Saved"}},
+		items: map[string][]catalog.TrackRecord{"PLa": {track("a1", "One")}},
+		liked: []catalog.TrackRecord{track("v1", "From cookies")},
+	}
+	m := Mixed{OAuth: oauth, Cookies: cookies}
+	if lists, err := m.PlaylistRecords(ctx); err != nil || len(lists) != 1 || lists[0].Name != "Saved" {
+		t.Errorf("playlists = %+v, %v; want cookies'", lists, err)
+	}
+	if tracks, err := m.PlaylistTrackRecords(ctx, "PLa"); err != nil || len(tracks) != 1 {
+		t.Errorf("playlist tracks = %+v, %v", tracks, err)
+	}
+	if liked, err := m.LikedTrackRecords(ctx); err != nil || liked[0].Title != "From OAuth" {
+		t.Errorf("liked = %+v, %v; want OAuth's", liked, err)
+	}
+	m.OAuth = &needsAuth{}
+	if liked, err := m.LikedTrackRecords(ctx); err != nil || liked[0].Title != "From cookies" {
+		t.Errorf("liked when signed out = %+v, %v; want cookies'", liked, err)
+	}
+}
+
+type needsAuth struct{ fakeClient }
+
+func (*needsAuth) LikedTrackRecords(context.Context) ([]catalog.TrackRecord, error) {
+	return nil, fmt.Errorf("youtube: no stored credentials: %w", playlist.ErrNeedsAuth)
 }

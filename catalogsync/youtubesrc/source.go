@@ -10,6 +10,7 @@ import (
 	"github.com/bjarneo/cliamp/applog"
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/catalogsync"
+	"github.com/bjarneo/cliamp/playlist"
 )
 
 // Collection names, as recorded in the catalog's sync state.
@@ -87,4 +88,37 @@ func (s *Source) playlists(ctx context.Context, known map[string]string) ([]cata
 		p.Tracks, p.TracksFetched, p.TrackCount = tracks, true, len(tracks)
 	}
 	return lists, nil
+}
+
+// Mixed reads an account signed in both ways, each collection through the
+// mode that reads it best: Liked Music through OAuth (the official API,
+// with cleaner artist names) and playlists through cookies (the API lists
+// none of the playlists saved from other channels, and for some accounts
+// none at all). When OAuth needs signing in again, as a Testing-status
+// Google app does every few days, Liked Music falls back to cookies.
+type Mixed struct {
+	OAuth, Cookies Client
+}
+
+var _ Client = Mixed{}
+
+// PlaylistRecords implements Client through cookies.
+func (m Mixed) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error) {
+	return m.Cookies.PlaylistRecords(ctx)
+}
+
+// PlaylistTrackRecords implements Client through cookies.
+func (m Mixed) PlaylistTrackRecords(ctx context.Context, playlistID string) ([]catalog.TrackRecord, error) {
+	return m.Cookies.PlaylistTrackRecords(ctx, playlistID)
+}
+
+// LikedTrackRecords implements Client through OAuth, or cookies when OAuth
+// needs signing in.
+func (m Mixed) LikedTrackRecords(ctx context.Context) ([]catalog.TrackRecord, error) {
+	tracks, err := m.OAuth.LikedTrackRecords(ctx)
+	if errors.Is(err, playlist.ErrNeedsAuth) {
+		applog.Info("youtube: OAuth needs signing in again; reading Liked Music through cookies")
+		return m.Cookies.LikedTrackRecords(ctx)
+	}
+	return tracks, err
 }

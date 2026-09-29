@@ -346,7 +346,7 @@ func TestDeleteCreds(t *testing.T) {
 	})
 
 	t.Run("removes existing file", func(t *testing.T) {
-		dir := filepath.Join(home, ".config", "cliamp")
+		dir := filepath.Join(home, ".config", "omatunes")
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -376,7 +376,7 @@ func TestCredsPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CredsPath() error = %v", err)
 	}
-	want := filepath.Join(home, ".config", "cliamp", "spotify_credentials.json")
+	want := filepath.Join(home, ".config", "omatunes", "spotify_credentials.json")
 	if got != want {
 		t.Errorf("CredsPath() = %q, want %q", got, want)
 	}

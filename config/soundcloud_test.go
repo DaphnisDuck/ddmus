@@ -24,7 +24,7 @@ func TestLoadSoundCloudDisabledByDefault(t *testing.T) {
 func TestLoadSoundCloudExplicitlyEnabled(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -56,7 +56,7 @@ user = "alice"
 func TestLoadSoundCloudSectionWithoutEnabledStaysOff(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -84,7 +84,7 @@ user = "alice"
 func TestLoadSoundCloudCookiesFrom(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestLoadSoundCloudInterpolatesUserFromEnv(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("CLIAMP_TEST_SC_USER", "carol")
 
-	path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

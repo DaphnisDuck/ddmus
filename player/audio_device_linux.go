@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/bjarneo/cliamp/internal/appmeta"
 )
 
 // ListAudioDevices returns available output sinks via pactl.
@@ -117,15 +119,16 @@ func SwitchAudioDevice(deviceName string) error {
 	return nil
 }
 
-// matchCliamp checks if a sink-input's properties belong to cliamp.
+// matchCliamp checks if a sink-input's properties belong to this player.
 func matchCliamp(props map[string]string, pidStr string, idx int) int {
 	if props["application.process.id"] == pidStr {
 		return idx
 	}
-	if strings.EqualFold(props["application.process.binary"], "cliamp") {
+	// omatunes: match this player by name, never a running cliamp.
+	if strings.EqualFold(props["application.process.binary"], appmeta.ClientName()) {
 		return idx
 	}
-	if strings.Contains(strings.ToLower(props["application.name"]), "cliamp") {
+	if strings.Contains(strings.ToLower(props["application.name"]), appmeta.ClientName()) {
 		return idx
 	}
 	return -1

@@ -16,19 +16,19 @@ func TestDir(t *testing.T) {
 	}{
 		{
 			name: "home config",
-			env:  map[string]string{"CLIAMP_CONFIG_DIR": "", "XDG_CONFIG_HOME": "", "APPDATA": "", "HOME": "TEMPDIR"},
-			want: func(tmp string) string { return filepath.Join(tmp, ".config", "cliamp") },
+			env:  map[string]string{"CLIAMP_CONFIG_DIR": "", ConfigDirEnv: "", "XDG_CONFIG_HOME": "", "APPDATA": "", "HOME": "TEMPDIR"},
+			want: func(tmp string) string { return filepath.Join(tmp, ".config", Name) },
 		},
 		{
 			name: "xdg config",
-			env:  map[string]string{"CLIAMP_CONFIG_DIR": "", "HOME": "", "APPDATA": "", "XDG_CONFIG_HOME": "TEMPDIR"},
-			want: func(tmp string) string { return filepath.Join(tmp, "cliamp") },
+			env:  map[string]string{"CLIAMP_CONFIG_DIR": "", ConfigDirEnv: "", "HOME": "", "APPDATA": "", "XDG_CONFIG_HOME": "TEMPDIR"},
+			want: func(tmp string) string { return filepath.Join(tmp, Name) },
 		},
 		{
 			name:        "appdata on windows when home missing",
 			windowsOnly: true,
-			env:         map[string]string{"CLIAMP_CONFIG_DIR": "", "XDG_CONFIG_HOME": "", "HOME": "", "APPDATA": "TEMPDIR"},
-			want:        func(tmp string) string { return filepath.Join(tmp, "cliamp") },
+			env:         map[string]string{"CLIAMP_CONFIG_DIR": "", ConfigDirEnv: "", "XDG_CONFIG_HOME": "", "HOME": "", "APPDATA": "TEMPDIR"},
+			want:        func(tmp string) string { return filepath.Join(tmp, Name) },
 		},
 	}
 
@@ -60,6 +60,7 @@ func TestDir(t *testing.T) {
 
 func TestPluginDir(t *testing.T) {
 	t.Setenv("CLIAMP_CONFIG_DIR", "")
+	t.Setenv(ConfigDirEnv, "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("APPDATA", "")
 	t.Setenv("HOME", t.TempDir())
@@ -69,13 +70,14 @@ func TestPluginDir(t *testing.T) {
 		t.Fatalf("PluginDir() error: %v", err)
 	}
 
-	if !strings.HasSuffix(dir, filepath.Join("cliamp", "plugins")) {
-		t.Fatalf("PluginDir() = %q, expected to end with cliamp/plugins", dir)
+	if !strings.HasSuffix(dir, filepath.Join(Name, "plugins")) {
+		t.Fatalf("PluginDir() = %q, expected to end with omatunes/plugins", dir)
 	}
 }
 
 func TestPluginDirIsSubdirOfDir(t *testing.T) {
 	t.Setenv("CLIAMP_CONFIG_DIR", "")
+	t.Setenv(ConfigDirEnv, "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("APPDATA", "")
 	t.Setenv("HOME", t.TempDir())
@@ -85,5 +87,23 @@ func TestPluginDirIsSubdirOfDir(t *testing.T) {
 
 	if !strings.HasPrefix(plugin, base) {
 		t.Fatalf("PluginDir %q should be under Dir %q", plugin, base)
+	}
+}
+
+// omatunes: under go test OMATUNES_CONFIG_DIR is ignored, so upstream tests
+// that isolate themselves with CLIAMP_CONFIG_DIR or a temporary HOME stay
+// isolated even when a developer exports it.
+func TestOmatunesOverrideIgnoredInTests(t *testing.T) {
+	t.Setenv(ConfigDirEnv, "/omatunes-cfg")
+	t.Setenv("CLIAMP_CONFIG_DIR", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if got, _ := Dir(); got != filepath.Join(home, ".config", Name) {
+		t.Fatalf("Dir() = %q, want the temporary HOME, not OMATUNES_CONFIG_DIR", got)
+	}
+	t.Setenv("CLIAMP_CONFIG_DIR", "/cliamp-cfg")
+	if got, _ := Dir(); got != "/cliamp-cfg" {
+		t.Fatalf("Dir() = %q, want CLIAMP_CONFIG_DIR", got)
 	}
 }

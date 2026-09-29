@@ -1,0 +1,351 @@
+package model
+
+// omatunes: the library navigation stack (Music → source → concept → item).
+// The library owns the main screen; the playback chrome around it is
+// cliamp's, untouched. Upstream files reach this code only through small
+// "// omatunes:" hooks in handleKey, Update, activeScreen and activeOverlay.
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/bjarneo/cliamp/library"
+	"github.com/bjarneo/cliamp/playlist"
+)
+
+// libraryLoadTimeout bounds one level load. Spotify libraries page slowly
+// until Milestone 2's catalog removes the wait.
+const libraryLoadTimeout = 5 * time.Minute
+
+type libraryState struct {
+	// visible is false while Tab has handed the screen to the queue.
+	visible bool
+	stack   []libFrame
+	gen     uint64 // request generation shared by loads, plays and sign-ins
+
+	playGen   uint64
+	authGen   uint64
+	signingIn bool
+	authURL   string
+}
+
+// libFrame is one level on the navigation stack. Popping keeps the parent's
+// cursor, so Back returns to the row that was opened.
+type libFrame struct {
+	level   library.Level
+	entries []library.Entry
+	cursor  int
+	scroll  int
+	err     error
+	gen     uint64
+	cancel  context.CancelFunc // non-nil while a load is in flight
+}
+
+func (f *libFrame) loading() bool { return f.cancel != nil }
+
+type libraryLoadedMsg struct {
+	gen     uint64
+	entries []library.Entry
+	err     error
+}
+
+type libraryPlayMsg struct {
+	gen    uint64
+	title  string
+	tracks []playlist.Track
+	err    error
+}
+
+type libraryAuthDoneMsg struct {
+	gen uint64
+	err error
+}
+
+// libraryPassthroughKeys reach cliamp's own handlers. Every other key that the
+// library does not handle is swallowed, which disables the jump keys (provider
+// switching, themes, file browser, …) until they are deliberately brought back
+// by adding them here.
+var libraryPassthroughKeys = map[string]bool{
+	// Transport and volume.
+	"s": true, "<": true, ">": true, ",": true, ".": true,
+	"+": true, "-": true, "=": true,
+	"shift+left": true, "shift+right": true,
+	// Help.
+	"?": true,
+}
+
+// queuePassthroughKeys are the cliamp keys that stay live while the queue has
+// the screen: list navigation, play, playlist filter, and the transport.
+var queuePassthroughKeys = map[string]bool{
+	"up": true, "down": true, "j": true, "k": true,
+	"g": true, "G": true, "home": true, "end": true,
+	"pgup": true, "pgdown": true, "ctrl+u": true, "ctrl+d": true,
+	"enter": true, "space": true, "/": true, "q": true,
+	"left": true, "right": true,
+}
+
+// SetLibrary makes the library the main screen, starting at root. root must
+// load without I/O (a static menu), because Init cannot issue its load.
+func (m *Model) SetLibrary(root library.Level) {
+	entries, err := root.Load(context.Background())
+	m.lib = libraryState{visible: true, stack: []libFrame{{level: root, entries: entries, err: err}}}
+	m.focus = focusPlaylist
+}
+
+func (m Model) libraryEnabled() bool { return len(m.lib.stack) > 0 }
+
+func (m Model) libraryVisible() bool { return m.libraryEnabled() && m.lib.visible }
+
+func (m *Model) libTop() *libFrame { return &m.lib.stack[len(m.lib.stack)-1] }
+
+func (m *Model) libraryPush(level library.Level) tea.Cmd {
+	m.lib.stack = append(m.lib.stack, libFrame{level: level})
+	return m.libraryLoad()
+}
+
+// libraryLoad (re)loads the top level, superseding any load in flight.
+func (m *Model) libraryLoad() tea.Cmd {
+	f := m.libTop()
+	if f.cancel != nil {
+		f.cancel()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
+	f.gen = nextRequest(&m.lib.gen)
+	f.cancel = cancel
+	f.err = nil
+	level, gen := f.level, f.gen
+	return func() tea.Msg {
+		defer cancel()
+		entries, err := level.Load(ctx)
+		return libraryLoadedMsg{gen: gen, entries: entries, err: err}
+	}
+}
+
+func (m *Model) libraryPop() {
+	if len(m.lib.stack) <= 1 {
+		return
+	}
+	if f := m.libTop(); f.cancel != nil {
+		f.cancel()
+	}
+	m.lib.stack = m.lib.stack[:len(m.lib.stack)-1]
+	m.libEndSignIn()
+}
+
+// handleLibraryMsg handles the library's own messages. ok reports whether msg
+// was consumed; the auth URL is also left for cliamp's handler.
+func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case libraryLoadedMsg:
+		if !m.libraryEnabled() || msg.gen != m.libTop().gen {
+			return nil, true
+		}
+		f := m.libTop()
+		f.cancel = nil
+		f.err = msg.err
+		if msg.err == nil {
+			f.entries = msg.entries
+			f.cursor = min(f.cursor, max(len(f.entries)-1, 0))
+			m.libAdjustScroll()
+		}
+		return nil, true
+
+	case libraryPlayMsg:
+		if msg.gen != m.lib.playGen {
+			return nil, true
+		}
+		if msg.err != nil {
+			m.status.Errorf(statusTTLDefault, "%s: %s", msg.title, msg.err)
+			return nil, true
+		}
+		if len(msg.tracks) == 0 {
+			m.status.Warningf(statusTTLDefault, "%s: nothing to play", msg.title)
+			return nil, true
+		}
+		return m.libraryPlayTracks(msg.tracks, 0), true
+
+	case libraryAuthDoneMsg:
+		if msg.gen != m.lib.authGen || !m.libraryEnabled() {
+			return nil, true
+		}
+		m.libEndSignIn()
+		if msg.err != nil {
+			m.libTop().err = msg.err
+			return nil, true
+		}
+		return m.libraryLoad(), true
+
+	case ProvAuthURLMsg:
+		if m.lib.signingIn {
+			m.lib.authURL = msg.URL
+		}
+	}
+	return nil, false
+}
+
+// handleLibraryKey owns the main screen's keys when the library is enabled.
+// handled=false passes the key on to cliamp's handlers.
+func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool) {
+	if !m.libraryEnabled() {
+		return nil, false
+	}
+	key := msg.String()
+
+	if !m.lib.visible {
+		switch key {
+		case "tab", "esc", "b":
+			m.lib.visible = true
+			return nil, true
+		}
+		return nil, !queuePassthroughKeys[key] && !libraryPassthroughKeys[key]
+	}
+
+	f := m.libTop()
+	n := len(f.entries)
+	page := max(m.effectivePlaylistVisible()-1, 1)
+	switch key {
+	case "up", "k":
+		if n > 0 {
+			f.cursor = (f.cursor - 1 + n) % n
+		}
+	case "down", "j":
+		if n > 0 {
+			f.cursor = (f.cursor + 1) % n
+		}
+	case "g", "home":
+		f.cursor = 0
+	case "G", "end":
+		f.cursor = max(n-1, 0)
+	case "pgup", "ctrl+u":
+		f.cursor = max(f.cursor-page, 0)
+	case "pgdown", "ctrl+d":
+		f.cursor = max(min(f.cursor+page, n-1), 0)
+	case "enter", "l", "right":
+		return m.libraryActivate(), true
+	case "esc", "h", "left", "backspace":
+		m.libraryPop()
+	case "q":
+		if len(m.lib.stack) == 1 {
+			return m.quit(), true
+		}
+		m.libraryPop()
+	case "tab":
+		m.lib.visible = false
+		m.focus = focusPlaylist
+		return nil, true
+	case "/":
+		m.librarySearch()
+	case "space":
+		return m.togglePlayPause(), true
+	default:
+		return nil, !libraryPassthroughKeys[key]
+	}
+	m.libAdjustScroll()
+	return nil, true
+}
+
+// libraryActivate acts on the highlighted row: open, play, or run its intent.
+// On an error screen it signs in or retries instead.
+func (m *Model) libraryActivate() tea.Cmd {
+	f := m.libTop()
+	if f.loading() || m.lib.signingIn {
+		return nil
+	}
+	if f.err != nil {
+		if errors.Is(f.err, playlist.ErrNeedsAuth) {
+			return m.librarySignIn()
+		}
+		return m.libraryLoad()
+	}
+	if f.cursor < 0 || f.cursor >= len(f.entries) {
+		return nil
+	}
+	e := f.entries[f.cursor]
+	switch {
+	case e.Open != nil:
+		return m.libraryPush(e.Open)
+	case e.Track != nil:
+		tracks, at := library.Tracks(f.entries, f.cursor)
+		return m.libraryPlayTracks(tracks, at)
+	case e.Play != nil:
+		gen := nextRequest(&m.lib.gen)
+		m.lib.playGen = gen
+		m.status.Showf(statusTTLLong, "Loading %s…", e.Title)
+		play, title := e.Play, e.Title
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
+			defer cancel()
+			tracks, err := play(ctx)
+			return libraryPlayMsg{gen: gen, title: title, tracks: tracks, err: err}
+		}
+	case e.Intent == library.IntentFolders:
+		m.openFileBrowser()
+	case e.Intent == library.IntentSearch:
+		m.openProviderSearchWith(e.Provider)
+	}
+	return nil
+}
+
+// librarySearch opens the root's Search entry from anywhere in the library.
+func (m *Model) librarySearch() {
+	for _, e := range m.lib.stack[0].entries {
+		if e.Intent == library.IntentSearch {
+			m.openProviderSearchWith(e.Provider)
+			return
+		}
+	}
+}
+
+// libEndSignIn clears the sign-in screen.
+func (m *Model) libEndSignIn() {
+	m.lib.signingIn = false
+	m.lib.authURL = ""
+}
+
+func (m *Model) librarySignIn() tea.Cmd {
+	al, ok := m.libTop().level.(library.AuthLevel)
+	if !ok {
+		return nil
+	}
+	auth := al.Authenticator()
+	gen := nextRequest(&m.lib.gen)
+	m.lib.authGen = gen
+	m.lib.signingIn = true
+	m.lib.authURL = ""
+	return func() tea.Msg {
+		return libraryAuthDoneMsg{gen: gen, err: auth.Authenticate()}
+	}
+}
+
+// libraryPlayTracks replaces the queue with tracks and plays tracks[index],
+// the way an album or playlist plays in a library player. The library stays
+// on screen; Tab shows the queue.
+func (m *Model) libraryPlayTracks(tracks []playlist.Track, index int) tea.Cmd {
+	if index < 0 || index >= len(tracks) {
+		return nil
+	}
+	m.player.Stop()
+	m.player.ClearPreload()
+	m.preloading = false
+	m.resetYTDLBatch()
+	m.retireTracksPaging()
+	m.replacePlaylist(tracks)
+	m.loadedPlaylist = ""
+	m.activeProviderPlaylistID = ""
+	m.setHeaderStateFromTracks(tracks)
+	m.playlist.SetIndex(index)
+	m.plCursor = index
+	m.plScroll = 0
+	m.adjustScroll()
+	if len(tracks) > 1 {
+		m.status.Showf(statusTTLMedium, "Playing: %s (%d tracks)", tracks[index].DisplayName(), len(tracks))
+	} else {
+		m.status.Showf(statusTTLMedium, "Playing: %s", tracks[index].DisplayName())
+	}
+	cmd := m.playCurrentTrack()
+	m.notifyPlayback()
+	return cmd
+}

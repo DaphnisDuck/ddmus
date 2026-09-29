@@ -29,9 +29,12 @@ func writeAllowDirs() []string {
 		if configDir, err := appdir.Dir(); err == nil {
 			raw = append(raw, configDir)
 		}
-		if home, err := os.UserHomeDir(); err == nil {
-			raw = append(raw, filepath.Join(home, ".local", "share", "cliamp"))
-			raw = append(raw, filepath.Join(home, "Music", "cliamp"))
+		// omatunes: the fork's data and downloads dirs, from one source.
+		if dataDir, err := appdir.DataDir(); err == nil {
+			raw = append(raw, dataDir)
+		}
+		if downloads, err := appdir.DownloadsDir(); err == nil {
+			raw = append(raw, downloads)
 		}
 		for _, d := range raw {
 			abs, err := filepath.Abs(d)

@@ -37,6 +37,7 @@ import (
 	"github.com/bjarneo/cliamp/internal/playback"
 	"github.com/bjarneo/cliamp/internal/resume"
 	"github.com/bjarneo/cliamp/ipc"
+	"github.com/bjarneo/cliamp/library"
 	"github.com/bjarneo/cliamp/luaplugin"
 	"github.com/bjarneo/cliamp/mediactl"
 	"github.com/bjarneo/cliamp/player"
@@ -577,6 +578,8 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	if len(resolved.Tracks) == 0 && len(resolved.Pending) == 0 && pl.Len() == 0 {
 		m.StartInProvider()
 	}
+	// omatunes: the library navigation is the main screen.
+	m.SetLibrary(library.Root(librarySources(providers, cfg.InitialDirectory)))
 	if cfg.EQPreset != "" && cfg.EQPreset != "Custom" {
 		m.SetEQPreset(cfg.EQPreset, nil)
 	}

@@ -89,7 +89,7 @@ func TestPinsToggleRoundTrip(t *testing.T) {
 func TestLoadPinsSkipsUnusableRows(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
-	writeFile(t, filepath.Join(dir, ".config", "cliamp", pinsFile), `
+	writeFile(t, filepath.Join(dir, ".config", "omatunes", pinsFile), `
 [[country]]
 code = "NO"
 name = "Norway"

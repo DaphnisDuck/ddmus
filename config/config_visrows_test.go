@@ -23,7 +23,7 @@ func TestLoadVisRows(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
 
-			path := filepath.Join(os.Getenv("HOME"), ".config", "cliamp", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatalf("MkdirAll: %v", err)
 			}

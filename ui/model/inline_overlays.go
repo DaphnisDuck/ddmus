@@ -195,6 +195,8 @@ func (m Model) activeOverlay() (overlayView, bool) {
 		return overlayView{(*Model).searchHeaderLine, (*Model).searchHelpLine, (*Model).renderSearchList}, true
 	case m.netSearch.active:
 		return overlayView{(*Model).netSearchHeaderLine, (*Model).netSearchHelpLine, (*Model).renderNetSearchBody}, true
+	case m.libraryVisible(): // omatunes: lowest priority, so overlays it opens draw on top
+		return overlayView{(*Model).libHeaderLine, (*Model).libHelpLine, (*Model).renderLibraryBody}, true
 	}
 	return overlayView{}, false
 }

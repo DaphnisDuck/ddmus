@@ -1,271 +1,142 @@
-[![Docs on contextowl.co](https://contextowl.co/uploads/_brand/badge-docs.svg)](https://contextowl.co)
+# Omatunes
 
-A retro terminal music player inspired by Winamp. Play local files, streams, podcasts, YouTube, YouTube Music, SoundCloud, Mixcloud, Bilibili, Spotify, NetEase Cloud Music, Yandex Music, Xiaoyuzhou (小宇宙), Navidrome, Lyrion, Plex, Jellyfin, and Audiobookshelf. Use the spectrum visualizer, parametric EQ, and playlist manager.
+**Version 0.1**
 
-**[cliamp.stream](https://cliamp.stream)** | **[docs](https://whiterose.org.contextowl.co/docs/cliamp)** | **[android](https://github.com/cliamp/cliamp-mobile)** | **[discord](https://discord.gg/4VpCzXPuj2)**
+Omatunes is a retro terminal music player built around your library rather than around providers. It is a fork of [cliamp](https://github.com/bjarneo/cliamp) by Bjarne Øverli, made with love and a lot of respect for the original.
 
-On a phone, run [cliamp mobile](https://github.com/cliamp/cliamp-mobile). It is a native Android client for radio, podcasts, and the same servers this player talks to.
+cliamp is a wonderful Winamp-inspired player: spectrum visualizer, parametric EQ, Lua plugins, and support for an impressive list of streaming services and media servers. Omatunes keeps all of that playback machinery and changes how you *find* your music.
 
-cliamp uses [Bubbletea](https://github.com/charmbracelet/bubbletea), [Lip Gloss](https://github.com/charmbracelet/lipgloss), [Beep](https://github.com/gopxl/beep), and [go-librespot](https://github.com/devgianlu/go-librespot).
+## What we're building
 
-https://github.com/user-attachments/assets/55e251f2-e13b-43d9-bb6a-7b1960e7d7d0
+You shouldn't have to remember where your music lives. Omatunes organises everything as one hierarchy:
 
-<div align="center">
-  <a href="https://contextowl.co"><img src="https://contextowl.co/uploads/_brand/sponsor-dark.svg" alt="Proudly sponsored by contextowl.co" width="400"></a>
-</div>
-
-## Install
-
-```sh
-curl -fsSL https://cliamp.stream/install.sh | sh
+```
+Music
+├── Spotify   Albums · Artists · Playlists · Liked Songs
+├── Local     Albums · Artists · Genres · Folders · Playlists
+├── Radio     Favorites · Browse Stations
+└── Search
 ```
 
-**Homebrew**
+The application owns navigation; providers own content and playback. The roadmap:
+
+1. **Library navigation** (v0.1, this release): the hierarchy above for Spotify, local files and internet radio, with vim-style keys, sitting above cliamp's existing now-playing, queue, EQ and visualizer.
+2. **Persistent catalog**: a local SQLite catalog that syncs in the background, so browsing a large Spotify library is instant and works offline.
+3. **Unified search**: fast full-text search across every source at once.
+4. **More providers**: bring cliamp's other providers (YouTube Music, Plex, Jellyfin, Navidrome, …) into the catalog.
+
+The full plan lives in [plan.md](plan.md).
+
+## Status
+
+v0.1 is an early release for people comfortable building from source.
+
+- **In the Music hierarchy:** Spotify, local files and internet radio.
+- **Hidden for now:** cliamp's other providers (podcasts, YouTube, SoundCloud, Mixcloud, Navidrome, Plex, Jellyfin, Emby, Qobuz, Tidal, and more) are still in the code but have no entry in the menu yet. They come back in milestone 4.
+- **Disabled keys:** most of cliamp's jump keys (provider switching, theme and visualizer pickers, file browser and similar) are turned off while the new navigation settles. See [docs/omatunes/navigation.md](docs/omatunes/navigation.md).
+- **Runs alongside cliamp:** Omatunes keeps its own config, data and media-key (MPRIS) name, so you can install both. See [docs/omatunes/files.md](docs/omatunes/files.md).
+
+## Build and install
+
+**Prerequisites**
+
+- [Go](https://go.dev/dl/) 1.26.6 or later
+- On Linux, ALSA and codec development headers:
 
 ```sh
-brew install bjarneo/cliamp/cliamp
-```
-
-The formula installs all required runtime libraries.
-
-**Arch Linux (AUR)**
-
-```sh
-yay -S cliamp
-```
-
-**Nix**
-
-```sh
-nix run github:bjarneo/cliamp
-```
-
-For a declarative NixOS configuration, add `github:bjarneo/cliamp` as a flake
-input. Install its default package:
-
-```nix
-inputs.cliamp.url = "github:bjarneo/cliamp";
-
-environment.systemPackages = [
-  inputs.cliamp.packages.${pkgs.stdenv.hostPlatform.system}.default
-];
-```
-
-**Go**
-
-```sh
-go install github.com/bjarneo/cliamp@latest
-```
-
-Install ALSA development headers before you build on Linux. See [Building from source](#building-from-source).
-
-**Pre-built binaries**
-
-Download from [GitHub Releases](https://github.com/bjarneo/cliamp/releases/latest).
-
-> **macOS:** Pre-built binaries link dynamically to FLAC, Vorbis, Ogg, and mpg123
-> from Homebrew. If you download from Releases or use `install.sh`, install these
-> libraries first. Otherwise, you can see errors such as
-> `Library not loaded: /opt/homebrew/opt/libvorbis/lib/libvorbisenc.2.dylib`:
->
-> ```sh
-> brew install flac libvorbis libogg mpg123
-> ```
->
-> `brew install bjarneo/cliamp/cliamp` installs these libraries.
->
-> **Linux:** Pre-built binaries link FLAC, Vorbis, Ogg, and mpg123 statically. No
-> extra codec packages are required. You can still need an ALSA bridge for your
-> sound server. See [Troubleshooting](#troubleshooting).
->
-> **Windows:** Download and extract `cliamp-windows-amd64.zip` from Releases. It
-> includes the codec DLLs that Spotify requires. If `HOME` is not set, cliamp stores
-> its config under `%APPDATA%\cliamp`.
-
-**Optional runtime dependencies** for all platforms and install methods:
-
-- [ffmpeg](https://ffmpeg.org/) for AAC, ALAC, Opus, and WMA playback
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for YouTube, YouTube Music, SoundCloud, Mixcloud, Bandcamp, Bilibili, and NetEase Cloud Music
-
-On macOS, run `brew install ffmpeg yt-dlp`. On Linux, use your distribution package manager.
-
-On Windows, install `ffmpeg` and `yt-dlp` with your package manager. Keep both on `PATH`.
-
-**Build from source**
-
-```sh
-git clone https://github.com/bjarneo/cliamp.git && cd cliamp && go build -o cliamp .
-```
-
-## Quick Start
-
-```sh
-cliamp ~/Music                     # play a directory
-cliamp *.mp3 *.flac               # play files
-cliamp https://example.com/stream  # play a URL
-```
-
-Press `Ctrl+K` to see all keybindings.
-
-**Configure remote providers** such as Navidrome, Lyrion, Plex, Jellyfin, Audiobookshelf, Spotify, Mixcloud, YouTube Music, and NetEase Cloud Music with the interactive wizard:
-
-```sh
-cliamp setup
-```
-
-The wizard guides you through each provider. It writes the required block to your config file (`~/.config/cliamp/config.toml`, or `%APPDATA%\cliamp\config.toml` on Windows when `HOME` is unset). It validates supported server connections during setup. It checks optional Mixcloud browser-session or OAuth credentials when you use them. See [docs/cli.md](docs/cli.md#setup-wizard) for details.
-
-See the [Mixcloud provider guide](docs/mixcloud.md) for discovery, account,
-creator/show, genre search, local genre favorites, authentication, signed-in
-playback, resume, seeking, and limitations.
-
-For podcast discovery and subscriptions, run `cliamp --provider podcast`.
-Browse Apple's top 100 shows and 19 categories, search with `/` then `Enter`,
-and subscribe with `f`. No account or API key is needed.
-See the [Podcasts guide](docs/podcasts.md).
-
-## Radio
-
-Press `R` in the player to browse about 58,000 online radio stations in the [Radio Browser](https://www.radio-browser.info/) directory.
-
-Cut that down by location or genre: `N` browses by country, **Browse genres &
-tags** opens the directory's complete tag index, and `/` filters either list.
-`f` pins the countries you listen to, and `Enter` on a country or tag loads its
-stations as a playlist. cliamp does not work out where you are unless you pick
-"Use my location" and accept; it then reads your country from the system
-timezone, never from a geo-IP service. See [docs/radio.md](docs/radio.md).
-
-Add your own stations to `~/.config/cliamp/radios.toml` (or `%APPDATA%\cliamp\radios.toml` on Windows when `HOME` is unset). See [docs/configuration.md](docs/configuration.md#custom-radio-stations).
-
-To host a radio station, use [cliamp-server](https://github.com/bjarneo/cliamp-server).
-
-## Building from source
-
-**Prerequisites:**
-
-- [Go](https://go.dev/dl/) 1.25.5 or later
-- ALSA development headers (Linux only, required by the audio backend)
-
-**Linux (Debian/Ubuntu):**
-
-```sh
+# Debian/Ubuntu
 sudo apt install libasound2-dev libflac-dev libvorbis-dev libogg-dev libmpg123-dev
-```
-
-**Linux (Fedora):**
-
-```sh
+# Fedora
 sudo dnf install alsa-lib-devel flac-devel libvorbis-devel libogg-devel mpg123-devel
-```
-
-**Linux (Arch):**
-
-```sh
+# Arch
 sudo pacman -S alsa-lib flac libvorbis libogg mpg123
 ```
 
-**macOS:**
+- On macOS: `brew install flac libvorbis libogg mpg123 pkg-config`
+
+**Build**
 
 ```sh
-brew install flac libvorbis libogg mpg123 pkg-config
+git clone https://github.com/DaphnisDuck/omatunes.git
+cd omatunes
+make && make install   # builds ./omatunes and installs it to ~/.local/bin/omatunes
 ```
 
-**Windows:** The core player needs no extra SDKs. It uses pure-Go audio decoding. `ffmpeg.exe` and `yt-dlp.exe` remain optional runtime dependencies for the same formats and providers as other platforms.
+Without Make: `go build -o omatunes .`
 
-Spotify support uses `go-librespot`. It needs CGO and a MinGW toolchain:
+**Optional runtime dependencies**
 
-1. Install [MSYS2](https://www.msys2.org/).
-2. Open the **MSYS2 MinGW64** terminal, not the standard MSYS2 terminal. Install the toolchain and codec libraries:
+- [ffmpeg](https://ffmpeg.org/) for AAC, ALAC, Opus and WMA playback
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for the YouTube-family providers (not yet in the Omatunes menu)
 
-   ```sh
-   pacman -S make \
-     mingw-w64-x86_64-gcc mingw-w64-x86_64-go mingw-w64-x86_64-pkg-config \
-     mingw-w64-x86_64-libogg mingw-w64-x86_64-libvorbis \
-     mingw-w64-x86_64-flac mingw-w64-x86_64-mpg123
-   ```
+Windows builds follow cliamp's instructions, which need MSYS2 and CGO for Spotify; see cliamp's README. They are untested for Omatunes.
 
-   To check if Go was installed correctly, run
-
-   ```sh
-   go env GOROOT
-   ```
-
-   If the command causes the error `go: cannot find GOROOT directory: 'go' binary is trimmed and GOROOT is not set`,
-   it means that the enviroment `GOROOT` variable has to be manually set:
-
-   ```sh
-   export GOROOT=/mingw64/lib/go
-   ```
-
-   Now, when running `go env GOROOT`, the output should be: `<mtsys2-install-folder>/mingw64/lib/go`
-3. In that MinGW64 terminal, build with CGO enabled. This keeps `gcc` and `pkg-config` on `PATH`:
-
-   ```sh
-   CGO_ENABLED=1 go build -o cliamp.exe .
-   ```
-
-   Some MSYS2 `libogg` builds provide `libogg-0.dll` without `ogg_stream_iovecin` in its export table. The static `libogg.a` has this symbol. If linking fails with `undefined reference to 'ogg_stream_iovecin'`, use static linking for this library only:
-
-   ```sh
-   CGO_LDFLAGS="-Wl,-Bstatic -logg -Wl,-Bdynamic" CGO_ENABLED=1 go build -o cliamp.exe .
-   ```
-
-4. `cliamp.exe` links dynamically to codec and MinGW runtime DLLs. Keep `C:\msys64\mingw64\bin` on `PATH` at runtime, or copy each `/mingw64/bin/*.dll` that `ldd cliamp.exe` shows next to `cliamp.exe`.
-
-**Clone and build:**
+## Quick start
 
 ```sh
-git clone https://github.com/bjarneo/cliamp.git
-cd cliamp
-make && make install
+omatunes                          # open the Music library
+omatunes ~/Music/some-album       # load a directory into the queue (Tab shows it)
 ```
 
-Or without Make: `go build -o cliamp .`
+| Key | Action |
+|---|---|
+| `j` `k` | Move down / up |
+| `l` `Enter` | Open, or play |
+| `h` `Esc` | Back |
+| `g` `G` | Top / bottom |
+| `/` | Search |
+| `Space` | Play / pause |
+| `Tab` | Switch between the library and the queue |
+| `q` | Back; quits at Music |
+| `Ctrl+K` | All keybindings |
 
-`make install` places the binary in `~/.local/bin/`.
+Selecting a track replaces the queue with its album or playlist and starts playing there. The full key list is in [docs/omatunes/navigation.md](docs/omatunes/navigation.md).
 
-**Optional runtime dependencies:**
+## Configuration
 
-- [ffmpeg](https://ffmpeg.org/) for AAC, ALAC, Opus, and WMA playback
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for YouTube, SoundCloud, Mixcloud, Bandcamp, Bilibili, and NetEase Cloud Music
+Omatunes reads `~/.config/omatunes/config.toml`. Set `OMATUNES_CONFIG_DIR` to use another directory. It starts empty, so to carry over your cliamp settings, copy them once:
 
-## Docs
+```sh
+rsync -a --exclude='*.log' --exclude='*.sock' ~/.config/cliamp/ ~/.config/omatunes/
+```
 
-Full documentation is hosted at **[whiterose.org.contextowl.co/docs/cliamp](https://whiterose.org.contextowl.co/docs/cliamp)**.
+- **Spotify:** run `omatunes setup` and choose Spotify, or follow [docs/spotify.md](docs/spotify.md), reading `~/.config/omatunes` wherever it says `~/.config/cliamp`. A Spotify Premium account is required. The first time you open Spotify in the library, press `Enter` to sign in.
+- **Local music:** Local → Albums, Artists and Genres scan a single directory. It is `initial_directory` in `config.toml`, else `$XDG_MUSIC_DIR`, else `~/Music`:
+
+  ```toml
+  initial_directory = "~/Music"
+  ```
+
+- **Radio:** Radio → Browse Stations covers the [Radio Browser](https://www.radio-browser.info/) directory (about 58,000 stations) by country or tag, plus the cliamp radio channels. Add your own stations in `~/.config/omatunes/radios.toml`; see [docs/configuration.md](docs/configuration.md#custom-radio-stations).
+
+cliamp's other documentation in [docs/](docs/) still describes the engine, EQ, themes, plugins and configuration keys accurately. Its keybinding and provider-pane sections describe cliamp's interface rather than Omatunes'.
+
+> **Updating:** `omatunes upgrade` is disabled, because cliamp's self-updater would install cliamp over Omatunes. Update by pulling and rebuilding: `git pull && make install`.
 
 ## Troubleshooting
 
 **No audio output**
 
-cliamp reports `audio output unavailable` when it cannot open an output
-device. On Linux systems that use PipeWire or PulseAudio, the cliamp ALSA
-backend needs a bridge package to route audio through the sound server:
+"audio output unavailable" means the ALSA backend cannot reach your sound server. Install the bridge package:
 
 - **PipeWire:** `pipewire-alsa`
-- **PulseAudio:** `pulseaudio-alsa` (`libasound2-plugins` on Debian/Ubuntu)
+- **PulseAudio:** `pulseaudio-alsa` (`libasound2-plugins` on Debian/Ubuntu, including WSL2)
 
-Install the package for your system:
+On WSL2, also see [WSL2 setup](docs/configuration.md#wsl2-windows-subsystem-for-linux).
 
-```sh
-# PipeWire (Arch)
-sudo pacman -S pipewire-alsa
+## Staying close to upstream
 
-# PulseAudio (Arch)
-sudo pacman -S pulseaudio-alsa
+Omatunes tracks cliamp and regularly merges its improvements. Fork changes live in new files where possible, and every edit to an upstream file is marked `// omatunes:`. See [docs/omatunes/upstream.md](docs/omatunes/upstream.md).
 
-# Debian/Ubuntu (PipeWire)
-sudo apt install pipewire-alsa
+## Thanks
 
-# Debian/Ubuntu (PulseAudio, including WSL2)
-sudo apt install libasound2-plugins
-```
+Omatunes would not exist without **[Bjarne Øverli](https://github.com/bjarneo)** ([x.com/iamdothash](https://x.com/iamdothash)), who created cliamp, and everyone who has [contributed to it](https://github.com/bjarneo/cliamp/graphs/contributors). Nearly everything that makes Omatunes sound good is their work: the audio engine, the EQ, the visualizers, the provider integrations and the plugin system. If you enjoy Omatunes, please go and star, use and support [cliamp](https://github.com/bjarneo/cliamp) and visit [cliamp.stream](https://cliamp.stream).
 
-On WSL2 see [WSL2 setup](docs/configuration.md#wsl2-windows-subsystem-for-linux)
-for the extra ALSA routing step.
+cliamp in turn builds on [Bubbletea](https://github.com/charmbracelet/bubbletea), [Lip Gloss](https://github.com/charmbracelet/lipgloss), [Beep](https://github.com/gopxl/beep) and [go-librespot](https://github.com/devgianlu/go-librespot).
 
-## Author
+## License
 
-[x.com/iamdothash](https://x.com/iamdothash)
+MIT, the same as cliamp. See [LICENSE](LICENSE). The original copyright belongs to Bjarne Øverli.
 
 ## Disclaimer
 

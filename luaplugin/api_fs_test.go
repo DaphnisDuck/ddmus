@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	lua "github.com/yuin/gopher-lua"
+
+	"github.com/bjarneo/cliamp/internal/appdir"
 )
 
 func fsAllowedPath(name string) string {
@@ -200,7 +202,7 @@ func TestFSMkdirRejectsOutsideAllowlist(t *testing.T) {
 func TestMusicDirIsAllowed(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	path := filepath.Join(home, "Music", "cliamp", "album", "01.mp3")
+	path := filepath.Join(home, "Music", appdir.Name, "album", "01.mp3") // omatunes
 	if !isWriteAllowed(path) {
 		t.Errorf("~/Music/cliamp/... should be writable")
 	}

@@ -357,6 +357,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if m.provSearch.active {
 		return m.handleProvSearchKey(msg)
 	}
+	// omatunes: the library owns the main screen and gates cliamp's jump keys.
+	if cmd, handled := m.handleLibraryKey(msg); handled {
+		return cmd
+	}
 	if m.focus != focusProvider {
 		switch msg.String() {
 		case "ctrl+i":

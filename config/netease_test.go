@@ -53,7 +53,7 @@ cookies_from = "$NETEASE_BROWSER"
 			}
 
 			if tc.tomlContent != "" {
-				configDir := filepath.Join(dir, ".config", "cliamp")
+				configDir := filepath.Join(dir, ".config", "omatunes")
 				if err := os.MkdirAll(configDir, 0o755); err != nil {
 					t.Fatal(err)
 				}

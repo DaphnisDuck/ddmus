@@ -26,6 +26,18 @@ Music
 
 Enter on a track replaces the queue with the list it's in and starts at that track, the way an album plays. The library stays on screen.
 
+## The catalog and sync
+
+Spotify browsing reads from a local catalog (`~/.local/share/omatunes/library.db`), so lists open instantly and work offline.
+
+- **When it syncs:** at startup, if the last successful sync is more than 30 minutes old, and whenever you press `r`. The sync runs in the background while you browse.
+- **Status:** the header shows `↻ syncing`, `✓ synced 2m ago`, or `sync failed · cached` when the last attempt failed and you're seeing the cached library.
+- **Updates:** screens refresh in place when a sync lands, keeping the cursor on the same item.
+- **What stays live:**
+  - an album whose tracks aren't cached yet
+  - a playlist Spotify won't let the sync read
+  - an artist's full discography; offline, you get the albums the catalog knows instead
+
 ## Keys
 
 | Key | Action |
@@ -37,6 +49,7 @@ Enter on a track replaces the queue with the list it's in and starts at that tra
 | `h` `Esc` `Backspace` `←` | Back |
 | `q` | Back; quits at Music |
 | `/` | Search |
+| `r` | Sync the library now |
 | `Space` | Play / pause |
 | `Tab` | Show the queue; `Tab`, `Esc` or `b` returns to the library |
 | `s` `<` `>` `,` `.` `+` `-` `Shift+←` `Shift+→` | Stop, previous/next, volume, seek |

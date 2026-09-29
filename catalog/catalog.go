@@ -84,6 +84,7 @@ type Track struct {
 	PlayableURI string
 	Genre       string
 	Year        int
+	ArtworkURL  string // the album's cover, when known
 }
 
 // Playlist is a catalog playlist.

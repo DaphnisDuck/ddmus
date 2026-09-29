@@ -30,6 +30,63 @@ type libraryState struct {
 	authGen   uint64
 	signingIn bool
 	authURL   string
+
+	// Catalog sync status per provider, and the action behind "r".
+	sync    map[string]*libSync
+	refresh func()
+}
+
+// libSync is one provider's catalog sync status as the library shows it.
+type libSync struct {
+	running     bool
+	lastSuccess time.Time
+	lastErr     string
+}
+
+// CatalogSyncPhase is the stage a CatalogSyncMsg reports.
+type CatalogSyncPhase int
+
+const (
+	CatalogSyncStarted CatalogSyncPhase = iota
+	CatalogSyncCollectionDone
+	CatalogSyncFinished
+)
+
+// CatalogSyncMsg reports catalog sync progress to the library. main sends it
+// from the sync engine's events.
+type CatalogSyncMsg struct {
+	Provider   string
+	Phase      CatalogSyncPhase
+	Collection string // CatalogSyncCollectionDone only
+	Err        error
+}
+
+// CatalogStatus is a provider's last sync outcome, read at startup.
+type CatalogStatus struct {
+	LastSuccess time.Time
+	LastError   string
+}
+
+// SetCatalogSync gives the library each provider's stored sync status and
+// the function "r" calls to sync now. refresh must not block.
+func (m *Model) SetCatalogSync(status map[string]CatalogStatus, refresh func()) {
+	m.lib.sync = make(map[string]*libSync, len(status))
+	for provider, st := range status {
+		m.lib.sync[provider] = &libSync{lastSuccess: st.LastSuccess, lastErr: st.LastError}
+	}
+	m.lib.refresh = refresh
+}
+
+func (m *Model) libSyncState(provider string) *libSync {
+	if m.lib.sync == nil {
+		m.lib.sync = map[string]*libSync{}
+	}
+	st := m.lib.sync[provider]
+	if st == nil {
+		st = &libSync{}
+		m.lib.sync[provider] = st
+	}
+	return st
 }
 
 // libFrame is one level on the navigation stack. Popping keeps the parent's
@@ -42,6 +99,12 @@ type libFrame struct {
 	err     error
 	gen     uint64
 	cancel  context.CancelFunc // non-nil while a load is in flight
+	// keepID, set by a refresh, is the entry ID the cursor returns to once
+	// the reloaded rows arrive.
+	keepID string
+	// stale marks a catalog level below the top whose provider synced since
+	// it loaded; it reloads when it becomes the top again.
+	stale bool
 }
 
 func (f *libFrame) loading() bool { return f.cancel != nil }
@@ -124,15 +187,55 @@ func (m *Model) libraryLoad() tea.Cmd {
 	}
 }
 
-func (m *Model) libraryPop() {
+func (m *Model) libraryPop() tea.Cmd {
 	if len(m.lib.stack) <= 1 {
-		return
+		return nil
 	}
 	if f := m.libTop(); f.cancel != nil {
 		f.cancel()
 	}
 	m.lib.stack = m.lib.stack[:len(m.lib.stack)-1]
 	m.libEndSignIn()
+	if f := m.libTop(); f.stale {
+		return m.libraryRefresh()
+	}
+	return nil
+}
+
+// libraryRefresh reloads the top level in place: the rows stay on screen
+// until the new ones arrive, and the cursor returns to the same item.
+func (m *Model) libraryRefresh() tea.Cmd {
+	f := m.libTop()
+	keep := ""
+	if f.cursor >= 0 && f.cursor < len(f.entries) {
+		keep = f.entries[f.cursor].ID
+	}
+	cmd := m.libraryLoad()
+	f.keepID, f.stale = keep, false
+	return cmd
+}
+
+// libraryCatalogChanged refreshes the visible level if a sync of provider
+// changed it, and marks the catalog levels beneath it stale.
+func (m *Model) libraryCatalogChanged(provider string) tea.Cmd {
+	if !m.libraryEnabled() {
+		return nil
+	}
+	isCatalog := func(f *libFrame) bool {
+		cl, ok := f.level.(library.CatalogLevel)
+		return ok && cl.CatalogProvider() == provider
+	}
+	for i := range m.lib.stack[:len(m.lib.stack)-1] {
+		if isCatalog(&m.lib.stack[i]) {
+			m.lib.stack[i].stale = true
+		}
+	}
+	// A load in flight may have read the rows before this sync wrote them;
+	// refreshing supersedes it.
+	if top := m.libTop(); isCatalog(top) {
+		return m.libraryRefresh()
+	}
+	return nil
 }
 
 // handleLibraryMsg handles the library's own messages. ok reports whether msg
@@ -149,7 +252,36 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 		if msg.err == nil {
 			f.entries = msg.entries
 			f.cursor = min(f.cursor, max(len(f.entries)-1, 0))
+			if f.keepID != "" {
+				for i, e := range f.entries {
+					if e.ID == f.keepID {
+						f.cursor = i
+						break
+					}
+				}
+			}
 			m.libAdjustScroll()
+		}
+		f.keepID = ""
+		return nil, true
+
+	case CatalogSyncMsg:
+		st := m.libSyncState(msg.Provider)
+		switch msg.Phase {
+		case CatalogSyncStarted:
+			st.running = true
+		case CatalogSyncCollectionDone:
+			if msg.Err == nil {
+				return m.libraryCatalogChanged(msg.Provider), true
+			}
+		case CatalogSyncFinished:
+			st.running = false
+			switch {
+			case msg.Err == nil:
+				st.lastSuccess, st.lastErr = time.Now(), ""
+			case !errors.Is(msg.Err, context.Canceled):
+				st.lastErr = msg.Err.Error()
+			}
 		}
 		return nil, true
 
@@ -226,12 +358,22 @@ func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool
 	case "enter", "l", "right":
 		return m.libraryActivate(), true
 	case "esc", "h", "left", "backspace":
-		m.libraryPop()
+		cmd := m.libraryPop()
+		m.libAdjustScroll()
+		return cmd, true
 	case "q":
 		if len(m.lib.stack) == 1 {
 			return m.quit(), true
 		}
-		m.libraryPop()
+		cmd := m.libraryPop()
+		m.libAdjustScroll()
+		return cmd, true
+	case "r":
+		if m.lib.refresh != nil {
+			m.status.Showf(statusTTLDefault, "Syncing library…")
+			m.lib.refresh() // starts the sync in the background
+			return nil, true
+		}
 	case "tab":
 		m.lib.visible = false
 		m.focus = focusPlaylist
@@ -307,7 +449,7 @@ func (m *Model) libEndSignIn() {
 
 func (m *Model) librarySignIn() tea.Cmd {
 	al, ok := m.libTop().level.(library.AuthLevel)
-	if !ok {
+	if !ok || al.Authenticator() == nil {
 		return nil
 	}
 	auth := al.Authenticator()

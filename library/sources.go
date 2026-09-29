@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
+	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/provider"
 )
@@ -22,13 +24,20 @@ type Sources struct {
 	Channels playlist.Provider
 	// MusicDir is the directory Local's Albums/Artists/Genres are scanned from.
 	MusicDir string
+	// Catalog, when set, backs Spotify browsing with the synced catalog
+	// instead of live provider calls.
+	Catalog catalog.Catalog
 }
 
 // Root returns the top of the hierarchy: Music.
 func Root(src Sources) Level {
 	var entries []Entry
 	if src.Spotify != nil {
-		entries = append(entries, Entry{Title: "Spotify", Open: Spotify(src.Spotify)})
+		spotify := Spotify(src.Spotify)
+		if src.Catalog != nil {
+			spotify = SpotifyCatalog(src.Catalog, src.Spotify)
+		}
+		entries = append(entries, Entry{Title: "Spotify", Open: spotify})
 	}
 	if src.Local != nil || src.MusicDir != "" {
 		var scanner *Scanner
@@ -183,16 +192,25 @@ func artistAlbumsLevel(prov playlist.Provider, ab provider.ArtistBrowser, artist
 		if err != nil {
 			return nil, err
 		}
-		entries := make([]Entry, len(albums))
-		for i, a := range albums {
-			detail := ""
-			if a.Year > 0 {
-				detail = fmt.Sprint(a.Year)
-			}
-			entries[i] = albumEntry(prov, a, detail)
-		}
-		return entries, nil
+		return artistAlbumEntries(prov, albums), nil
 	})
+}
+
+// artistAlbumEntries lists a discography with release years as detail.
+func artistAlbumEntries(prov playlist.Provider, albums []provider.AlbumInfo) []Entry {
+	entries := make([]Entry, len(albums))
+	for i, a := range albums {
+		entries[i] = albumEntry(prov, a, yearDetail(a.Year))
+	}
+	return entries
+}
+
+// yearDetail shows a release year, or nothing when it is unknown.
+func yearDetail(year int) string {
+	if year <= 0 {
+		return ""
+	}
+	return strconv.Itoa(year)
 }
 
 // — Radio —

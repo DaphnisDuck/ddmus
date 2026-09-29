@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/external/local"
 	"github.com/bjarneo/cliamp/library"
 	"github.com/bjarneo/cliamp/ui/model"
@@ -16,8 +17,8 @@ import (
 // librarySources picks the providers the Music root shows. Other configured
 // providers stay constructed (playback, resume and IPC still use them) but
 // have no root entry until Milestone 4.
-func librarySources(providers []model.ProviderEntry, initialDir string) library.Sources {
-	src := library.Sources{MusicDir: musicDir(initialDir)}
+func librarySources(providers []model.ProviderEntry, initialDir string, cat catalog.Catalog) library.Sources {
+	src := library.Sources{MusicDir: musicDir(initialDir), Catalog: cat}
 	for _, p := range providers {
 		switch p.Key {
 		case "spotify":

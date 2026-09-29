@@ -22,7 +22,7 @@ const albumColumns = `al.id, al.provider, al.provider_id, al.title, al.artist_cr
 
 const trackColumns = `t.id, t.provider, t.provider_id, t.title, t.artist_credit,
 	COALESCE(t.album_id, 0), COALESCE(al.title, t.album_title), t.disc, t.track_no,
-	t.duration_ms, t.playable_uri, t.genre, t.year`
+	t.duration_ms, t.playable_uri, t.genre, t.year, COALESCE(al.artwork_url, '')`
 
 // Albums implements catalog.Catalog.
 func (s *Store) Albums(ctx context.Context, provider string) ([]catalog.Album, error) {
@@ -139,7 +139,7 @@ func scanTrack(r *sql.Rows) (t catalog.Track, err error) {
 	var durationMS int64
 	err = r.Scan(&t.ID, &t.Ref.Provider, &t.Ref.ProviderID, &t.Title, &t.Artist,
 		&t.AlbumID, &t.AlbumTitle, &t.Disc, &t.TrackNo, &durationMS, &t.PlayableURI,
-		&t.Genre, &t.Year)
+		&t.Genre, &t.Year, &t.ArtworkURL)
 	t.Duration = time.Duration(durationMS) * time.Millisecond
 	return t, err
 }

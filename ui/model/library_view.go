@@ -4,7 +4,11 @@ package model
 
 import (
 	"errors"
+	"fmt"
+	"maps"
+	"slices"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 
@@ -84,10 +88,45 @@ func (m Model) libBreadcrumb() string {
 
 func (m *Model) libHeaderLine() string {
 	f := m.libTop()
-	if f.loading() || f.err != nil {
-		return sepHeader(m.libBreadcrumb())
+	label := m.libBreadcrumb()
+	if badge := m.libSyncBadge(); badge != "" {
+		label += "  " + badge
 	}
-	return sepHeaderN(m.libBreadcrumb(), f.cursor+1, len(f.entries))
+	if (f.loading() && len(f.entries) == 0) || f.err != nil {
+		return sepHeader(label)
+	}
+	return sepHeaderN(label, f.cursor+1, len(f.entries))
+}
+
+// libSyncBadge is the small catalog sync indicator: ↻ while syncing, the
+// age of the last success, or a note that the cached library is showing.
+func (m *Model) libSyncBadge() string {
+	var badges []string
+	for _, provider := range slices.Sorted(maps.Keys(m.lib.sync)) {
+		st := m.lib.sync[provider]
+		switch {
+		case st.running:
+			badges = append(badges, "↻ syncing")
+		case st.lastErr != "":
+			badges = append(badges, "sync failed · cached")
+		case !st.lastSuccess.IsZero():
+			badges = append(badges, "✓ synced "+syncAge(time.Since(st.lastSuccess)))
+		}
+	}
+	return strings.Join(badges, " · ")
+}
+
+func syncAge(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d/time.Minute))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d/time.Hour))
+	default:
+		return fmt.Sprintf("%dd ago", int(d/(24*time.Hour)))
+	}
 }
 
 func (m *Model) libHelpLine() string {
@@ -97,7 +136,11 @@ func (m *Model) libHelpLine() string {
 		parts = append(parts, helpKey("h", "Back"))
 		quit = helpKey("q", "Back")
 	}
-	parts = append(parts, helpKey("/", "Search"), helpKey("Space", "Pause"), helpKey("Tab", "Queue"), quit)
+	parts = append(parts, helpKey("/", "Search"), helpKey("Space", "Pause"), helpKey("Tab", "Queue"))
+	if m.lib.refresh != nil {
+		parts = append(parts, helpKey("r", "Sync"))
+	}
+	parts = append(parts, quit)
 	return fitHelpLine(strings.Join(parts, " "))
 }
 
@@ -111,7 +154,7 @@ func (m *Model) renderLibraryBody() string {
 			lines = append(lines, dimStyle.Render("  If no browser opened, visit:"), dimStyle.Render("  "+truncate(m.lib.authURL, ui.PanelWidth-4)))
 		}
 		return bodyLines(lines, budget)
-	case f.loading():
+	case f.loading() && len(f.entries) == 0:
 		return bodyLines([]string{loadingLine("Loading " + f.level.Title() + "…")}, budget)
 	case errors.Is(f.err, playlist.ErrNeedsAuth):
 		return bodyMessage("Sign-in required. Press Enter to sign in.", budget)

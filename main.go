@@ -578,8 +578,12 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	if len(resolved.Tracks) == 0 && len(resolved.Pending) == 0 && pl.Len() == 0 {
 		m.StartInProvider()
 	}
-	// omatunes: the library navigation is the main screen.
-	m.SetLibrary(library.Root(librarySources(providers, cfg.InitialDirectory)))
+	// omatunes: the library navigation is the main screen, backed by the
+	// synced catalog when one is available.
+	cat := openCatalog(spotifyProv)
+	defer cat.close()
+	m.SetLibrary(library.Root(librarySources(providers, cfg.InitialDirectory, cat.catalog())))
+	cat.configure(&m)
 	if cfg.EQPreset != "" && cfg.EQPreset != "Custom" {
 		m.SetEQPreset(cfg.EQPreset, nil)
 	}
@@ -711,6 +715,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 		go publishV2JobEvents(ipcSrv.Done(), ipcSrv.JobStore(), pluginBroker)
 	}
 
+	cat.start(prog) // omatunes: background catalog sync, once the program is about to run
 	finalModel, err := mediactl.Run(prog, svc)
 	if err != nil {
 		return err

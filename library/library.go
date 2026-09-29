@@ -31,6 +31,12 @@ type AuthLevel interface {
 	Authenticator() playlist.Authenticator
 }
 
+// CatalogLevel is implemented by levels read from the catalog. The UI
+// reloads them when a sync of CatalogProvider changes the catalog.
+type CatalogLevel interface {
+	CatalogProvider() string
+}
+
 // Intent is a UI action an entry requests instead of navigating.
 type Intent int
 
@@ -45,6 +51,9 @@ const (
 
 // Entry is one row of a Level. Exactly one action field is set.
 type Entry struct {
+	// ID identifies the row across reloads, so a refreshed list keeps the
+	// cursor on the same item. Empty for rows without a stable identity.
+	ID    string
 	Title string
 	// Detail is secondary text shown right-aligned (artist, count, year).
 	Detail string

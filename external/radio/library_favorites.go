@@ -47,3 +47,14 @@ func (p *Provider) favoritesToggled() {
 		fn.(func())()
 	}
 }
+
+// SearchStationTracks searches the Radio Browser directory by station name
+// and returns the playable stations, most voted first. Unlike SearchCatalog
+// it leaves the provider's own search results alone.
+func (p *Provider) SearchStationTracks(query string) ([]playlist.Track, error) {
+	stations, err := Stations(StationQuery{Name: query, Order: SortVotes, Limit: searchLimit})
+	if err != nil {
+		return nil, err
+	}
+	return stationTracks(streamableStations(stations)), nil
+}

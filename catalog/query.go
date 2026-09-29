@@ -58,6 +58,16 @@ func (q Query) Wants(kind SearchKind) bool {
 	return len(q.Kinds) == 0 || slices.Contains(q.Kinds, kind)
 }
 
+// Text is every term's text, joined by spaces: the query without its
+// operators, for searches elsewhere that do not read them.
+func (q Query) Text() string {
+	words := make([]string, len(q.Terms))
+	for i, t := range q.Terms {
+		words[i] = t.Text
+	}
+	return strings.Join(words, " ")
+}
+
 // Plain is the query's any-field text, words joined by spaces: what the user
 // typed, minus operators. Ranking uses it to favor exact title matches.
 func (q Query) Plain() string {

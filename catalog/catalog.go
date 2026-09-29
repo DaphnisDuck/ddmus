@@ -129,6 +129,8 @@ type CollectionStatus struct {
 type Catalog interface {
 	// Albums returns provider's library albums, by artist then title.
 	Albums(ctx context.Context, provider string) ([]Album, error)
+	// Album returns one album by its catalog ID, or ErrNotFound.
+	Album(ctx context.Context, id int64) (Album, error)
 	// AlbumTracks returns an album's tracks in disc and track order, and
 	// whether its track list has been cached at all.
 	AlbumTracks(ctx context.Context, albumID int64) (tracks []Track, cached bool, err error)

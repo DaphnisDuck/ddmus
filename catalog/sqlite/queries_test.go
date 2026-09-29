@@ -175,3 +175,18 @@ func TestSyncStatus(t *testing.T) {
 		t.Errorf("local SyncStatus() = %+v, want none", none)
 	}
 }
+
+func TestAlbum(t *testing.T) {
+	s, ctx := seeded(t)
+	albums, err := s.Albums(ctx, catalog.Spotify)
+	if err != nil || len(albums) == 0 {
+		t.Fatalf("Albums() = %v, %v", albums, err)
+	}
+	got, err := s.Album(ctx, albums[0].ID)
+	if err != nil || got != albums[0] {
+		t.Errorf("Album(%d) = %+v, %v; want %+v", albums[0].ID, got, err, albums[0])
+	}
+	if _, err := s.Album(ctx, -1); !errors.Is(err, catalog.ErrNotFound) {
+		t.Errorf("Album(-1) = %v, want ErrNotFound", err)
+	}
+}

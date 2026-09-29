@@ -34,6 +34,13 @@ type libraryState struct {
 	// Catalog sync status per provider, and the action behind "r".
 	sync    map[string]*libSync
 	refresh func(provider string)
+
+	// Search: whether the search frame's input has focus (else its
+	// results), the last query (kept when search reopens), and the
+	// generation of the pending debounced query.
+	searchInput bool
+	lastQuery   string
+	searchGen   uint64
 }
 
 // libSync is one provider's catalog sync status as the library shows it.
@@ -131,6 +138,7 @@ type libraryPlayMsg struct {
 	gen    uint64
 	title  string
 	tracks []playlist.Track
+	index  int // the track to start at
 	err    error
 }
 
@@ -309,7 +317,10 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 			m.status.Warningf(statusTTLDefault, "%s: nothing to play", msg.title)
 			return nil, true
 		}
-		return m.libraryPlayTracks(msg.tracks, 0), true
+		return m.libraryPlayTracks(msg.tracks, min(max(msg.index, 0), len(msg.tracks)-1)), true
+
+	case librarySearchTickMsg:
+		return m.handleLibrarySearchTick(msg), true
 
 	case libraryAuthDoneMsg:
 		if msg.gen != m.lib.authGen || !m.libraryEnabled() {
@@ -347,9 +358,20 @@ func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool
 		return nil, !queuePassthroughKeys[key] && !libraryPassthroughKeys[key]
 	}
 
+	if sl, ok := m.libSearchLevel(); ok {
+		if m.lib.searchInput {
+			return m.handleLibrarySearchInput(msg, sl), true
+		}
+		switch key {
+		case "/", "esc", "h", "left", "backspace":
+			m.lib.searchInput = true // back to the query
+			return nil, true
+		}
+	}
+
 	f := m.libTop()
 	n := len(f.entries)
-	page := max(m.effectivePlaylistVisible()-1, 1)
+	page := max(m.libListBudget()-1, 1)
 	switch key {
 	case "up", "k":
 		if n > 0 {
@@ -391,7 +413,7 @@ func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool
 		m.focus = focusPlaylist
 		return nil, true
 	case "/":
-		m.librarySearch()
+		return m.librarySearch(), true
 	case "space":
 		return m.togglePlayPause(), true
 	default:
@@ -420,7 +442,12 @@ func (m *Model) libraryActivate() tea.Cmd {
 	e := f.entries[f.cursor]
 	switch {
 	case e.Open != nil:
+		if sl, ok := e.Open.(library.SearchLevel); ok {
+			return m.libraryOpenSearch(sl)
+		}
 		return m.libraryPush(e.Open)
+	case e.Track != nil && e.PlayFrom != nil:
+		return m.libraryPlayFrom(e)
 	case e.Track != nil:
 		tracks, at := library.Tracks(f.entries, f.cursor)
 		return m.libraryPlayTracks(tracks, at)
@@ -438,19 +465,12 @@ func (m *Model) libraryActivate() tea.Cmd {
 	case e.Intent == library.IntentFolders:
 		m.openFileBrowser()
 	case e.Intent == library.IntentSearch:
+		if e.Query != "" {
+			return m.openProviderSearchQuery(e.Provider, e.Query)
+		}
 		m.openProviderSearchWith(e.Provider)
 	}
 	return nil
-}
-
-// librarySearch opens the root's Search entry from anywhere in the library.
-func (m *Model) librarySearch() {
-	for _, e := range m.lib.stack[0].entries {
-		if e.Intent == library.IntentSearch {
-			m.openProviderSearchWith(e.Provider)
-			return
-		}
-	}
 }
 
 // libEndSignIn clears the sign-in screen.

@@ -13,14 +13,18 @@ import (
 // browser; Playlists are the local provider's saved playlists. Every catalog
 // level reloads when an index of the folder lands.
 func LocalCatalog(cat catalog.Catalog, prov playlist.Provider, dir string) Level {
-	b := &catalogBrowser{cat: cat, prov: prov, provider: catalog.Local,
-		pending: "Indexing your music… (press r to retry if this persists)",
-		none:    "No music found in " + dir}
+	b := localBrowser(cat, prov, dir)
 	return local(prov,
 		Entry{Title: "Albums", Open: b.list("Albums", b.localAlbums)},
 		Entry{Title: "Artists", Open: b.list("Artists", b.localArtists)},
 		Entry{Title: "Genres", Open: b.list("Genres", b.localGenres)},
 	)
+}
+
+func localBrowser(cat catalog.Catalog, prov playlist.Provider, dir string) *catalogBrowser {
+	return &catalogBrowser{cat: cat, prov: prov, provider: catalog.Local,
+		pending: "Indexing your music… (press r to retry if this persists)",
+		none:    "No music found in " + dir}
 }
 
 func (b *catalogBrowser) localAlbums(ctx context.Context) ([]Entry, error) {
@@ -34,19 +38,23 @@ func (b *catalogBrowser) localAlbums(ctx context.Context) ([]Entry, error) {
 func (b *catalogBrowser) localAlbumEntries(albums []catalog.Album) []Entry {
 	entries := make([]Entry, len(albums))
 	for i, a := range albums {
-		detail := a.Artist
-		if a.Year > 0 {
-			detail = fmt.Sprintf("%s · %d", detail, a.Year)
-		}
-		entries[i] = Entry{ID: catalogID(a.ID), Title: a.Title, Detail: detail, Open: b.list(a.Title, func(ctx context.Context) ([]Entry, error) {
-			tracks, _, err := b.cat.AlbumTracks(ctx, a.ID)
-			if err != nil {
-				return nil, err
-			}
-			return catalogTrackEntries(tracks), nil
-		})}
+		entries[i] = b.localAlbumEntry(a)
 	}
 	return entries
+}
+
+func (b *catalogBrowser) localAlbumEntry(a catalog.Album) Entry {
+	detail := a.Artist
+	if a.Year > 0 {
+		detail = fmt.Sprintf("%s · %d", detail, a.Year)
+	}
+	return Entry{ID: catalogID(a.ID), Title: a.Title, Detail: detail, Open: b.list(a.Title, func(ctx context.Context) ([]Entry, error) {
+		tracks, _, err := b.cat.AlbumTracks(ctx, a.ID)
+		if err != nil {
+			return nil, err
+		}
+		return catalogTrackEntries(tracks), nil
+	})}
 }
 
 func (b *catalogBrowser) localArtists(ctx context.Context) ([]Entry, error) {
@@ -56,15 +64,19 @@ func (b *catalogBrowser) localArtists(ctx context.Context) ([]Entry, error) {
 	}
 	entries := make([]Entry, len(artists))
 	for i, a := range artists {
-		entries[i] = Entry{ID: catalogID(a.ID), Title: a.Name, Open: b.list(a.Name, func(ctx context.Context) ([]Entry, error) {
-			albums, err := b.cat.ArtistAlbums(ctx, a.ID)
-			if err != nil {
-				return nil, err
-			}
-			return b.localAlbumEntries(albums), nil
-		})}
+		entries[i] = b.localArtistEntry(a)
 	}
 	return b.syncingPlaceholder(ctx, entries)
+}
+
+func (b *catalogBrowser) localArtistEntry(a catalog.Artist) Entry {
+	return Entry{ID: catalogID(a.ID), Title: a.Name, Open: b.list(a.Name, func(ctx context.Context) ([]Entry, error) {
+		albums, err := b.cat.ArtistAlbums(ctx, a.ID)
+		if err != nil {
+			return nil, err
+		}
+		return b.localAlbumEntries(albums), nil
+	})}
 }
 
 func (b *catalogBrowser) localGenres(ctx context.Context) ([]Entry, error) {

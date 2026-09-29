@@ -50,8 +50,12 @@ func Root(src Sources) Level {
 	if src.Radio != nil || src.Channels != nil {
 		entries = append(entries, Entry{Title: "Radio", Open: radio(src.Radio, src.Channels)})
 	}
+	// With a catalog, Search is the unified search screen; without, the
+	// provider's own search.
 	search := Entry{Title: "Search", Intent: IntentSearch, Provider: src.Spotify}
-	if search.Provider == nil {
+	if src.Catalog != nil {
+		search = Entry{Title: "Search", Open: newSearcher(src.Catalog, src).level("")}
+	} else if search.Provider == nil {
 		search.Provider = src.Local
 	}
 	entries = append(entries, search)

@@ -24,10 +24,20 @@ type fakeCatalog struct {
 	liked       []catalog.Track
 	genres      []catalog.Genre
 	genreAlbs   map[string][]catalog.Album
+	found       catalog.SearchResults
+	queries     []catalog.Query
 	synced      bool
 }
 
 func (f *fakeCatalog) Albums(context.Context, string) ([]catalog.Album, error) { return f.albums, nil }
+func (f *fakeCatalog) Album(_ context.Context, id int64) (catalog.Album, error) {
+	for _, a := range f.albums {
+		if a.ID == id {
+			return a, nil
+		}
+	}
+	return catalog.Album{}, catalog.ErrNotFound
+}
 func (f *fakeCatalog) AlbumTracks(_ context.Context, id int64) ([]catalog.Track, bool, error) {
 	return f.albumTracks[id], f.cached[id], nil
 }
@@ -49,8 +59,15 @@ func (f *fakeCatalog) Genres(context.Context, string) ([]catalog.Genre, error) {
 func (f *fakeCatalog) GenreAlbums(_ context.Context, _, genre string) ([]catalog.Album, error) {
 	return f.genreAlbs[genre], nil
 }
-func (f *fakeCatalog) Search(context.Context, catalog.Query, int) (catalog.SearchResults, error) {
-	return catalog.SearchResults{}, nil
+func (f *fakeCatalog) Search(_ context.Context, q catalog.Query, limit int) (catalog.SearchResults, error) {
+	f.queries = append(f.queries, q)
+	out := catalog.SearchResults{}
+	for kind, rs := range f.found {
+		if q.Wants(kind) {
+			out[kind] = rs[:min(len(rs), limit)]
+		}
+	}
+	return out, nil
 }
 func (f *fakeCatalog) LikedTracks(context.Context, string) ([]catalog.Track, error) {
 	return f.liked, nil

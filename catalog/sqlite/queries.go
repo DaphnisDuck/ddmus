@@ -31,6 +31,18 @@ func (s *Store) Albums(ctx context.Context, provider string) ([]catalog.Album, e
 		ORDER BY al.sort_artist, al.sort_title`, provider, catalog.KindAlbum)
 }
 
+// Album implements catalog.Catalog.
+func (s *Store) Album(ctx context.Context, id int64) (catalog.Album, error) {
+	albums, err := queryAll(ctx, s.db, scanAlbum, `SELECT `+albumColumns+` FROM albums al WHERE al.id = ?`, id)
+	if err != nil {
+		return catalog.Album{}, err
+	}
+	if len(albums) == 0 {
+		return catalog.Album{}, fmt.Errorf("album %d: %w", id, catalog.ErrNotFound)
+	}
+	return albums[0], nil
+}
+
 // AlbumTracks implements catalog.Catalog.
 func (s *Store) AlbumTracks(ctx context.Context, albumID int64) ([]catalog.Track, bool, error) {
 	var cached bool

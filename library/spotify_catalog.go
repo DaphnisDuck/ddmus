@@ -28,8 +28,7 @@ func (l *catalogLevel) CatalogProvider() string { return l.provider }
 // playlist whose items could not be synced, and an artist's full
 // discography, which only the live API has.
 func SpotifyCatalog(cat catalog.Catalog, prov playlist.Provider) Level {
-	b := &catalogBrowser{cat: cat, prov: prov, provider: catalog.Spotify,
-		pending: "Syncing your library… (press r to retry if this persists)"}
+	b := spotifyBrowser(cat, prov)
 	return Menu("Spotify",
 		Entry{Title: "Albums", Open: b.list("Albums", b.albums)},
 		Entry{Title: "Artists", Open: b.list("Artists", b.artists)},
@@ -38,6 +37,13 @@ func SpotifyCatalog(cat catalog.Catalog, prov playlist.Provider) Level {
 	)
 }
 
+func spotifyBrowser(cat catalog.Catalog, prov playlist.Provider) *catalogBrowser {
+	return &catalogBrowser{cat: cat, prov: prov, provider: catalog.Spotify,
+		pending: "Syncing your library… (press r to retry if this persists)"}
+}
+
+// catalogBrowser builds one provider's catalog-backed levels and entries,
+// for its browse menu and for search results.
 type catalogBrowser struct {
 	cat      catalog.Catalog
 	prov     playlist.Provider
@@ -127,11 +133,15 @@ func (b *catalogBrowser) artists(ctx context.Context) ([]Entry, error) {
 	}
 	entries := make([]Entry, len(artists))
 	for i, a := range artists {
-		entries[i] = Entry{ID: catalogID(a.ID), Title: a.Name, Open: b.level(a.Name, func(ctx context.Context) ([]Entry, error) {
-			return b.artistAlbums(ctx, a)
-		})}
+		entries[i] = b.artistEntry(a)
 	}
 	return b.syncingPlaceholder(ctx, entries)
+}
+
+func (b *catalogBrowser) artistEntry(a catalog.Artist) Entry {
+	return Entry{ID: catalogID(a.ID), Title: a.Name, Open: b.level(a.Name, func(ctx context.Context) ([]Entry, error) {
+		return b.artistAlbums(ctx, a)
+	})}
 }
 
 // artistAlbums shows the artist's full discography from the provider, and
@@ -171,32 +181,36 @@ func (b *catalogBrowser) playlists(ctx context.Context) ([]Entry, error) {
 	}
 	entries := make([]Entry, len(pls))
 	for i, p := range pls {
-		section := SpotifyFollowedPlaylistsSection
-		if p.Own {
-			section = SpotifyOwnPlaylistsSection
+		entries[i] = b.playlistEntry(p)
+	}
+	return b.syncingPlaceholder(ctx, entries)
+}
+
+func (b *catalogBrowser) playlistEntry(p catalog.Playlist) Entry {
+	section := SpotifyFollowedPlaylistsSection
+	if p.Own {
+		section = SpotifyOwnPlaylistsSection
+	}
+	e := Entry{ID: catalogID(p.ID), Title: p.Name, Section: section, Open: b.level(p.Name, func(ctx context.Context) ([]Entry, error) {
+		tracks, err := b.cat.PlaylistTracks(ctx, p.ID)
+		if err != nil {
+			return nil, err
 		}
-		e := Entry{ID: catalogID(p.ID), Title: p.Name, Section: section, Open: b.level(p.Name, func(ctx context.Context) ([]Entry, error) {
-			tracks, err := b.cat.PlaylistTracks(ctx, p.ID)
+		// Items the sync could not read (Spotify refuses some followed
+		// playlists) are fetched live instead.
+		if len(tracks) == 0 && p.TrackCount > 0 {
+			live, err := b.prov.Tracks(p.Ref.ProviderID)
 			if err != nil {
 				return nil, err
 			}
-			// Items the sync could not read (Spotify refuses some followed
-			// playlists) are fetched live instead.
-			if len(tracks) == 0 && p.TrackCount > 0 {
-				live, err := b.prov.Tracks(p.Ref.ProviderID)
-				if err != nil {
-					return nil, err
-				}
-				return trackEntries(live), nil
-			}
-			return catalogTrackEntries(tracks), nil
-		})}
-		if p.TrackCount > 0 {
-			e.Detail = fmt.Sprintf("%d tracks", p.TrackCount)
+			return trackEntries(live), nil
 		}
-		entries[i] = e
+		return catalogTrackEntries(tracks), nil
+	})}
+	if p.TrackCount > 0 {
+		e.Detail = fmt.Sprintf("%d tracks", p.TrackCount)
 	}
-	return b.syncingPlaceholder(ctx, entries)
+	return e
 }
 
 func (b *catalogBrowser) liked(ctx context.Context) ([]Entry, error) {

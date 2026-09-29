@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+
+	tea "charm.land/bubbletea/v2"
 	"errors"
 	"path/filepath"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/catalog/sqlite"
 	"github.com/bjarneo/cliamp/catalogsync"
+	"github.com/bjarneo/cliamp/ui/model"
 )
 
 // flakySource fails its first fails syncs, then returns an empty library.
@@ -156,4 +159,32 @@ func (s *namedSource) Provider() string    { return s.name }
 func (*namedSource) Collections() []string { return []string{"albums"} }
 func (*namedSource) Fetch(context.Context, string, catalogsync.Known) (catalog.Snapshot, error) {
 	return catalog.Snapshot{}, catalogsync.ErrUnchanged
+}
+
+// A quiet source (radio) syncs without reporting status to the UI.
+func TestQuietSourceReportsNothing(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
+	defer rt.cancel()
+	rt.setSources(source{Source: &namedSource{catalog.Spotify}}, source{Source: &namedSource{catalog.Radio}, quiet: true})
+	var sent []tea.Msg
+	rt.send = func(m tea.Msg) { sent = append(sent, m) }
+	for _, p := range []string{catalog.Radio, catalog.Spotify} {
+		if err := rt.engine.Sync(context.Background(), p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, m := range sent {
+		if msg, ok := m.(model.CatalogSyncMsg); !ok || msg.Provider != catalog.Spotify {
+			t.Errorf("sent %+v, want only Spotify's events", m)
+		}
+	}
+	if len(sent) == 0 {
+		t.Error("Spotify's events were not sent")
+	}
 }

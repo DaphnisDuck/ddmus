@@ -18,8 +18,10 @@ import (
 	"github.com/bjarneo/cliamp/catalog/sqlite"
 	"github.com/bjarneo/cliamp/catalogsync"
 	"github.com/bjarneo/cliamp/catalogsync/localsrc"
+	"github.com/bjarneo/cliamp/catalogsync/radiosrc"
 	"github.com/bjarneo/cliamp/catalogsync/spotifysrc"
 	"github.com/bjarneo/cliamp/config"
+	"github.com/bjarneo/cliamp/external/radio"
 	"github.com/bjarneo/cliamp/external/spotify"
 	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/ui/model"
@@ -66,11 +68,15 @@ type source struct {
 	refresh time.Duration
 	// fill runs the album-track filler after each sync.
 	fill bool
+	// quiet sources (radio: local files, instant) report no sync status
+	// to the UI.
+	quiet bool
 }
 
 // providerSync is one provider's sync state.
 type providerSync struct {
 	fill        bool                // from source.fill
+	quiet       bool                // from source.quiet
 	collections int                 // how many collections a complete sync covers
 	startup     model.CatalogStatus // stored status, read once at startup
 	stale       bool                // startup should sync
@@ -79,9 +85,9 @@ type providerSync struct {
 }
 
 // openCatalog opens the catalog with a sync source for Spotify, when it is
-// configured, and for the music folder, when there is one. A catalog that
-// cannot open is logged and left out.
-func openCatalog(sp *spotify.SpotifyProvider, cfg config.Config) *catalogRuntime {
+// configured, for the music folder, when there is one, and for your radio
+// stations. A catalog that cannot open is logged and left out.
+func openCatalog(sp *spotify.SpotifyProvider, rp *radio.Provider, cfg config.Config) *catalogRuntime {
 	rt := &catalogRuntime{providers: map[string]*providerSync{}, retryMin: syncRetryMin, retryMax: syncRetryMax}
 	rt.ctx, rt.cancel = context.WithCancel(context.Background())
 	path, err := appdir.LibraryDBPath()
@@ -105,7 +111,14 @@ func openCatalog(sp *spotify.SpotifyProvider, cfg config.Config) *catalogRuntime
 		// writes nothing when none changed.
 		sources = append(sources, source{Source: localsrc.New(dir, rt.store)})
 	}
+	if rp != nil {
+		// Favorites and radios.toml, read from local files at every startup.
+		sources = append(sources, source{Source: radiosrc.New(rp), quiet: true})
+	}
 	rt.setSources(sources...)
+	if rp != nil && rt.engine != nil {
+		rp.OnFavoritesToggled(func() { rt.sync(catalog.Radio) })
+	}
 	return rt
 }
 
@@ -121,7 +134,7 @@ func (rt *catalogRuntime) setSources(sources ...source) {
 	}
 	rt.engine = catalogsync.New(rt.store, rt.notify, engineSources...)
 	for _, src := range sources {
-		ps := &providerSync{fill: src.fill && rt.filler != nil, collections: len(src.Collections())}
+		ps := &providerSync{fill: src.fill && rt.filler != nil, quiet: src.quiet, collections: len(src.Collections())}
 		var complete bool
 		ps.startup, complete = rt.status(src.Provider(), ps.collections)
 		ps.stale = !complete || time.Since(ps.startup.LastSuccess) > src.refresh
@@ -160,7 +173,9 @@ func (rt *catalogRuntime) configure(m *model.Model) {
 	}
 	status := make(map[string]model.CatalogStatus, len(rt.providers))
 	for provider, ps := range rt.providers {
-		status[provider] = ps.startup
+		if !ps.quiet {
+			status[provider] = ps.startup
+		}
 	}
 	m.SetCatalogSync(status, rt.refresh)
 }
@@ -300,6 +315,9 @@ func (rt *catalogRuntime) fill() {
 // program has exited, so this cannot hang.
 func (rt *catalogRuntime) notify(ev catalogsync.Event) {
 	if rt.send == nil {
+		return
+	}
+	if ps := rt.providers[ev.Provider]; ps != nil && ps.quiet {
 		return
 	}
 	var phase model.CatalogSyncPhase

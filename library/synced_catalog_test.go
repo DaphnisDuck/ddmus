@@ -343,7 +343,7 @@ func TestSyncedMenuFollowsCollections(t *testing.T) {
 	// Each synced source is in Music; Spotify without a sync browses live.
 	yt := SyncedSource{Provider: "youtube", Title: "YouTube Music", Player: live, Collections: []string{catalog.CollectionPlaylists}}
 	root := Root(Sources{Spotify: live, Catalog: cat, Synced: []SyncedSource{yt}})
-	if got := titles(load(t, root)); !slices.Equal(got, []string{"Library", "YouTube Music", "Spotify", "Search"}) {
+	if got := titles(load(t, root)); !slices.Equal(got, []string{"All Music", "YouTube Music", "Spotify", "Search"}) {
 		t.Errorf("Music = %v", got)
 	}
 	if _, ok := child(t, root, "Spotify").(CatalogLevel); ok {

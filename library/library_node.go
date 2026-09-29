@@ -9,12 +9,12 @@ import (
 // emptyLibrary stands in for an empty unified list.
 const emptyLibrary = "Your library is empty. Press r to sync."
 
-// libraryMenu is Music → Library: every source's albums and artists in one
+// libraryMenu is Music → All Music: every source's albums and artists in one
 // list each. Rows are labelled with their source and open that source's own
 // level; the same album or artist in two sources stays two rows, sorted
 // side by side. Its lists reload after any source syncs.
 func (s *catalogView) libraryMenu() Level {
-	return Menu("Library",
+	return Menu("All Music",
 		Entry{Title: "Albums", Open: &catalogAlbumsLevel{catalogLevel{funcLevel{"Albums", s.allAlbums}, anyProvider}, &s.albumOrder}},
 		Entry{Title: "Artists", Open: &catalogLevel{funcLevel{"Artists", s.allArtists}, anyProvider}},
 	)

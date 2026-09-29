@@ -41,7 +41,7 @@ func Root(src Sources) Level {
 	var search *catalogView
 	if src.Catalog != nil {
 		search = newCatalogView(src.Catalog, src)
-		entries = append(entries, Entry{Title: "Library", Open: search.libraryMenu()})
+		entries = append(entries, Entry{Title: "All Music", Open: search.libraryMenu()})
 	}
 	synced := map[string]bool{}
 	if src.Catalog != nil {

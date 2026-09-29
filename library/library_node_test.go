@@ -14,10 +14,10 @@ func TestLibraryMenuMergesSources(t *testing.T) {
 	cat.albumTracks[40] = []catalog.Track{{ID: 41, Title: "Local track", AlbumID: 40, PlayableURI: "/m/c/1.flac"}}
 	cat.artists = append(cat.artists, catalog.Artist{ID: 7, Ref: lref3(catalog.Local, "holst"), Name: "Holst"})
 	root := Root(Sources{Spotify: live, Local: &fakeProvider{name: "Local"}, MusicDir: "/m", Catalog: cat, Synced: spotifySynced(live)})
-	if got := titles(load(t, root)); len(got) == 0 || got[0] != "Library" {
-		t.Fatalf("Music = %v, want Library first", got)
+	if got := titles(load(t, root)); len(got) == 0 || got[0] != "All Music" {
+		t.Fatalf("Music = %v, want All Music first", got)
 	}
-	lib := child(t, root, "Library")
+	lib := child(t, root, "All Music")
 	if got := titles(load(t, lib)); !slices.Equal(got, []string{"Albums", "Artists"}) {
 		t.Fatalf("Library = %v", got)
 	}
@@ -62,13 +62,13 @@ func TestLibraryMenuMergesSources(t *testing.T) {
 func TestLibraryMenuEmpty(t *testing.T) {
 	cat, live, _ := newCatalogFixture()
 	cat.albums, cat.artists = nil, nil
-	lib := child(t, Root(Sources{Spotify: live, Catalog: cat, Synced: spotifySynced(live)}), "Library")
+	lib := child(t, Root(Sources{Spotify: live, Catalog: cat, Synced: spotifySynced(live)}), "All Music")
 	for _, name := range []string{"Albums", "Artists"} {
 		if got := titles(load(t, child(t, lib, name))); !slices.Equal(got, []string{emptyLibrary}) {
 			t.Errorf("empty %s = %v", name, got)
 		}
 	}
-	if got := titles(load(t, Root(Sources{Spotify: live}))); slices.Contains(got, "Library") {
-		t.Errorf("Music without a catalog = %v, want no Library", got)
+	if got := titles(load(t, Root(Sources{Spotify: live}))); slices.Contains(got, "All Music") {
+		t.Errorf("Music without a catalog = %v, want no All Music", got)
 	}
 }

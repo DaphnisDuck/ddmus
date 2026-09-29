@@ -364,7 +364,7 @@ func (allLevel) CatalogProvider() string { return "" }
 func TestCatalogSyncRefreshesAllSourceLevels(t *testing.T) {
 	rows := []library.Entry{{ID: "a", Title: "A"}}
 	loads := 0
-	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "Library", Open: allLevel{catLevel{"Albums", &rows, &loads}}}))
+	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "All Music", Open: allLevel{catLevel{"Albums", &rows, &loads}}}))
 	m = libPress(t, m, "enter")
 	for _, p := range []string{"spotify", "local"} {
 		updated, cmd := m.Update(CatalogSyncMsg{Provider: p, Phase: CatalogSyncCollectionDone})

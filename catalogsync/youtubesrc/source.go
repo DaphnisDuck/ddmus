@@ -6,6 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"slices"
+	"strings"
 
 	"github.com/bjarneo/cliamp/applog"
 	"github.com/bjarneo/cliamp/catalog"
@@ -25,6 +28,8 @@ type Client interface {
 	// PlaylistRecords lists the music playlists, without tracks. A record
 	// with a Snapshot is refetched only when it changes.
 	PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error)
+	// PlaylistRecord reads one playlist by ID, without tracks.
+	PlaylistRecord(ctx context.Context, playlistID string) (catalog.PlaylistRecord, error)
 	PlaylistTrackRecords(ctx context.Context, playlistID string) ([]catalog.TrackRecord, error)
 	LikedTrackRecords(ctx context.Context) ([]catalog.TrackRecord, error)
 }
@@ -32,12 +37,39 @@ type Client interface {
 // Source syncs one YouTube Music account.
 type Source struct {
 	client Client
+	extra  []string // other people's playlists to sync, by ID
 }
 
 var _ catalogsync.Source = (*Source)(nil)
 
-// New returns a Source reading through client.
-func New(client Client) *Source { return &Source{client: client} }
+// New returns a Source reading through client. extra are other people's
+// playlists to sync besides the account's own, as links or IDs: YouTube
+// lists the playlists you save nowhere a sync can read.
+func New(client Client, extra ...string) *Source {
+	s := &Source{client: client}
+	for _, e := range extra {
+		if id := PlaylistID(e); id != "" && !slices.Contains(s.extra, id) {
+			s.extra = append(s.extra, id)
+		} else if id == "" {
+			applog.Warn("youtube: %q is not a playlist link or ID", e)
+		}
+	}
+	return s
+}
+
+// PlaylistID returns the playlist ID of a playlist link (its list=
+// parameter, on youtube.com or music.youtube.com) or of a bare ID, and ""
+// for anything else.
+func PlaylistID(s string) string {
+	s = strings.TrimSpace(s)
+	if u, err := url.Parse(s); err == nil && u.Host != "" {
+		return u.Query().Get("list")
+	}
+	if s == "" || strings.ContainsAny(s, "/?&= ") {
+		return ""
+	}
+	return s
+}
 
 // Provider implements catalogsync.Source.
 func (*Source) Provider() string { return catalog.YouTube }
@@ -72,6 +104,22 @@ func (s *Source) playlists(ctx context.Context, known map[string]string) ([]cata
 	if err != nil {
 		return nil, err
 	}
+	// Other people's playlists, unless the account's own list has them.
+	for _, id := range s.extra {
+		if slices.ContainsFunc(lists, func(p catalog.PlaylistRecord) bool { return p.Ref.ProviderID == id }) {
+			continue
+		}
+		p, err := s.client.PlaylistRecord(ctx, id)
+		if errors.Is(err, catalog.ErrForbidden) {
+			applog.Info("catalog sync: skipping playlist %s: %v", id, err)
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("playlist %s: %w", id, err)
+		}
+		p.Own = false // followed, not yours
+		lists = append(lists, p)
+	}
 	for i := range lists {
 		p := &lists[i]
 		if p.Snapshot != "" && known[p.Ref.ProviderID] == p.Snapshot {
@@ -105,6 +153,11 @@ var _ Client = Mixed{}
 // PlaylistRecords implements Client through cookies.
 func (m Mixed) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error) {
 	return m.Cookies.PlaylistRecords(ctx)
+}
+
+// PlaylistRecord implements Client through cookies.
+func (m Mixed) PlaylistRecord(ctx context.Context, playlistID string) (catalog.PlaylistRecord, error) {
+	return m.Cookies.PlaylistRecord(ctx, playlistID)
 }
 
 // PlaylistTrackRecords implements Client through cookies.

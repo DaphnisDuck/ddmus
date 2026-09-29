@@ -151,6 +151,24 @@ func (c *CookieCatalog) isMusic(ctx context.Context, playlistID string) (bool, e
 	return false, lastErr
 }
 
+// PlaylistRecord returns one playlist, by ID, without tracks: for a
+// playlist someone else owns, which no list of yours includes. A playlist
+// that is gone or private fails with an error wrapping catalog.ErrForbidden.
+func (c *CookieCatalog) PlaylistRecord(ctx context.Context, playlistID string) (catalog.PlaylistRecord, error) {
+	out, err := c.ytdlp(ctx, playlistURL(playlistID), "--flat-playlist", "-J", "--playlist-end", "1")
+	if err != nil {
+		return catalog.PlaylistRecord{}, fmt.Errorf("youtube: playlist %s: %w", playlistID, err)
+	}
+	var pl struct {
+		Title string `json:"title"`
+		Count int    `json:"playlist_count"`
+	}
+	if err := json.Unmarshal(out, &pl); err != nil {
+		return catalog.PlaylistRecord{}, fmt.Errorf("youtube: parse playlist %s: %w", playlistID, err)
+	}
+	return catalog.PlaylistRecord{Ref: youtubeRef(playlistID), Name: pl.Title, TrackCount: pl.Count}, nil
+}
+
 // PlaylistTrackRecords returns a playlist's tracks in order. A playlist
 // that is gone or private fails with an error wrapping catalog.ErrForbidden.
 func (c *CookieCatalog) PlaylistTrackRecords(ctx context.Context, playlistID string) ([]catalog.TrackRecord, error) {

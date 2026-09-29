@@ -275,3 +275,20 @@ func TestSearchPlaylistOfAnySyncedSource(t *testing.T) {
 		t.Errorf("playlist tracks = %+v", got)
 	}
 }
+
+// Each synced source that can search live gets its own row.
+func TestSearchLiveRowPerSearchableSource(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	cat.found = nil
+	yt := SyncedSource{Provider: "youtube", Title: "YouTube Music", Player: &searchable{liveSpotify{fakeProvider: fakeProvider{name: "YouTube Music"}}},
+		Collections: []string{catalog.CollectionPlaylists}}
+	quiet := SyncedSource{Provider: "other", Title: "Other", Player: &fakeProvider{name: "Other"}, Collections: []string{catalog.CollectionPlaylists}}
+	search := child(t, Root(Sources{Catalog: cat, Synced: []SyncedSource{yt, quiet}}), "Search")
+	rows := searchFor(t, search, "x")
+	if got := titles(rows); !slices.Equal(got, []string{noMatches, "Search YouTube Music for “x”"}) {
+		t.Errorf("rows = %v", got)
+	}
+	if last := rows[len(rows)-1]; last.Intent != IntentSearch || last.Provider != yt.Player || last.Query != "x" {
+		t.Errorf("YouTube row = %+v", last)
+	}
+}

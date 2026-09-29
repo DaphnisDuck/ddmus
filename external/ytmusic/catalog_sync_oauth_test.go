@@ -48,6 +48,16 @@ func (f *fakeDataAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	write := func(v any) { json.NewEncoder(w).Encode(v) }
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/playlists"):
+		if id := q.Get("id"); id != "" {
+			var found []map[string]any
+			for _, p := range f.playlists {
+				if p["id"] == id {
+					found = append(found, p)
+				}
+			}
+			write(map[string]any{"items": found})
+			return
+		}
 		write(map[string]any{"items": f.playlists})
 	case strings.HasSuffix(r.URL.Path, "/playlistItems"):
 		id := q.Get("playlistId")
@@ -160,5 +170,16 @@ func TestOAuthReadFailures(t *testing.T) {
 	}
 	if _, err := c.PlaylistRecords(context.Background()); !errors.Is(err, playlist.ErrNeedsAuth) {
 		t.Errorf("signed out = %v, want ErrNeedsAuth", err)
+	}
+}
+
+func TestOAuthPlaylistRecord(t *testing.T) {
+	c, _ := newOAuthFixture(t)
+	p, err := c.PlaylistRecord(context.Background(), "PLroad")
+	if err != nil || p.Name != "Road Trip" || p.TrackCount != 61 || p.Snapshot != "61:e1" {
+		t.Errorf("PlaylistRecord = %+v, %v", p, err)
+	}
+	if _, err := c.PlaylistRecord(context.Background(), "PLmissing"); !errors.Is(err, catalog.ErrForbidden) {
+		t.Errorf("missing = %v, want ErrForbidden", err)
 	}
 }

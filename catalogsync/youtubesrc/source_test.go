@@ -33,6 +33,15 @@ type fakeClient struct {
 func (f *fakeClient) PlaylistRecords(context.Context) ([]catalog.PlaylistRecord, error) {
 	return slices.Clone(f.lists), f.listErr
 }
+func (f *fakeClient) PlaylistRecord(_ context.Context, id string) (catalog.PlaylistRecord, error) {
+	if err := f.itemErr[id]; err != nil {
+		return catalog.PlaylistRecord{}, err
+	}
+	if _, ok := f.items[id]; !ok {
+		return catalog.PlaylistRecord{}, catalog.ErrForbidden
+	}
+	return catalog.PlaylistRecord{Ref: ref(id), Name: "Saved " + id, Own: true}, nil
+}
 func (f *fakeClient) PlaylistTrackRecords(_ context.Context, id string) ([]catalog.TrackRecord, error) {
 	f.fetched = append(f.fetched, id)
 	return f.items[id], f.itemErr[id]
@@ -161,4 +170,60 @@ type needsAuth struct{ fakeClient }
 
 func (*needsAuth) LikedTrackRecords(context.Context) ([]catalog.TrackRecord, error) {
 	return nil, fmt.Errorf("youtube: no stored credentials: %w", playlist.ErrNeedsAuth)
+}
+
+func TestPlaylistID(t *testing.T) {
+	tests := map[string]string{
+		"https://music.youtube.com/playlist?list=PLsqtv0Ifjk&si=abc": "PLsqtv0Ifjk",
+		"https://www.youtube.com/playlist?list=PLx":                  "PLx",
+		"https://www.youtube.com/watch?v=abc&list=PLy":               "PLy",
+		"  PLbare  ":                          "PLbare",
+		"https://www.youtube.com/watch?v=abc": "",
+		"not a link/":                         "",
+		"":                                    "",
+	}
+	for in, want := range tests {
+		if got := PlaylistID(in); got != want {
+			t.Errorf("PlaylistID(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Other people's playlists sync as followed playlists, once, beside the
+// account's own; one that is gone is skipped, and any other failure keeps
+// the cache.
+func TestExtraPlaylists(t *testing.T) {
+	ctx := context.Background()
+	client := &fakeClient{
+		lists: []catalog.PlaylistRecord{{Ref: ref("PLmine"), Name: "Mine", Own: true}},
+		items: map[string][]catalog.TrackRecord{
+			"PLmine":  {track("m1", "Mine One")},
+			"PLsaved": {track("s1", "Saved One"), track("s2", "Saved Two")},
+		},
+	}
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	src := New(client, "https://music.youtube.com/playlist?list=PLsaved&si=x", "PLmine", "PLgone", "PLsaved", "junk/")
+	eng := catalogsync.New(store, nil, src)
+	if err := eng.Sync(ctx, catalog.YouTube); err != nil {
+		t.Fatal(err)
+	}
+	pls, _ := store.Playlists(ctx, catalog.YouTube)
+	var got []string
+	for _, p := range pls {
+		got = append(got, fmt.Sprintf("%s own=%v %d", p.Name, p.Own, p.TrackCount))
+	}
+	if !slices.Equal(got, []string{"Mine own=true 1", "Saved PLsaved own=false 2"}) {
+		t.Errorf("playlists = %q", got)
+	}
+	client.itemErr = map[string]error{"PLsaved": errors.New("network down")}
+	if err := eng.Sync(ctx, catalog.YouTube); err == nil {
+		t.Error("a failed read of a listed playlist succeeded")
+	}
+	if pls, _ := store.Playlists(ctx, catalog.YouTube); len(pls) != 2 {
+		t.Errorf("after the failure: %d playlists, want both kept", len(pls))
+	}
 }

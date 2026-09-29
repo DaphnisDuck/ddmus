@@ -23,6 +23,33 @@ func TestLoadOmatunesSection(t *testing.T) {
 		{"negative keeps the default", "[omatunes]\nspotify_refresh = \"-5m\"\n", DefaultSpotifyRefresh},
 		{"top-level key is not the section's", "spotify_refresh = \"2h\"\n", DefaultSpotifyRefresh},
 	}
+	for _, tt := range []struct {
+		name string
+		toml string
+		want time.Duration
+	}{
+		{"youtube default", "", DefaultYouTubeRefresh},
+		{"youtube set", "[omatunes]\nyoutube_refresh = \"6h\"\n", 6 * time.Hour},
+		{"youtube invalid", "[omatunes]\nyoutube_refresh = \"often\"\n", DefaultYouTubeRefresh},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(tt.toml), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Omatunes.YouTubeRefresh != tt.want {
+				t.Errorf("YouTubeRefresh = %v, want %v", cfg.Omatunes.YouTubeRefresh, tt.want)
+			}
+		})
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
@@ -61,5 +88,25 @@ func TestOmatunesSectionDoesNotLeak(t *testing.T) {
 	}
 	if cfg.Omatunes.SpotifyRefresh != time.Hour || !cfg.Spotify.Enabled || cfg.Spotify.Bitrate != 160 {
 		t.Errorf("omatunes %+v, spotify %+v", cfg.Omatunes, cfg.Spotify)
+	}
+}
+
+func TestLoadYouTubePlaylists(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	toml := "[omatunes]\nyoutube_playlists = [\"https://music.youtube.com/playlist?list=PLa&si=x\", \"PLb\"]\n"
+	if err := os.WriteFile(path, []byte(toml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"https://music.youtube.com/playlist?list=PLa&si=x", "PLb"}
+	if len(cfg.Omatunes.YouTubePlaylists) != 2 || cfg.Omatunes.YouTubePlaylists[0] != want[0] || cfg.Omatunes.YouTubePlaylists[1] != want[1] {
+		t.Errorf("YouTubePlaylists = %q, want %q", cfg.Omatunes.YouTubePlaylists, want)
 	}
 }

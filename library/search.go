@@ -63,20 +63,37 @@ type catalogView struct {
 	cat    catalog.Catalog
 	synced map[string]*catalogBrowser // by catalog provider name
 	local  *catalogBrowser
-	// Beyond the catalog: live Spotify search and the radio directory.
-	spotifyProv playlist.Provider
-	radioProv   playlist.Provider
+	// Beyond the catalog: the providers with their own live search, by
+	// name, and the radio directory.
+	liveSearch []liveSearcher
+	radioProv  playlist.Provider
 	// albumOrder is the Library Albums list's order, a catalog.AlbumOrder.
 	albumOrder atomic.Int32
 }
 
 func newCatalogView(cat catalog.Catalog, src Sources) *catalogView {
 	s := &catalogView{cat: cat, synced: map[string]*catalogBrowser{},
-		local: localBrowser(cat, src.Local, src.MusicDir), spotifyProv: src.Spotify, radioProv: src.Radio}
+		local: localBrowser(cat, src.Local, src.MusicDir), radioProv: src.Radio}
 	for _, ss := range src.Synced {
 		s.synced[ss.Provider] = syncedBrowser(cat, ss)
+		s.addLiveSearch(ss.Title, ss.Player)
+	}
+	if s.synced[catalog.Spotify] == nil {
+		s.addLiveSearch("Spotify", src.Spotify) // browsed live, searched live
 	}
 	return s
+}
+
+// liveSearcher is a provider that searches its own service live.
+type liveSearcher struct {
+	name string
+	prov playlist.Provider
+}
+
+func (s *catalogView) addLiveSearch(name string, prov playlist.Provider) {
+	if _, ok := prov.(provider.Searcher); ok {
+		s.liveSearch = append(s.liveSearch, liveSearcher{name, prov})
+	}
 }
 
 func (s *catalogView) level(query string) SearchLevel { return &searchLevel{s: s, query: query} }
@@ -147,17 +164,18 @@ func (s *catalogView) rows(results []catalog.SearchResult) []Entry {
 	return entries
 }
 
-// beyond is the rows that search outside the catalog: live Spotify search
-// and the radio directory, run only when chosen.
+// beyond is the rows that search outside the catalog: each provider's own
+// live search (Spotify, YouTube Music in cookie mode) and the radio
+// directory, run only when chosen.
 func (s *catalogView) beyond(q catalog.Query) []Entry {
 	text := q.Text()
 	if text == "" {
 		return nil
 	}
 	var entries []Entry
-	if _, ok := s.spotifyProv.(provider.Searcher); ok {
-		entries = append(entries, Entry{Section: beyondSection, Title: "Search Spotify for “" + text + "”",
-			Intent: IntentSearch, Provider: s.spotifyProv, Query: text})
+	for _, ls := range s.liveSearch {
+		entries = append(entries, Entry{Section: beyondSection, Title: "Search " + ls.name + " for “" + text + "”",
+			Intent: IntentSearch, Provider: ls.prov, Query: text})
 	}
 	if st, ok := s.radioProv.(stationSearcher); ok {
 		entries = append(entries, Entry{Section: beyondSection, Title: "Search the radio directory for “" + text + "”",

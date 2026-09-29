@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,10 +21,13 @@ import (
 	"github.com/bjarneo/cliamp/catalogsync/localsrc"
 	"github.com/bjarneo/cliamp/catalogsync/radiosrc"
 	"github.com/bjarneo/cliamp/catalogsync/spotifysrc"
+	"github.com/bjarneo/cliamp/catalogsync/youtubesrc"
 	"github.com/bjarneo/cliamp/config"
 	"github.com/bjarneo/cliamp/external/radio"
 	"github.com/bjarneo/cliamp/external/spotify"
+	"github.com/bjarneo/cliamp/external/ytmusic"
 	"github.com/bjarneo/cliamp/internal/appdir"
+	"github.com/bjarneo/cliamp/player"
 	"github.com/bjarneo/cliamp/ui/model"
 )
 
@@ -109,6 +113,10 @@ func openCatalog(sp *spotify.SpotifyProvider, rp *radio.Provider, cfg config.Con
 		sources = append(sources, source{Source: src, refresh: cfg.Omatunes.SpotifyRefresh, fill: true})
 		rt.filler = catalogsync.NewFiller(rt.store, src, catalogsync.DefaultPacing)
 	}
+	if client := youtubeClient(cfg.YouTubeMusic); client != nil {
+		sources = append(sources, source{Source: youtubesrc.New(client, cfg.Omatunes.YouTubePlaylists...),
+			refresh: cfg.Omatunes.YouTubeRefresh})
+	}
 	if dir := musicDir(cfg.InitialDirectory); dir != "" {
 		// Indexed at every startup: it rereads only changed files and
 		// writes nothing when none changed.
@@ -123,6 +131,30 @@ func openCatalog(sp *spotify.SpotifyProvider, rp *radio.Provider, cfg config.Con
 		rp.OnFavoritesToggled(func() { rt.sync(catalog.Radio) })
 	}
 	return rt
+}
+
+// ytdlpAvailable reports whether yt-dlp is installed; replaced in tests.
+var ytdlpAvailable = player.YTDLPAvailable
+
+// youtubeClient reads the YouTube Music account the way it is signed in:
+// cookies, an own OAuth client, or both (Liked Music through OAuth,
+// playlists through cookies). It returns nil when YouTube is disabled or
+// not signed in, or yt-dlp, which plays its tracks, is missing.
+func youtubeClient(yt config.YouTubeMusicConfig) youtubesrc.Client {
+	if yt.Disabled || !ytdlpAvailable() {
+		return nil
+	}
+	cookies := strings.TrimSpace(yt.CookiesFrom)
+	oauth := strings.TrimSpace(yt.ClientID) != "" && strings.TrimSpace(yt.ClientSecret) != ""
+	switch {
+	case oauth && cookies != "":
+		return youtubesrc.Mixed{OAuth: ytmusic.NewOAuthCatalog(yt.ClientID, yt.ClientSecret), Cookies: ytmusic.NewCookieCatalog(cookies)}
+	case oauth:
+		return ytmusic.NewOAuthCatalog(yt.ClientID, yt.ClientSecret)
+	case cookies != "":
+		return ytmusic.NewCookieCatalog(cookies)
+	}
+	return nil
 }
 
 // setSources creates the engine for sources and reads their stored status.

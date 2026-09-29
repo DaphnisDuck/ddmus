@@ -98,6 +98,30 @@ func (c *OAuthCatalog) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistR
 	return records, nil
 }
 
+// PlaylistRecord returns one playlist, by ID, without tracks: for a
+// playlist someone else owns, which no list of yours includes. A playlist
+// the API does not return fails with an error wrapping catalog.ErrForbidden.
+func (c *OAuthCatalog) PlaylistRecord(ctx context.Context, playlistID string) (catalog.PlaylistRecord, error) {
+	svc, _, err := c.service(ctx)
+	if err != nil {
+		return catalog.PlaylistRecord{}, err
+	}
+	resp, err := svc.Playlists.List([]string{"snippet", "contentDetails"}).Id(playlistID).Context(ctx).Do()
+	if err != nil {
+		return catalog.PlaylistRecord{}, fmt.Errorf("youtube: playlist %s: %w", playlistID, apiError(err))
+	}
+	if len(resp.Items) == 0 {
+		return catalog.PlaylistRecord{}, fmt.Errorf("youtube: playlist %s: %w", playlistID, catalog.ErrForbidden)
+	}
+	p := resp.Items[0]
+	var count int
+	if p.ContentDetails != nil {
+		count = int(p.ContentDetails.ItemCount)
+	}
+	return catalog.PlaylistRecord{Ref: youtubeRef(playlistID), Name: p.Snippet.Title, TrackCount: count,
+		Snapshot: fmt.Sprintf("%d:%s", count, p.Etag)}, nil
+}
+
 // PlaylistTrackRecords returns a playlist's tracks in order. A playlist
 // that is gone or private fails with an error wrapping catalog.ErrForbidden.
 func (c *OAuthCatalog) PlaylistTrackRecords(ctx context.Context, playlistID string) ([]catalog.TrackRecord, error) {

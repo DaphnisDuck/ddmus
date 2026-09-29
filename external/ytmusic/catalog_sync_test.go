@@ -205,3 +205,15 @@ func TestCookieClassificationSkipsRefusedVideos(t *testing.T) {
 		t.Errorf("runs %v; want only Game Shows sampled again", f.runs)
 	}
 }
+
+func TestCookiePlaylistRecord(t *testing.T) {
+	c, f := newFakeCatalog(t)
+	f.playlists["PLsaved"] = map[string]any{"title": "Good soup", "playlist_count": 14, "entries": []map[string]any{entry("g1", "GO!", "CORTIS", "UCc", 180)}}
+	p, err := c.PlaylistRecord(context.Background(), "PLsaved")
+	if err != nil || p.Name != "Good soup" || p.TrackCount != 14 || p.Ref.ProviderID != "PLsaved" {
+		t.Errorf("PlaylistRecord = %+v, %v", p, err)
+	}
+	if _, err := c.PlaylistRecord(context.Background(), "PLmissing"); !errors.Is(err, catalog.ErrForbidden) {
+		t.Errorf("missing = %v, want ErrForbidden", err)
+	}
+}

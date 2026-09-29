@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/catalog/sqlite"
 	"github.com/bjarneo/cliamp/catalogsync"
+	"github.com/bjarneo/cliamp/config"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/ui/model"
 )
@@ -262,5 +264,38 @@ func TestLibrarySourcesSyncedMenus(t *testing.T) {
 	}
 	if src := librarySources(providers, "", &catalogRuntime{providers: map[string]*providerSync{}}); len(src.Synced) != 0 || src.Catalog != nil {
 		t.Errorf("without a catalog: synced %+v, catalog %v", src.Synced, src.Catalog)
+	}
+}
+
+// The YouTube sync reads the account the way it is signed in.
+func TestYouTubeClientFollowsSignIn(t *testing.T) {
+	orig := ytdlpAvailable
+	t.Cleanup(func() { ytdlpAvailable = orig })
+	ytdlpAvailable = func() bool { return true }
+	cookies := config.YouTubeMusicConfig{CookiesFrom: "brave+gnomekeyring"}
+	oauth := config.YouTubeMusicConfig{ClientID: "id", ClientSecret: "secret"}
+	both := config.YouTubeMusicConfig{CookiesFrom: "brave", ClientID: "id", ClientSecret: "secret"}
+	disabled := both
+	disabled.Disabled = true
+	tests := []struct {
+		name string
+		yt   config.YouTubeMusicConfig
+		want string
+	}{
+		{"cookies", cookies, "*ytmusic.CookieCatalog"},
+		{"oauth", oauth, "*ytmusic.OAuthCatalog"},
+		{"both", both, "youtubesrc.Mixed"},
+		{"disabled", disabled, "<nil>"},
+		{"not signed in", config.YouTubeMusicConfig{}, "<nil>"},
+		{"half an oauth client", config.YouTubeMusicConfig{ClientID: "id"}, "<nil>"},
+	}
+	for _, tt := range tests {
+		if got := fmt.Sprintf("%T", youtubeClient(tt.yt)); got != tt.want {
+			t.Errorf("%s: client = %s, want %s", tt.name, got, tt.want)
+		}
+	}
+	ytdlpAvailable = func() bool { return false }
+	if c := youtubeClient(both); c != nil {
+		t.Errorf("without yt-dlp: client = %T, want none", c)
 	}
 }

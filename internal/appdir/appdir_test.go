@@ -107,3 +107,12 @@ func TestOmatunesOverrideIgnoredInTests(t *testing.T) {
 		t.Fatalf("Dir() = %q, want CLIAMP_CONFIG_DIR", got)
 	}
 }
+
+// omatunes: the catalog lives in DataDir.
+func TestLibraryDBPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if got, _ := LibraryDBPath(); got != filepath.Join(home, ".local", "share", Name, "library.db") {
+		t.Errorf("LibraryDBPath() = %q, want it under DataDir", got)
+	}
+}

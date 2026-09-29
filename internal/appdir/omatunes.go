@@ -27,6 +27,16 @@ func configDirOverride() string {
 	return os.Getenv(ConfigDirEnv)
 }
 
+// LibraryDBPath is the catalog database, library.db in DataDir
+// (~/.local/share/omatunes).
+func LibraryDBPath() (string, error) {
+	dir, err := DataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "library.db"), nil
+}
+
 // DownloadsDir is the default directory for saved tracks (~/Music/omatunes).
 func DownloadsDir() (string, error) {
 	home, err := os.UserHomeDir()

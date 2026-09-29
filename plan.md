@@ -112,9 +112,9 @@ catalogsync/localsrc/    local-folder indexer (replaces library/localscan.go)
 - `main_omatunes.go` opens the store, starts the syncer and passes the `Catalog` to `library.Root`.
 
 ### Storage
-- **File:** `$XDG_DATA_HOME/omatunes/library.db`, else `~/.local/share/omatunes/library.db`. Add a fork-owned `appdir.LibraryDBPath()` in `internal/appdir/omatunes.go`.
+- **File:** `~/.local/share/omatunes/library.db` (`appdir.LibraryDBPath()`, in the same `DataDir` as the album-art cache).
 - **Driver:** `modernc.org/sqlite`. Pin v1.59.0; v1.60.0 is one day old, so only take it if a test needs it. Driver name `"sqlite"`.
-- **DSN:** `_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on&_synchronous=NORMAL`.
+- **DSN:** `_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on&_synchronous=NORMAL&_txlock=immediate`. Immediate transactions take the write lock up front, so a sync never fails upgrading a read lock.
 - **Writes:** one connection is enough, because only the syncer writes (`SetMaxOpenConns` on a dedicated write handle). WAL lets reads run while a sync writes.
 - **Migrations:**
   - A `schema_migrations(version, applied_at)` table.
@@ -123,26 +123,16 @@ catalogsync/localsrc/    local-folder indexer (replaces library/localscan.go)
 - **FTS5:** spike test on day one: `CREATE VIRTUAL TABLE t USING fts5(x)` must succeed with the pinned driver. M3 depends on it.
 
 ### Schema v1 (001_initial.sql)
-Every catalog object has an internal integer ID and a unique `(provider, provider_id)` pair (invariant 3). Library membership is kept separate from entities: an album can be in the catalog because an artist's discography was browsed, without being a saved album.
-```
-artists(id PK, provider, provider_id, name, sort_name, image_url, updated_at, UNIQUE(provider, provider_id))
-albums(id PK, provider, provider_id, title, sort_title, year, track_count, artwork_url,
-       tracks_cached_at NULL,               -- lazy album-track cache marker
-       updated_at, UNIQUE(provider, provider_id))
-tracks(id PK, provider, provider_id, title, album_id NULL→albums, disc, track_no, duration_ms,
-       playable_uri,                        -- what the player gets: spotify:track:…, file path
-       genre, year, updated_at, UNIQUE(provider, provider_id))
-album_artists(album_id, artist_id, position, PK(album_id, artist_id))
-track_artists(track_id, artist_id, position, PK(track_id, artist_id))
-playlists(id PK, provider, provider_id, name, owner_kind ('own'|'followed'), snapshot, track_count,
-          updated_at, UNIQUE(provider, provider_id))
-playlist_tracks(playlist_id, position, track_id, PK(playlist_id, position))
-library_items(provider, kind ('saved_album'|'followed_artist'|'liked_track'|'playlist'|'local_album'),
-              item_id, added_at, last_seen_gen, PK(provider, kind, item_id))
-sync_state(provider, collection, generation, last_attempt_at, last_success_at, last_error, PK(provider, collection))
-local_files(path PK, size, mtime_ns, track_id→tracks)   -- change detection for the indexer
-```
-Indexes are on `sort_title`/`sort_name` for browse order and on the foreign keys. Local tracks use `provider='local'`, and `provider_id` is the file path, hashed if paths get long.
+The schema lives in `catalog/sqlite/migrations/001_initial.sql`, which is authoritative. In summary:
+- **Identity:** every catalog object has an internal integer ID and a unique `(provider, provider_id)` (invariant 3).
+- **Entities:** `artists`, `albums`, `tracks` and `playlists`.
+  - `albums` and `tracks` store a denormalized `artist_credit`, and albums also store `sort_artist`, all written by the sync with the `album_artists`/`track_artists` junction rows. List queries then need no per-row joins.
+  - Sort columns always come from `catalog.SortKey`.
+  - `albums.tracks_cached_at` marks the lazy album-track cache.
+  - `playlists.own` records ownership, and `playlists.snapshot` is the provider's change marker.
+- **Membership:** `library_items(provider, collection, kind, item_id, added_at, last_seen_gen)`, where `kind` is one of album, artist, track or playlist. Each row belongs to the sync collection that saw it, so reconciling a collection deletes only its own stale rows (`DELETE … WHERE provider=? AND collection=? AND last_seen_gen<?`), never entities. `item_id` is polymorphic with no foreign key; orphan cleanup triggers can come in a later migration.
+- **Sync bookkeeping:** `sync_state(provider, collection, generation, last_attempt_at, last_success_at, last_error)`, and `local_files(path, size, mtime_ns, track_id)` for the indexer.
+- **Storage details:** junction and membership tables are `WITHOUT ROWID`. Every foreign-key child column is indexed, so track deletes don't scan whole tables. Times are Unix milliseconds.
 
 ### Catalog API (sketch; it will evolve)
 ```go
@@ -234,8 +224,8 @@ spotify_refresh = "30m"   # background sync if the last success is older than th
 - [x] M1.7: `main.go` wiring (`main_omatunes.go`), starting on the Library screen.
 - [x] M1.8: `docs/omatunes/navigation.md`.
 - [x] M1.9: manual test and refinement pass with the user; omatunes given its own files (docs/omatunes/files.md). M1 complete.
-- [ ] M2.1 Foundation: modernc.org/sqlite, catalog interface/types, sqlite store, migrations, 001_initial.sql, FTS5 spike, DB path.
-- [ ] M2.2 Sync engine: generations, reconciliation, failure safety; scenarios A–C.
+- [x] M2.1 Foundation: modernc.org/sqlite v1.59.0, `catalog` types/interface + `SortKey`, `catalog/sqlite` store (WAL, immediate transactions, 0700 dir, race-safe migrations), `001_initial.sql`, read queries, FTS5 verified, `appdir.LibraryDBPath`.
+- [ ] M2.2 Sync engine: generations, reconciliation, failure safety; scenarios A–C. Also: a dedicated single-connection writer pool, and an orphan sweep (entities with no membership, playlist, album or artist references) after successful reconciliation.
 - [ ] M2.3 Spotify source: context-aware page methods returning catalog records.
 - [ ] M2.4 UI on the catalog: adapters, startup sync, UpdatedMsg refresh, status indicator, `r` refresh, graceful shutdown.
 - [ ] M2.5 Lazy album tracks plus background filler with 429 backoff.

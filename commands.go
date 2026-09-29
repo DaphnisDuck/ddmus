@@ -17,6 +17,7 @@ import (
 	"github.com/bjarneo/cliamp/external/qobuz"
 	"github.com/bjarneo/cliamp/external/spotify"
 	"github.com/bjarneo/cliamp/external/tidal"
+	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/ipc"
 	"github.com/bjarneo/cliamp/player"
 	"github.com/bjarneo/cliamp/pluginmgr"
@@ -53,7 +54,7 @@ func buildApp() *cli.Command {
 	}
 
 	return &cli.Command{
-		Name:                  "cliamp",
+		Name:                  appmeta.ClientName(), // omatunes
 		Usage:                 "retro terminal music player",
 		Version:               version,
 		EnableShellCompletion: true,

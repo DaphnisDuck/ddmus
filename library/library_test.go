@@ -210,6 +210,20 @@ func (*fakeRadio) FavoriteTracks() []playlist.Track {
 	return []playlist.Track{{Path: "http://a", Title: "SomaFM", Stream: true}}
 }
 
+// starredRadio has favorites in the order they were starred.
+type starredRadio struct{ fakeRadio }
+
+func (*starredRadio) FavoriteTracks() []playlist.Track {
+	return []playlist.Track{{Path: "http://w", Title: "WBGO"}, {Path: "http://b", Title: "BBC Radio 3"}, {Path: "http://s", Title: "SomaFM"}}
+}
+
+func TestRadioFavoritesSortedByName(t *testing.T) {
+	favs := load(t, child(t, radio(&starredRadio{fakeRadio{fakeProvider{name: "Radio"}}}, nil), "Favorites"))
+	if got := titles(favs); !slices.Equal(got, []string{"BBC Radio 3", "SomaFM", "WBGO"}) {
+		t.Errorf("favorites = %v, want A–Z", got)
+	}
+}
+
 func (*fakeRadio) BrowseEntries() []provider.BrowseEntry {
 	return []provider.BrowseEntry{
 		{ID: "browse:countries", Name: "Browse all countries", Mode: provider.BrowseGenres},

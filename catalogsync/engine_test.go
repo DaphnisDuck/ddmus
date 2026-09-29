@@ -104,7 +104,7 @@ func setup(t *testing.T) (*sqlite.Store, *fakeSource, *Engine, *[]Event) {
 
 func albumIDs(t *testing.T, store *sqlite.Store) []string {
 	t.Helper()
-	albums, err := store.Albums(context.Background(), catalog.Spotify)
+	albums, err := store.Albums(context.Background(), catalog.Spotify, catalog.ByTitle)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -124,11 +124,19 @@ type CollectionStatus struct {
 	LastError   string    // from the last attempt; empty when it succeeded
 }
 
+// AlbumOrder is how a library album list is sorted.
+type AlbumOrder int
+
+const (
+	ByTitle  AlbumOrder = iota // title, then artist
+	ByArtist                   // artist, then title
+)
+
 // Catalog is the read side the UI uses. Every method is a local query: none
 // reaches the network.
 type Catalog interface {
-	// Albums returns provider's library albums, by artist then title.
-	Albums(ctx context.Context, provider string) ([]Album, error)
+	// Albums returns provider's library albums in order.
+	Albums(ctx context.Context, provider string, order AlbumOrder) ([]Album, error)
 	// Album returns one album by its catalog ID, or ErrNotFound.
 	Album(ctx context.Context, id int64) (Album, error)
 	// AlbumTracks returns an album's tracks in disc and track order, and

@@ -37,6 +37,15 @@ type CatalogLevel interface {
 	CatalogProvider() string
 }
 
+// OrderedLevel is implemented by levels that can list their rows in more
+// than one order. The UI's order key calls NextOrder and reloads the level.
+type OrderedLevel interface {
+	// OrderName describes the current order, e.g. "by title".
+	OrderName() string
+	// NextOrder switches to the next order and returns its name.
+	NextOrder() string
+}
+
 // Intent is a UI action an entry requests instead of navigating.
 type Intent int
 

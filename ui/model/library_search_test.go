@@ -190,3 +190,59 @@ func TestLibTrackNumbers(t *testing.T) {
 		t.Errorf("numbers = %v", got)
 	}
 }
+
+// orderedLevel lists its rows forwards or backwards.
+type orderedLevel struct {
+	rows     []library.Entry
+	backward *bool
+}
+
+func (orderedLevel) Title() string { return "Albums" }
+func (l orderedLevel) Load(context.Context) ([]library.Entry, error) {
+	out := slices.Clone(l.rows)
+	if *l.backward {
+		slices.Reverse(out)
+	}
+	return out, nil
+}
+func (l orderedLevel) OrderName() string {
+	if *l.backward {
+		return "by artist"
+	}
+	return "by title"
+}
+func (l orderedLevel) NextOrder() string {
+	*l.backward = !*l.backward
+	return l.OrderName()
+}
+
+func TestLibraryOrderKey(t *testing.T) {
+	backward := false
+	albums := orderedLevel{rows: []library.Entry{{ID: "a", Title: "A"}, {ID: "b", Title: "B"}, {ID: "c", Title: "C"}}, backward: &backward}
+	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "Albums", Open: albums}))
+	m = libPress(t, m, "enter")
+	m = libPress(t, m, "j") // on B
+	if !strings.Contains(m.libHeaderLine(), "by title") || !strings.Contains(m.libHelpLine(), "Order") {
+		t.Errorf("header %q, help %q; want the order shown", m.libHeaderLine(), m.libHelpLine())
+	}
+	m = libPress(t, m, "o")
+	f := m.libTop()
+	if got := []string{f.entries[0].ID, f.entries[1].ID, f.entries[2].ID}; !slices.Equal(got, []string{"c", "b", "a"}) ||
+		f.entries[f.cursor].ID != "b" || !strings.Contains(m.libHeaderLine(), "by artist") {
+		t.Errorf("after o: rows %v, cursor on %q, header %q", got, f.entries[f.cursor].ID, m.libHeaderLine())
+	}
+}
+
+func TestStationRowsHaveNoNumber(t *testing.T) {
+	station := playlist.Track{Path: "https://s", Title: "WBGO", Stream: true, Realtime: true}
+	song := playlist.Track{Path: "/a.flac", Title: "Song", DurationSecs: 60}
+	if got := libEntryLabel(library.Entry{Title: "WBGO", Track: &station}, 1); strings.Contains(got, "1.") || !strings.Contains(got, "WBGO") {
+		t.Errorf("station row = %q, want no number", got)
+	}
+	if got := libEntryLabel(library.Entry{Title: "Song", Track: &song}, 3); !strings.HasPrefix(got, "3. ") {
+		t.Errorf("track row = %q, want its number", got)
+	}
+	if got := libTrackNumbers([]library.Entry{{Track: &station}, {Track: &song}}); !slices.Equal(got, []int{0, 1}) {
+		t.Errorf("numbers = %v, want stations skipped", got)
+	}
+}

@@ -25,10 +25,14 @@ const trackColumns = `t.id, t.provider, t.provider_id, t.title, t.artist_credit,
 	t.duration_ms, t.playable_uri, t.genre, t.year, COALESCE(al.artwork_url, '')`
 
 // Albums implements catalog.Catalog.
-func (s *Store) Albums(ctx context.Context, provider string) ([]catalog.Album, error) {
+func (s *Store) Albums(ctx context.Context, provider string, order catalog.AlbumOrder) ([]catalog.Album, error) {
+	orderBy := "al.sort_title, al.sort_artist"
+	if order == catalog.ByArtist {
+		orderBy = "al.sort_artist, al.sort_title"
+	}
 	return queryAll(ctx, s.db, scanAlbum, `SELECT `+albumColumns+` FROM albums al
 		WHERE al.id IN (`+memberIDs+`)
-		ORDER BY al.sort_artist, al.sort_title`, provider, catalog.KindAlbum)
+		ORDER BY `+orderBy+`, al.id`, provider, catalog.KindAlbum)
 }
 
 // Album implements catalog.Catalog.

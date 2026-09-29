@@ -16,7 +16,7 @@ func TestCacheAlbumTracks(t *testing.T) {
 	apply(t, s, catalog.Snapshot{Collection: "albums", Albums: []catalog.AlbumRecord{
 		{Ref: sref("al1"), Title: "Symphonies", Year: 1987, ArtworkURL: "https://img"},
 	}})
-	albums, err := s.Albums(ctx, catalog.Spotify)
+	albums, err := s.Albums(ctx, catalog.Spotify, catalog.ByTitle)
 	if err != nil || len(albums) != 1 {
 		t.Fatalf("Albums() = %v, %v", albums, err)
 	}

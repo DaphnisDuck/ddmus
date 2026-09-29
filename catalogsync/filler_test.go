@@ -238,7 +238,7 @@ func TestFillerRunsOnce(t *testing.T) {
 
 func TestFetchAlbumTracksCachesAndSkipsTheFill(t *testing.T) {
 	store, src, f, _ := fillerSetup(t, "A", "B")
-	albums, err := store.Albums(context.Background(), catalog.Spotify)
+	albums, err := store.Albums(context.Background(), catalog.Spotify, catalog.ByTitle)
 	if err != nil {
 		t.Fatal(err)
 	}

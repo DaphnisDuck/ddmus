@@ -35,7 +35,7 @@ func TestApplySnapshotWritesCreditsAndSortKeys(t *testing.T) {
 	if err := s.db.QueryRow(`SELECT artist_credit, sort_artist, sort_title FROM albums`).Scan(&credit, &sortArtist, &sortTitle); err != nil {
 		t.Fatal(err)
 	}
-	if credit != "Dvořák Ensemble, Holst" || sortArtist != "dvorak ensemble" || sortTitle != "planets" {
+	if credit != "Dvořák Ensemble, Holst" || sortArtist != "dvorak ensemble" || sortTitle != "the planets" {
 		t.Errorf("credit=%q sortArtist=%q sortTitle=%q", credit, sortArtist, sortTitle)
 	}
 	albums, _ := s.ArtistAlbums(context.Background(), 2)
@@ -55,7 +55,7 @@ func TestUpsertKeepsKnownDetail(t *testing.T) {
 	apply(t, s, catalog.Snapshot{Collection: "liked", Tracks: []catalog.TrackRecord{{
 		Ref: sref("t1"), Title: "I.", Album: &thin, PlayableURI: "spotify:track:t1",
 	}}})
-	got, err := s.Albums(context.Background(), catalog.Spotify)
+	got, err := s.Albums(context.Background(), catalog.Spotify, catalog.ByTitle)
 	if err != nil || len(got) != 1 {
 		t.Fatalf("Albums() = %+v, %v", got, err)
 	}

@@ -70,22 +70,29 @@ func seeded(t *testing.T) (*Store, context.Context) {
 
 func TestAlbums(t *testing.T) {
 	s, ctx := seeded(t)
-	got, err := s.Albums(ctx, catalog.Spotify)
+	byArtist, err := s.Albums(ctx, catalog.Spotify, catalog.ByArtist)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Library albums only (not Rarity), by first artist (Muti < Ozawa).
-	if len(got) != 2 || got[0].Title != "Roman Trilogy" || got[1].Title != "Mahler: Symphony No. 5" {
-		t.Fatalf("Albums() = %+v", got)
+	if len(byArtist) != 2 || byArtist[0].Title != "Roman Trilogy" || byArtist[1].Title != "Mahler: Symphony No. 5" {
+		t.Fatalf("Albums(ByArtist) = %+v", byArtist)
 	}
-	roman, mahler := got[0], got[1]
+	got, err := s.Albums(ctx, catalog.Spotify, catalog.ByTitle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Title != "Mahler: Symphony No. 5" || got[1].Title != "Roman Trilogy" {
+		t.Fatalf("Albums(ByTitle) = %+v", got)
+	}
+	mahler, roman := got[0], got[1]
 	if roman.Artist != "Riccardo Muti, Seiji Ozawa" || roman.TracksCached || roman.Ref != (catalog.Ref{Provider: "spotify", ProviderID: "al-roman"}) {
 		t.Errorf("Roman Trilogy = %+v", roman)
 	}
 	if !mahler.TracksCached || mahler.Year != 1990 || mahler.TrackCount != 2 {
 		t.Errorf("Mahler 5 = %+v", mahler)
 	}
-	local, _ := s.Albums(ctx, catalog.Local)
+	local, _ := s.Albums(ctx, catalog.Local, catalog.ByTitle)
 	if len(local) != 1 || local[0].Artist != "Neville Marriner" {
 		t.Errorf("local Albums() = %+v", local)
 	}
@@ -178,7 +185,7 @@ func TestSyncStatus(t *testing.T) {
 
 func TestAlbum(t *testing.T) {
 	s, ctx := seeded(t)
-	albums, err := s.Albums(ctx, catalog.Spotify)
+	albums, err := s.Albums(ctx, catalog.Spotify, catalog.ByTitle)
 	if err != nil || len(albums) == 0 {
 		t.Fatalf("Albums() = %v, %v", albums, err)
 	}

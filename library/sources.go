@@ -230,7 +230,7 @@ func radio(prov, channels playlist.Provider) Level {
 	var entries []Entry
 	if fs, ok := prov.(favoriteStations); ok {
 		entries = append(entries, Entry{Title: "Favorites", Open: TrackLevel("Favorites", prov, func(context.Context) ([]playlist.Track, error) {
-			return fs.FavoriteTracks(), nil
+			return sortedByTitle(fs.FavoriteTracks()), nil
 		})})
 	}
 	entries = append(entries, Entry{Title: "Browse Stations", Open: browseStations(prov, channels)})
@@ -318,4 +318,12 @@ func local(prov playlist.Provider, indexed ...Entry) Level {
 		entries = append(entries, Entry{Title: "Playlists", Open: playlistsLevel("Playlists", prov, nil, playlistEntry(prov))})
 	}
 	return Menu("Local", entries...)
+}
+
+// sortedByTitle sorts tracks A–Z by title, the way catalog lists sort.
+func sortedByTitle(tracks []playlist.Track) []playlist.Track {
+	slices.SortStableFunc(tracks, func(a, b playlist.Track) int {
+		return strings.Compare(catalog.SortKey(a.Title), catalog.SortKey(b.Title))
+	})
+	return tracks
 }

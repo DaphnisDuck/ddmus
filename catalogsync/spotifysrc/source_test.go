@@ -133,7 +133,7 @@ func TestSyncIntoCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	albums, _ := store.Albums(ctx, catalog.Spotify)
+	albums, _ := store.Albums(ctx, catalog.Spotify, catalog.ByTitle)
 	if len(albums) != 1 || albums[0].Year != 1990 || albums[0].Artist != "Artist t1" {
 		t.Errorf("albums = %+v", albums)
 	}

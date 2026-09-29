@@ -408,6 +408,14 @@ func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool
 			m.lib.refresh(m.libCatalogProvider()) // starts the sync in the background
 			return nil, true
 		}
+	case "o":
+		// Reorder a list that has more than one order (Albums), keeping
+		// the cursor on the same row.
+		if ol, ok := f.level.(library.OrderedLevel); ok {
+			m.status.Showf(statusTTLDefault, "%s %s", f.level.Title(), ol.NextOrder())
+			return m.libraryRefresh(), true
+		}
+		return nil, true
 	case "tab":
 		m.lib.visible = false
 		m.focus = focusPlaylist

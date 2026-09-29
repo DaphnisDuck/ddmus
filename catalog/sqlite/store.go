@@ -73,6 +73,10 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 		wdb.Close()
 		return nil, err
 	}
+	if err := retryBusy(ctx, func() error { return refreshSortKeys(ctx, wdb) }); err != nil {
+		wdb.Close()
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		wdb.Close()
@@ -224,4 +228,75 @@ func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
 		return fmt.Errorf("migration %s: commit: %w", m.name, err)
 	}
 	return nil
+}
+
+// refreshSortKeys recomputes the stored sort keys when they were written by
+// an older catalog.SortKey. The database's user_version records the key
+// version, so this runs once per change of the rules.
+func refreshSortKeys(ctx context.Context, db *sql.DB) error {
+	var version int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		return fmt.Errorf("read sort key version: %w", err)
+	}
+	if version >= catalog.SortKeyVersion {
+		return nil
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("refresh sort keys: %w", err)
+	}
+	defer tx.Rollback()
+
+	type row struct {
+		id           int64
+		title, other string
+	}
+	read := func(query string) ([]row, error) {
+		rows, err := tx.QueryContext(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var out []row
+		for rows.Next() {
+			var r row
+			if err := rows.Scan(&r.id, &r.title, &r.other); err != nil {
+				return nil, err
+			}
+			out = append(out, r)
+		}
+		return out, rows.Err()
+	}
+	artists, err := read(`SELECT id, name, '' FROM artists`)
+	if err != nil {
+		return fmt.Errorf("refresh sort keys: %w", err)
+	}
+	for _, a := range artists {
+		if _, err := tx.ExecContext(ctx, `UPDATE artists SET sort_name = ? WHERE id = ?`, catalog.SortKey(a.title), a.id); err != nil {
+			return fmt.Errorf("refresh sort keys: %w", err)
+		}
+	}
+	// An album sorts under its display credit when the writer set one (a
+	// local index: the artist or Various Artists), else its first artist.
+	albums, err := read(`SELECT al.id, al.title, CASE WHEN al.provider = '` + catalog.Local + `' THEN al.artist_credit
+			ELSE COALESCE((SELECT ar.name FROM album_artists x JOIN artists ar ON ar.id = x.artist_id
+				WHERE x.album_id = al.id ORDER BY x.position LIMIT 1), '') END
+		FROM albums al`)
+	if err != nil {
+		return fmt.Errorf("refresh sort keys: %w", err)
+	}
+	for _, a := range albums {
+		sortArtist := ""
+		if a.other != "" {
+			sortArtist = catalog.SortKey(a.other)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE albums SET sort_title = ?, sort_artist = ? WHERE id = ?`,
+			catalog.SortKey(a.title), sortArtist, a.id); err != nil {
+			return fmt.Errorf("refresh sort keys: %w", err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`PRAGMA user_version = %d`, catalog.SortKeyVersion)); err != nil {
+		return fmt.Errorf("record sort key version: %w", err)
+	}
+	return tx.Commit()
 }

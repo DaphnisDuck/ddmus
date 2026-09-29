@@ -99,6 +99,9 @@ func (m Model) libBreadcrumb() string {
 func (m *Model) libHeaderLine() string {
 	f := m.libTop()
 	label := m.libBreadcrumb()
+	if ol, ok := f.level.(library.OrderedLevel); ok {
+		label += " · " + ol.OrderName()
+	}
 	if badge := m.libSyncBadge(); badge != "" {
 		label += "  " + badge
 	}
@@ -172,6 +175,10 @@ func (m *Model) libHelpLine() string {
 		quit = helpKey("q", "Back")
 	} else {
 		parts = append(parts, helpKey("/", "Search"))
+	}
+	if _, ok := m.libTop().level.(library.OrderedLevel); ok {
+		// Before the hints that fitHelpLine trims first.
+		parts = append(parts, helpKey("o", "Order"))
 	}
 	parts = append(parts, helpKey("Space", "Pause"), helpKey("Tab", "Queue"))
 	if m.lib.refresh != nil {
@@ -252,7 +259,7 @@ func libTrackNumbers(entries []library.Entry) []int {
 		if i > 0 && e.Section != entries[i-1].Section {
 			n = 0
 		}
-		if e.Track != nil {
+		if e.Track != nil && !e.Track.Realtime {
 			n++
 			numbers[i] = n
 		}
@@ -261,9 +268,10 @@ func libTrackNumbers(entries []library.Entry) []int {
 }
 
 // libEntryLabel renders "Title      Detail ›"; tracks use the numbered track
-// row with duration. Browsable rows end in "›".
+// row with duration. A station is a live stream with neither, so it is a
+// plain row. Browsable rows end in "›".
 func libEntryLabel(e library.Entry, number int) string {
-	if e.Track != nil {
+	if e.Track != nil && !e.Track.Realtime {
 		return formatTrackRow(number, trackViewName(*e.Track), e.Track.DurationSecs)
 	}
 	width := ui.PanelWidth - 4 // cursor prefix

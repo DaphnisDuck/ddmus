@@ -150,6 +150,9 @@ type Catalog interface {
 	GenreAlbums(ctx context.Context, provider, genre string) ([]Album, error)
 	// LikedTracks returns provider's liked tracks, most recently liked first.
 	LikedTracks(ctx context.Context, provider string) ([]Track, error)
+	// Search returns up to limit results of each kind q wants, best first.
+	// An empty query finds nothing.
+	Search(ctx context.Context, q Query, limit int) (SearchResults, error)
 	// SyncStatus returns the last sync outcome of each of provider's
 	// collections.
 	SyncStatus(ctx context.Context, provider string) ([]CollectionStatus, error)

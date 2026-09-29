@@ -78,6 +78,8 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 		wdb.Close()
 		return nil, fmt.Errorf("open catalog %s: %w", dbPath, err)
 	}
+	// Search reads each kind on its own connection at once; keep them open.
+	db.SetMaxIdleConns(len(catalog.SearchKinds) + 1)
 	return &Store{db: db, wdb: wdb}, nil
 }
 

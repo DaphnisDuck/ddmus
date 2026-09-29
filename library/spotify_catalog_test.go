@@ -49,6 +49,9 @@ func (f *fakeCatalog) Genres(context.Context, string) ([]catalog.Genre, error) {
 func (f *fakeCatalog) GenreAlbums(_ context.Context, _, genre string) ([]catalog.Album, error) {
 	return f.genreAlbs[genre], nil
 }
+func (f *fakeCatalog) Search(context.Context, catalog.Query, int) (catalog.SearchResults, error) {
+	return catalog.SearchResults{}, nil
+}
 func (f *fakeCatalog) LikedTracks(context.Context, string) ([]catalog.Track, error) {
 	return f.liked, nil
 }

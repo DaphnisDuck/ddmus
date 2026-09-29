@@ -28,7 +28,8 @@ func (l *catalogLevel) CatalogProvider() string { return l.provider }
 // playlist whose items could not be synced, and an artist's full
 // discography, which only the live API has.
 func SpotifyCatalog(cat catalog.Catalog, prov playlist.Provider) Level {
-	b := &catalogBrowser{cat: cat, prov: prov, provider: catalog.Spotify}
+	b := &catalogBrowser{cat: cat, prov: prov, provider: catalog.Spotify,
+		pending: "Syncing your library… (press r to retry if this persists)"}
 	return Menu("Spotify",
 		Entry{Title: "Albums", Open: b.list("Albums", b.albums)},
 		Entry{Title: "Artists", Open: b.list("Artists", b.artists)},
@@ -41,6 +42,8 @@ type catalogBrowser struct {
 	cat      catalog.Catalog
 	prov     playlist.Provider
 	provider string
+	pending  string // shown in an empty list before the first sync
+	none     string // shown in an empty list after it; "" shows nothing
 }
 
 // list is a top-level catalog list, refreshed after syncs.
@@ -54,8 +57,9 @@ func (b *catalogBrowser) level(title string, load func(ctx context.Context) ([]E
 	return providerLevel(title, b.prov, load)
 }
 
-// syncingPlaceholder stands in for an empty list before the first sync has
-// finished, so an empty cache reads as "coming" rather than "you have none".
+// syncingPlaceholder stands in for an empty list: before the first sync has
+// finished, so an empty cache reads as "coming" rather than "you have none",
+// and after it when the browser names what is missing.
 func (b *catalogBrowser) syncingPlaceholder(ctx context.Context, entries []Entry) ([]Entry, error) {
 	if len(entries) > 0 {
 		return entries, nil
@@ -66,10 +70,13 @@ func (b *catalogBrowser) syncingPlaceholder(ctx context.Context, entries []Entry
 	}
 	for _, st := range status {
 		if !st.LastSuccess.IsZero() {
+			if b.none != "" {
+				return []Entry{{Title: b.none}}, nil
+			}
 			return entries, nil
 		}
 	}
-	return []Entry{{Title: "Syncing your library… (press r to retry if this persists)"}}, nil
+	return []Entry{{Title: b.pending}}, nil
 }
 
 func (b *catalogBrowser) albums(ctx context.Context) ([]Entry, error) {

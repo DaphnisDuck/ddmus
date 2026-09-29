@@ -110,6 +110,12 @@ type Playlist struct {
 	TrackCount int
 }
 
+// Genre is a genre tag and how many library albums carry it.
+type Genre struct {
+	Name       string
+	AlbumCount int
+}
+
 // CollectionStatus is the last sync outcome for one provider collection.
 type CollectionStatus struct {
 	Collection  string
@@ -136,6 +142,12 @@ type Catalog interface {
 	Playlists(ctx context.Context, provider string) ([]Playlist, error)
 	// PlaylistTracks returns a playlist's tracks in playlist order.
 	PlaylistTracks(ctx context.Context, playlistID int64) ([]Track, error)
+	// Genres returns the genres of provider's library albums' tracks, by
+	// name, ignoring case.
+	Genres(ctx context.Context, provider string) ([]Genre, error)
+	// GenreAlbums returns provider's library albums with a track of genre
+	// (ignoring case), by title.
+	GenreAlbums(ctx context.Context, provider, genre string) ([]Album, error)
 	// LikedTracks returns provider's liked tracks, most recently liked first.
 	LikedTracks(ctx context.Context, provider string) ([]Track, error)
 	// SyncStatus returns the last sync outcome of each of provider's

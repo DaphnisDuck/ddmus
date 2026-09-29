@@ -18,6 +18,9 @@ type Snapshot struct {
 	Artists   []ArtistRecord
 	Tracks    []TrackRecord
 	Playlists []PlaylistRecord
+	// Files marks a local index: Tracks are every indexed file, so the
+	// stored file index is reconciled to their File records.
+	Files bool
 }
 
 // ArtistRecord is an artist as a provider describes it.
@@ -31,9 +34,12 @@ type ArtistRecord struct {
 // "unknown" and never overwrite what the catalog already has, so an album
 // seen only through a liked track does not erase a saved album's details.
 type AlbumRecord struct {
-	Ref        Ref
-	Title      string
-	Artists    []ArtistRecord // credit order; empty keeps the stored credit
+	Ref     Ref
+	Title   string
+	Artists []ArtistRecord // credit order; empty keeps the stored credit
+	// Credit, when set, is the display credit instead of the artists'
+	// joined names, e.g. "Various Artists" for a compilation.
+	Credit     string
 	Year       int
 	TrackCount int
 	ArtworkURL string
@@ -54,6 +60,22 @@ type TrackRecord struct {
 	Genre       string
 	Year        int
 	AddedAt     time.Time
+	File        *FileStat // the local file the track was read from
+}
+
+// FileStat identifies the version of a local file a track was read from;
+// the indexer rereads a file only when it changes.
+type FileStat struct {
+	Path    string
+	Size    int64
+	MTimeNS int64
+}
+
+// IndexedFile is a local file in the catalog's file index with the track
+// read from it.
+type IndexedFile struct {
+	FileStat
+	Track Track
 }
 
 // PlaylistRecord is a playlist as a provider describes it.
@@ -81,6 +103,9 @@ type Writer interface {
 	// Sweep deletes provider's entities that nothing keeps alive: no library
 	// membership, playlist, local file or cached album references them.
 	Sweep(ctx context.Context, provider string) error
+	// RecordSyncSuccess records a successful sync that found nothing to
+	// change, without touching the collection's contents.
+	RecordSyncSuccess(ctx context.Context, provider, collection string) error
 	// RecordSyncFailure records a failed attempt without touching the
 	// collection's contents or its last success.
 	RecordSyncFailure(ctx context.Context, provider, collection string, cause error) error

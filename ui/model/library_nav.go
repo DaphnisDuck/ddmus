@@ -33,7 +33,7 @@ type libraryState struct {
 
 	// Catalog sync status per provider, and the action behind "r".
 	sync    map[string]*libSync
-	refresh func()
+	refresh func(provider string)
 }
 
 // libSync is one provider's catalog sync status as the library shows it.
@@ -68,13 +68,25 @@ type CatalogStatus struct {
 }
 
 // SetCatalogSync gives the library each provider's stored sync status and
-// the function "r" calls to sync now. refresh must not block.
-func (m *Model) SetCatalogSync(status map[string]CatalogStatus, refresh func()) {
+// the function "r" calls to sync now: with the provider of the catalog level
+// being browsed, or "" for every provider. refresh must not block.
+func (m *Model) SetCatalogSync(status map[string]CatalogStatus, refresh func(provider string)) {
 	m.lib.sync = make(map[string]*libSync, len(status))
 	for provider, st := range status {
 		m.lib.sync[provider] = &libSync{lastSuccess: st.LastSuccess, lastErr: st.LastError}
 	}
 	m.lib.refresh = refresh
+}
+
+// libCatalogProvider is the provider of the nearest catalog level on the
+// stack, from the top down, or "" outside any (the Music root).
+func (m *Model) libCatalogProvider() string {
+	for i := len(m.lib.stack) - 1; i >= 0; i-- {
+		if cl, ok := m.lib.stack[i].level.(library.CatalogLevel); ok {
+			return cl.CatalogProvider()
+		}
+	}
+	return ""
 }
 
 func (m *Model) libSyncState(provider string) *libSync {
@@ -371,7 +383,7 @@ func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool
 	case "r":
 		if m.lib.refresh != nil {
 			m.status.Showf(statusTTLDefault, "Syncing library…")
-			m.lib.refresh() // starts the sync in the background
+			m.lib.refresh(m.libCatalogProvider()) // starts the sync in the background
 			return nil, true
 		}
 	case "tab":

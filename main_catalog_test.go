@@ -52,10 +52,11 @@ func testRuntime(t *testing.T, src *flakySource) *catalogRuntime {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := &catalogRuntime{store: store, retryMin: 5 * time.Millisecond, retryMax: 10 * time.Millisecond}
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{},
+		retryMin: 5 * time.Millisecond, retryMax: 10 * time.Millisecond}
 	rt.ctx, rt.cancel = context.WithCancel(context.Background())
-	rt.engine = catalogsync.New(store, nil, src)
 	rt.filler = catalogsync.NewFiller(store, src, catalogsync.DefaultPacing)
+	rt.setSources(src)
 	t.Cleanup(rt.close)
 	return rt
 }
@@ -63,7 +64,7 @@ func testRuntime(t *testing.T, src *flakySource) *catalogRuntime {
 func TestFailedSyncRetriesUntilItSucceeds(t *testing.T) {
 	src := &flakySource{fails: 2, done: make(chan struct{})}
 	rt := testRuntime(t, src)
-	rt.refresh()
+	rt.refresh(catalog.Spotify)
 	select {
 	case <-src.done:
 	case <-time.After(5 * time.Second):
@@ -73,7 +74,8 @@ func TestFailedSyncRetriesUntilItSucceeds(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		rt.mu.Lock()
-		settled := rt.retry == nil && rt.retryDelay == 0
+		ps := rt.providers[catalog.Spotify]
+		settled := ps.retry == nil && ps.retryDelay == 0
 		rt.mu.Unlock()
 		if settled {
 			break
@@ -93,10 +95,11 @@ func TestFailedSyncRetriesUntilItSucceeds(t *testing.T) {
 func TestRetryBacksOffAndStopsOnClose(t *testing.T) {
 	rt := testRuntime(t, &flakySource{done: make(chan struct{})})
 	rt.retryMin, rt.retryMax = time.Hour, 4*time.Hour
+	ps := rt.providers[catalog.Spotify]
 	var delays []time.Duration
 	for range 4 {
-		rt.scheduleRetry(true)
-		delays = append(delays, rt.retryDelay)
+		rt.scheduleRetry(catalog.Spotify, true)
+		delays = append(delays, ps.retryDelay)
 	}
 	want := []time.Duration{time.Hour, 2 * time.Hour, 4 * time.Hour, 4 * time.Hour}
 	for i := range want {
@@ -105,12 +108,48 @@ func TestRetryBacksOffAndStopsOnClose(t *testing.T) {
 		}
 	}
 	rt.close()
-	rt.scheduleRetry(true)
-	if rt.retry == nil {
+	rt.scheduleRetry(catalog.Spotify, true)
+	if ps.retry == nil {
 		return
 	}
 	// The timer left from before close was stopped; none is armed after it.
-	if rt.retry.Stop() {
+	if ps.retry.Stop() {
 		t.Error("a retry is armed after close")
 	}
+}
+
+// Every configured source gets its status and startup decision: Spotify
+// syncs only when stale, the local index always runs.
+func TestSourcesStartupPolicy(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	for _, p := range []string{catalog.Spotify, catalog.Local} {
+		if err := store.RecordSyncSuccess(context.Background(), p, "albums"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
+	defer rt.cancel()
+	rt.setSources(&namedSource{catalog.Spotify}, &namedSource{catalog.Local})
+	if sp := rt.providers[catalog.Spotify]; sp == nil || sp.stale || sp.startup.LastSuccess.IsZero() {
+		t.Errorf("fresh Spotify = %+v, want not stale", sp)
+	}
+	if lp := rt.providers[catalog.Local]; lp == nil || !lp.stale {
+		t.Errorf("local = %+v, want indexed at every startup", lp)
+	}
+	if _, ok := rt.catalog().(catalog.AlbumTrackFetcher); ok {
+		t.Error("a catalog without a filler offers album fetching")
+	}
+}
+
+type namedSource struct{ name string }
+
+func (s *namedSource) Provider() string    { return s.name }
+func (*namedSource) Collections() []string { return []string{"albums"} }
+func (*namedSource) Fetch(context.Context, string, catalogsync.Known) (catalog.Snapshot, error) {
+	return catalog.Snapshot{}, catalogsync.ErrUnchanged
 }

@@ -22,6 +22,8 @@ type fakeCatalog struct {
 	playlists   []catalog.Playlist
 	plTracks    map[int64][]catalog.Track
 	liked       []catalog.Track
+	genres      []catalog.Genre
+	genreAlbs   map[string][]catalog.Album
 	synced      bool
 }
 
@@ -40,6 +42,12 @@ func (f *fakeCatalog) Playlists(context.Context, string) ([]catalog.Playlist, er
 }
 func (f *fakeCatalog) PlaylistTracks(_ context.Context, id int64) ([]catalog.Track, error) {
 	return f.plTracks[id], nil
+}
+func (f *fakeCatalog) Genres(context.Context, string) ([]catalog.Genre, error) {
+	return f.genres, nil
+}
+func (f *fakeCatalog) GenreAlbums(_ context.Context, _, genre string) ([]catalog.Album, error) {
+	return f.genreAlbs[genre], nil
 }
 func (f *fakeCatalog) LikedTracks(context.Context, string) ([]catalog.Track, error) {
 	return f.liked, nil

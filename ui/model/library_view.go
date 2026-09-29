@@ -100,20 +100,36 @@ func (m *Model) libHeaderLine() string {
 
 // libSyncBadge is the small catalog sync indicator: ↻ while syncing, the
 // age of the last success, or a note that the cached library is showing.
+// With several providers, each badge names its provider.
 func (m *Model) libSyncBadge() string {
 	var badges []string
 	for _, provider := range slices.Sorted(maps.Keys(m.lib.sync)) {
 		st := m.lib.sync[provider]
+		var badge string
 		switch {
 		case st.running:
-			badges = append(badges, "↻ syncing")
+			badge = "↻ syncing"
 		case st.lastErr != "":
-			badges = append(badges, "sync failed · cached")
+			badge = "sync failed · cached"
 		case !st.lastSuccess.IsZero():
-			badges = append(badges, "✓ synced "+syncAge(time.Since(st.lastSuccess)))
+			badge = "✓ synced " + syncAge(time.Since(st.lastSuccess))
+		default:
+			continue
 		}
+		if len(m.lib.sync) > 1 {
+			badge = providerLabel(provider) + " " + badge
+		}
+		badges = append(badges, badge)
 	}
 	return strings.Join(badges, " · ")
+}
+
+// providerLabel is a catalog provider name for display: "spotify" → "Spotify".
+func providerLabel(provider string) string {
+	if provider == "" {
+		return ""
+	}
+	return strings.ToUpper(provider[:1]) + provider[1:]
 }
 
 func syncAge(d time.Duration) string {

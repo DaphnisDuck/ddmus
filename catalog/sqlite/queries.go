@@ -98,6 +98,44 @@ func (s *Store) PlaylistTracks(ctx context.Context, playlistID int64) ([]catalog
 		ORDER BY pt.position`, playlistID)
 }
 
+// Genres implements catalog.Catalog. SQLite's lower() folds ASCII only,
+// which covers genre tags in practice.
+func (s *Store) Genres(ctx context.Context, provider string) ([]catalog.Genre, error) {
+	return queryAll(ctx, s.db, func(r *sql.Rows) (g catalog.Genre, err error) {
+		err = r.Scan(&g.Name, &g.AlbumCount)
+		return g, err
+	}, `SELECT min(t.genre), count(DISTINCT t.album_id) FROM tracks t
+		WHERE t.provider = ? AND t.genre <> '' AND t.album_id IN (`+memberIDs+`)
+		GROUP BY lower(t.genre)
+		ORDER BY lower(t.genre)`, provider, provider, catalog.KindAlbum)
+}
+
+// GenreAlbums implements catalog.Catalog.
+func (s *Store) GenreAlbums(ctx context.Context, provider, genre string) ([]catalog.Album, error) {
+	return queryAll(ctx, s.db, scanAlbum, `SELECT `+albumColumns+` FROM albums al
+		WHERE al.id IN (`+memberIDs+`)
+			AND al.id IN (SELECT album_id FROM tracks WHERE provider = ? AND lower(genre) = lower(?))
+		ORDER BY al.sort_title, al.sort_artist`, provider, catalog.KindAlbum, provider, genre)
+}
+
+// IndexedFiles returns the local file index with each file's track, for
+// the local indexer to skip files that have not changed. Files whose track
+// is gone are left out, so they are read again.
+func (s *Store) IndexedFiles(ctx context.Context) ([]catalog.IndexedFile, error) {
+	return queryAll(ctx, s.db, func(r *sql.Rows) (f catalog.IndexedFile, err error) {
+		var durationMS int64
+		t := &f.Track
+		err = r.Scan(&f.Path, &f.Size, &f.MTimeNS,
+			&t.ID, &t.Ref.Provider, &t.Ref.ProviderID, &t.Title, &t.Artist,
+			&t.AlbumID, &t.AlbumTitle, &t.Disc, &t.TrackNo, &durationMS, &t.PlayableURI,
+			&t.Genre, &t.Year, &t.ArtworkURL)
+		t.Duration = time.Duration(durationMS) * time.Millisecond
+		return f, err
+	}, `SELECT lf.path, lf.size, lf.mtime_ns, `+trackColumns+`
+		FROM local_files lf JOIN tracks t ON t.id = lf.track_id
+		LEFT JOIN albums al ON al.id = t.album_id`)
+}
+
 // LikedTracks implements catalog.Catalog.
 func (s *Store) LikedTracks(ctx context.Context, provider string) ([]catalog.Track, error) {
 	return queryAll(ctx, s.db, scanTrack, `SELECT `+trackColumns+`

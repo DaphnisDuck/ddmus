@@ -16,7 +16,7 @@ Music
   - **Playlists** are the ones you own or follow.
   - **Liked Songs** is your saved tracks.
 - **Local:**
-  - **Albums**, **Artists** and **Genres** come from a tag scan of your music directory: `initial_directory` from config, else `$XDG_MUSIC_DIR`, else `~/Music`. The scan runs the first time you open one of them and is cached for the session.
+  - **Albums**, **Artists** and **Genres** come from an index of your music directory: `initial_directory` from config, else `$XDG_MUSIC_DIR`, else `~/Music`. Files are grouped into albums by album tag within a folder (per-disc folders like `CD1` stay one album); an album with several track artists is credited to Various Artists and listed under each of them.
   - **Folders** opens the file browser.
   - **Playlists** are your saved local playlists.
 - **Radio:**
@@ -28,13 +28,15 @@ Enter on a track replaces the queue with the list it's in and starts at that tra
 
 ## The catalog and sync
 
-Spotify browsing reads from a local catalog (`~/.local/share/omatunes/library.db`), so lists open instantly and work offline.
+Spotify and Local browsing read from a local catalog (`~/.local/share/omatunes/library.db`), so lists open instantly and work offline.
 
-- **When it syncs:** at startup, if the last successful sync is more than 30 minutes old, and whenever you press `r`. The sync runs in the background while you browse.
-- **Status:** the header shows `↻ syncing`, `✓ synced 2m ago`, or `sync failed · cached` when the last attempt failed and you're seeing the cached library.
+- **When Spotify syncs:** at startup, if the last successful sync is more than 30 minutes old, and whenever you press `r`. The sync runs in the background while you browse. A failed sync retries on its own after 1 minute, then 2, 4, and so on up to every 30 minutes.
+- **Album tracks:** opening a Spotify album whose tracks aren't cached fetches and caches them, so it opens offline from then on. In the background, omatunes caches the rest of your saved albums one at a time, newest saved first. It pauses while you open an album or a sync runs, and backs off when Spotify rate-limits it.
+- **When Local indexes:** at every startup and whenever you press `r` in Local. Only files whose size or modification time changed have their tags read again, so an index with nothing new takes about a second. If the music directory is missing, or is empty while the index holds files (an unmounted drive), the index is kept as it is and the header reports the failure. Files under a folder omatunes can't read are kept too.
+- **`r`:** syncs the source you're browsing; at the Music root it syncs every source.
+- **Status:** the header shows `↻ syncing`, `✓ synced 2m ago`, or `sync failed · cached` when the last attempt failed and you're seeing the cached library. With both Spotify and Local, each status is prefixed with its source.
 - **Updates:** screens refresh in place when a sync lands, keeping the cursor on the same item.
 - **What stays live:**
-  - an album whose tracks aren't cached yet
   - a playlist Spotify won't let the sync read
   - an artist's full discography; offline, you get the albums the catalog knows instead
 
@@ -49,7 +51,7 @@ Spotify browsing reads from a local catalog (`~/.local/share/omatunes/library.db
 | `h` `Esc` `Backspace` `←` | Back |
 | `q` | Back; quits at Music |
 | `/` | Search |
-| `r` | Sync the library now |
+| `r` | Sync the source you're browsing now (everything, at Music) |
 | `Space` | Play / pause |
 | `Tab` | Show the queue; `Tab`, `Esc` or `b` returns to the library |
 | `s` `<` `>` `,` `.` `+` `-` `Shift+←` `Shift+→` | Stop, previous/next, volume, seek |

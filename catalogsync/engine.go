@@ -23,7 +23,8 @@ type Source interface {
 	Collections() []string
 	// Fetch returns the complete collection. If any page fails it returns
 	// an error and no snapshot: a partial snapshot would reconcile away
-	// everything it missed.
+	// everything it missed. ErrUnchanged means the stored collection is
+	// already current.
 	Fetch(ctx context.Context, collection string, known Known) (catalog.Snapshot, error)
 }
 
@@ -55,6 +56,10 @@ type Event struct {
 
 // ErrRunning means a sync of that provider is already in progress.
 var ErrRunning = errors.New("sync already running")
+
+// ErrUnchanged is returned by Source.Fetch when the collection has not
+// changed since the catalog stored it. The sync succeeds without writing.
+var ErrUnchanged = errors.New("collection unchanged")
 
 // Engine runs syncs. It is safe for concurrent use; each provider syncs at
 // most once at a time.
@@ -132,6 +137,12 @@ const failureRecordTimeout = 5 * time.Second
 func (e *Engine) syncCollection(ctx context.Context, src Source, collection string, known Known) error {
 	provider := src.Provider()
 	snap, err := src.Fetch(ctx, collection, known)
+	if errors.Is(err, ErrUnchanged) {
+		if err := e.store.RecordSyncSuccess(ctx, provider, collection); err != nil {
+			return fmt.Errorf("sync %s/%s: %w", provider, collection, err)
+		}
+		return nil
+	}
 	if err == nil && (snap.Provider != provider || snap.Collection != collection) {
 		err = fmt.Errorf("source returned %s/%s", snap.Provider, snap.Collection)
 	}

@@ -299,8 +299,8 @@ func TestCatalogSyncBadgeAndRefreshKey(t *testing.T) {
 	if m.libSyncBadge() != "" {
 		t.Fatal("badge shown without a catalog")
 	}
-	refreshed := 0
-	m.SetCatalogSync(map[string]CatalogStatus{"spotify": {LastSuccess: time.Now().Add(-2 * time.Minute)}}, func() { refreshed++ })
+	var refreshed []string
+	m.SetCatalogSync(map[string]CatalogStatus{"spotify": {LastSuccess: time.Now().Add(-2 * time.Minute)}}, func(p string) { refreshed = append(refreshed, p) })
 	if got := m.libSyncBadge(); got != "✓ synced 2m ago" {
 		t.Errorf("badge = %q", got)
 	}
@@ -321,9 +321,36 @@ func TestCatalogSyncBadgeAndRefreshKey(t *testing.T) {
 		t.Errorf("badge after success = %q", got)
 	}
 
+	// At the Music root, r syncs every provider.
 	updated, _ = m.Update(libKey("r"))
 	m = updated.(Model)
-	if refreshed != 1 {
-		t.Errorf("refresh calls = %d, want 1", refreshed)
+	if !slices.Equal(refreshed, []string{""}) {
+		t.Errorf("refresh calls = %q, want one for every provider", refreshed)
+	}
+
+	// With several providers, each badge names its provider.
+	m.SetCatalogSync(map[string]CatalogStatus{
+		"spotify": {LastError: "http status 503"},
+		"local":   {LastSuccess: time.Now()},
+	}, nil)
+	if got := m.libSyncBadge(); got != "Local ✓ synced just now · Spotify sync failed · cached" {
+		t.Errorf("badge with two providers = %q", got)
+	}
+}
+
+// r syncs the provider of the catalog level being browsed, including from a
+// plain level opened beneath it.
+func TestRefreshKeySyncsTheBrowsedProvider(t *testing.T) {
+	rows := []library.Entry{{ID: "a", Title: "A", Open: library.Menu("A", library.Entry{Title: "x"})}}
+	loads := 0
+	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "Albums", Open: catLevel{"Albums", &rows, &loads}}))
+	var refreshed []string
+	m.SetCatalogSync(map[string]CatalogStatus{"spotify": {}}, func(p string) { refreshed = append(refreshed, p) })
+	m = libPress(t, m, "enter") // Albums
+	m = libPress(t, m, "r")
+	m = libPress(t, m, "enter") // A, a plain level under Albums
+	m = libPress(t, m, "r")
+	if !slices.Equal(refreshed, []string{"spotify", "spotify"}) {
+		t.Errorf("refresh calls = %q, want spotify twice", refreshed)
 	}
 }

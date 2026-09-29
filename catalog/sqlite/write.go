@@ -36,6 +36,20 @@ func (s *Store) ApplySnapshot(ctx context.Context, snap catalog.Snapshot) error 
 	return nil
 }
 
+// RecordSyncSuccess implements catalog.Writer.
+func (s *Store) RecordSyncSuccess(ctx context.Context, provider, collection string) error {
+	now := time.Now().UnixMilli()
+	_, err := s.wdb.ExecContext(ctx, `INSERT INTO sync_state (provider, collection, last_attempt_at, last_success_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (provider, collection) DO UPDATE SET
+			last_attempt_at = excluded.last_attempt_at, last_success_at = excluded.last_success_at, last_error = ''`,
+		provider, collection, now, now)
+	if err != nil {
+		return fmt.Errorf("record sync success %s/%s: %w", provider, collection, err)
+	}
+	return nil
+}
+
 // RecordSyncFailure implements catalog.Writer.
 func (s *Store) RecordSyncFailure(ctx context.Context, provider, collection string, cause error) error {
 	msg := "unknown error"
@@ -107,12 +121,16 @@ type snapWriter struct {
 	// Artists already written by this snapshot; many tracks share one.
 	// Albums are not cached: a later, fuller record of one must still land.
 	artistIDs map[catalog.Ref]int64
+	// Albums written from the snapshot's own album list, whose tracks may
+	// reuse the ID. An album seen only through a track is not cached here:
+	// a later, fuller record of it must still land.
+	listedAlbums map[catalog.Ref]int64
 }
 
 func newWriter(ctx context.Context, tx *sql.Tx, provider string) *snapWriter {
 	return &snapWriter{
 		ctx: ctx, tx: tx, provider: provider, now: time.Now().UnixMilli(),
-		artistIDs: map[catalog.Ref]int64{},
+		artistIDs: map[catalog.Ref]int64{}, listedAlbums: map[catalog.Ref]int64{},
 	}
 }
 
@@ -166,6 +184,9 @@ func (w *snapWriter) apply() error {
 		if err := add(catalog.KindAlbum, "album "+a.Ref.ProviderID, id, err, a.AddedAt); err != nil {
 			return err
 		}
+		if ref, err := w.ref(a.Ref); err == nil {
+			w.listedAlbums[ref] = id
+		}
 	}
 	for _, a := range w.snap.Artists {
 		id, err := w.artist(a)
@@ -183,6 +204,12 @@ func (w *snapWriter) apply() error {
 		id, err := w.playlist(p)
 		if err := add(catalog.KindPlaylist, "playlist "+p.Ref.ProviderID, id, err, p.AddedAt); err != nil {
 			return err
+		}
+	}
+
+	if w.snap.Files {
+		if err := w.reconcileFiles(); err != nil {
+			return fmt.Errorf("reconcile files: %w", err)
 		}
 	}
 
@@ -257,7 +284,10 @@ func (w *snapWriter) album(a catalog.AlbumRecord) (int64, error) {
 		return 0, err
 	}
 	sortArtist := ""
-	if len(a.Artists) > 0 {
+	switch {
+	case a.Credit != "":
+		credit, sortArtist = a.Credit, catalog.SortKey(a.Credit)
+	case len(a.Artists) > 0:
 		sortArtist = catalog.SortKey(a.Artists[0].Name)
 	}
 	// Zero values are unknown: COALESCE(NULLIF(new, zero), old) keeps what is
@@ -289,13 +319,70 @@ func (w *snapWriter) album(a catalog.AlbumRecord) (int64, error) {
 func (w *snapWriter) track(t catalog.TrackRecord) (int64, error) {
 	var albumID sql.NullInt64
 	if t.Album != nil {
-		id, err := w.album(*t.Album)
+		id, err := w.trackAlbum(*t.Album)
 		if err != nil {
 			return 0, err
 		}
 		albumID = sql.NullInt64{Int64: id, Valid: true}
 	}
-	return w.writeTrack(t, albumID)
+	id, err := w.writeTrack(t, albumID)
+	if err != nil || t.File == nil {
+		return id, err
+	}
+	f := t.File
+	if err := w.exec(`INSERT INTO local_files (path, size, mtime_ns, track_id) VALUES (?, ?, ?, ?)
+		ON CONFLICT (path) DO UPDATE SET
+			size = excluded.size, mtime_ns = excluded.mtime_ns, track_id = excluded.track_id`,
+		f.Path, f.Size, f.MTimeNS, id); err != nil {
+		return 0, fmt.Errorf("index file %s: %w", f.Path, err)
+	}
+	return id, nil
+}
+
+// trackAlbum returns a track's album ID, reusing one this snapshot listed.
+func (w *snapWriter) trackAlbum(a catalog.AlbumRecord) (int64, error) {
+	if ref, err := w.ref(a.Ref); err == nil {
+		if id, ok := w.listedAlbums[ref]; ok {
+			return id, nil
+		}
+	}
+	return w.album(a)
+}
+
+// reconcileFiles drops the file index rows of files the snapshot did not
+// list: they were deleted or moved.
+func (w *snapWriter) reconcileFiles() error {
+	keep := make(map[string]bool, len(w.snap.Tracks))
+	for _, t := range w.snap.Tracks {
+		if t.File != nil {
+			keep[t.File.Path] = true
+		}
+	}
+	rows, err := w.tx.QueryContext(w.ctx, `SELECT path FROM local_files`)
+	if err != nil {
+		return err
+	}
+	var gone []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			rows.Close()
+			return err
+		}
+		if !keep[path] {
+			gone = append(gone, path)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, path := range gone {
+		if err := w.exec(`DELETE FROM local_files WHERE path = ?`, path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // writeTrack upserts a track on albumID, ignoring t.Album.
@@ -428,8 +515,8 @@ func (w *snapWriter) playlist(p catalog.PlaylistRecord) (int64, error) {
 // albums, then artists. What keeps an entity alive:
 //
 //	playlist: library membership
-//	track:    membership, a playlist, the local file index, or an album that
-//	          is a library member or has its track list cached
+//	track:    membership, a playlist, the local file index, or an album
+//	          whose track list is cached
 //	album:    membership, a cached track list, or a surviving track
 //	artist:   membership, or a credit on a surviving album or track
 //
@@ -447,9 +534,8 @@ func (s *Store) Sweep(ctx context.Context, provider string) error {
 			AND id NOT IN (` + members + `)
 			AND id NOT IN (SELECT track_id FROM playlist_tracks)
 			AND id NOT IN (SELECT track_id FROM local_files WHERE track_id IS NOT NULL)
-			AND (album_id IS NULL OR album_id NOT IN (
-				` + members + ` UNION SELECT id FROM albums WHERE tracks_cached_at IS NOT NULL))`,
-			[]any{provider, provider, catalog.KindTrack, provider, catalog.KindAlbum}},
+			AND (album_id IS NULL OR album_id NOT IN (SELECT id FROM albums WHERE tracks_cached_at IS NOT NULL))`,
+			[]any{provider, provider, catalog.KindTrack}},
 		{`DELETE FROM albums WHERE provider = ?
 			AND id NOT IN (` + members + `)
 			AND tracks_cached_at IS NULL

@@ -5,7 +5,7 @@ omatunes keeps its own files and runtime names, so it can be installed and run a
 | What | omatunes | cliamp |
 |---|---|---|
 | Config (config.toml, playlists, plugins, history, resume, radio favorites, credentials, log, IPC socket) | `~/.config/omatunes` | `~/.config/cliamp` |
-| Data (album-art cache, plugin stores) | `~/.local/share/omatunes` | `~/.local/share/cliamp` |
+| Data (music catalog `library.db`, album-art cache, plugin stores) | `~/.local/share/omatunes` | `~/.local/share/cliamp` |
 | Default downloads (`Ctrl+S`) | `~/Music/omatunes` | `~/Music/cliamp` |
 | MPRIS (media keys) | `org.mpris.MediaPlayer2.omatunes` | `org.mpris.MediaPlayer2.cliamp` |
 | Client name and device ID reported to Plex, Navidrome, Emby, Jellyfin and podcast servers | `omatunes` | `cliamp` |

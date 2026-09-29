@@ -107,7 +107,7 @@ func (p *SpotifyProvider) ensureSession() error {
 	}
 	sess, err := NewSessionSilent(context.Background(), clientID)
 	if err != nil {
-		return playlist.ErrNeedsAuth
+		return silentSessionError(err) // omatunes: only credential failures need sign-in
 	}
 	p.mu.Lock()
 	p.session = sess
@@ -803,7 +803,15 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 			reqBody = bytes.NewReader(bodyBytes)
 		}
 
-		resp, err := p.session.webApiWithBody(ctx, method, path, query, reqBody, contentType)
+		// omatunes: read the session under the lock; the catalog sync calls
+		// this from a background goroutine while Close may clear it.
+		p.mu.Lock()
+		sess := p.session
+		p.mu.Unlock()
+		if sess == nil {
+			return nil, playlist.ErrNeedsAuth
+		}
+		resp, err := sess.webApiWithBody(ctx, method, path, query, reqBody, contentType)
 		if err != nil {
 			return nil, err
 		}

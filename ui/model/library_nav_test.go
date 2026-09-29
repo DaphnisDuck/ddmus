@@ -5,7 +5,10 @@ package model
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -226,5 +229,128 @@ func TestLibrarySignInRetriesLoad(t *testing.T) {
 	m = libPress(t, m, "enter") // sign in, then reload
 	if m.libTop().err != nil || len(m.libTop().entries) != 1 {
 		t.Fatalf("after sign-in: err %v, entries %d", m.libTop().err, len(m.libTop().entries))
+	}
+}
+
+// catLevel is a catalog-backed level whose rows the test can change, as a
+// sync would.
+type catLevel struct {
+	title string
+	rows  *[]library.Entry
+	loads *int
+}
+
+func (c catLevel) Title() string { return c.title }
+func (c catLevel) Load(context.Context) ([]library.Entry, error) {
+	*c.loads++
+	return slices.Clone(*c.rows), nil
+}
+func (catLevel) CatalogProvider() string { return "spotify" }
+
+func TestCatalogSyncRefreshesVisibleLevelKeepingCursor(t *testing.T) {
+	rows := []library.Entry{{ID: "a", Title: "A"}, {ID: "b", Title: "B"}, {ID: "c", Title: "C"}}
+	loads := 0
+	albums := catLevel{"Albums", &rows, &loads}
+	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "Albums", Open: albums}))
+	m = libPress(t, m, "enter")
+	m = libPress(t, m, "j") // cursor on B
+	if m.libTop().cursor != 1 {
+		t.Fatalf("cursor = %d", m.libTop().cursor)
+	}
+
+	// A sync adds an album before B; the cursor must stay on B.
+	rows = []library.Entry{{ID: "a", Title: "A"}, {ID: "z", Title: "Z"}, {ID: "b", Title: "B"}, {ID: "c", Title: "C"}}
+	updated, cmd := m.Update(CatalogSyncMsg{Provider: "spotify", Phase: CatalogSyncCollectionDone, Collection: "albums"})
+	m = libRun(t, updated.(Model), cmd)
+	if loads != 2 || len(m.libTop().entries) != 4 || m.libTop().entries[m.libTop().cursor].ID != "b" {
+		t.Errorf("after sync: loads=%d cursor on %q, want reload with cursor kept on b",
+			loads, m.libTop().entries[m.libTop().cursor].ID)
+	}
+
+	// Another provider's sync leaves the level alone.
+	updated, cmd = m.Update(CatalogSyncMsg{Provider: "tidal", Phase: CatalogSyncCollectionDone})
+	m = libRun(t, updated.(Model), cmd)
+	if loads != 2 {
+		t.Errorf("another provider's sync reloaded the level (loads=%d)", loads)
+	}
+}
+
+func TestCatalogSyncReloadsStaleParentOnBack(t *testing.T) {
+	rows := []library.Entry{{ID: "a", Title: "A", Open: library.Menu("A")}}
+	loads := 0
+	albums := catLevel{"Albums", &rows, &loads}
+	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "Albums", Open: albums}))
+	m = libPress(t, m, "enter") // Albums
+	m = libPress(t, m, "enter") // A (a plain menu, not catalog)
+	updated, cmd := m.Update(CatalogSyncMsg{Provider: "spotify", Phase: CatalogSyncCollectionDone})
+	m = libRun(t, updated.(Model), cmd)
+	if loads != 1 {
+		t.Fatalf("a hidden level reloaded while not visible (loads=%d)", loads)
+	}
+	rows = append(rows, library.Entry{ID: "b", Title: "B"})
+	m = libPress(t, m, "h")
+	if loads != 2 || len(m.libTop().entries) != 2 {
+		t.Errorf("stale Albums after Back: loads=%d entries=%d, want a reload", loads, len(m.libTop().entries))
+	}
+}
+
+func TestCatalogSyncBadgeAndRefreshKey(t *testing.T) {
+	m := newLibraryModel(testLibraryRoot())
+	if m.libSyncBadge() != "" {
+		t.Fatal("badge shown without a catalog")
+	}
+	var refreshed []string
+	m.SetCatalogSync(map[string]CatalogStatus{"spotify": {LastSuccess: time.Now().Add(-2 * time.Minute)}}, func(p string) { refreshed = append(refreshed, p) })
+	if got := m.libSyncBadge(); got != "✓ synced 2m ago" {
+		t.Errorf("badge = %q", got)
+	}
+
+	updated, _ := m.Update(CatalogSyncMsg{Provider: "spotify", Phase: CatalogSyncStarted})
+	m = updated.(Model)
+	if got := m.libSyncBadge(); got != "↻ syncing" {
+		t.Errorf("badge while syncing = %q", got)
+	}
+	updated, _ = m.Update(CatalogSyncMsg{Provider: "spotify", Phase: CatalogSyncFinished, Err: errors.New("http status 503")})
+	m = updated.(Model)
+	if got := m.libSyncBadge(); got != "sync failed · cached" {
+		t.Errorf("badge after failure = %q", got)
+	}
+	updated, _ = m.Update(CatalogSyncMsg{Provider: "spotify", Phase: CatalogSyncFinished})
+	m = updated.(Model)
+	if got := m.libSyncBadge(); got != "✓ synced just now" {
+		t.Errorf("badge after success = %q", got)
+	}
+
+	// At the Music root, r syncs every provider.
+	updated, _ = m.Update(libKey("r"))
+	m = updated.(Model)
+	if !slices.Equal(refreshed, []string{""}) {
+		t.Errorf("refresh calls = %q, want one for every provider", refreshed)
+	}
+
+	// With several providers, each badge names its provider.
+	m.SetCatalogSync(map[string]CatalogStatus{
+		"spotify": {LastError: "http status 503"},
+		"local":   {LastSuccess: time.Now()},
+	}, nil)
+	if got := m.libSyncBadge(); got != "Local ✓ synced just now · Spotify sync failed · cached" {
+		t.Errorf("badge with two providers = %q", got)
+	}
+}
+
+// r syncs the provider of the catalog level being browsed, including from a
+// plain level opened beneath it.
+func TestRefreshKeySyncsTheBrowsedProvider(t *testing.T) {
+	rows := []library.Entry{{ID: "a", Title: "A", Open: library.Menu("A", library.Entry{Title: "x"})}}
+	loads := 0
+	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "Albums", Open: catLevel{"Albums", &rows, &loads}}))
+	var refreshed []string
+	m.SetCatalogSync(map[string]CatalogStatus{"spotify": {}}, func(p string) { refreshed = append(refreshed, p) })
+	m = libPress(t, m, "enter") // Albums
+	m = libPress(t, m, "r")
+	m = libPress(t, m, "enter") // A, a plain level under Albums
+	m = libPress(t, m, "r")
+	if !slices.Equal(refreshed, []string{"spotify", "spotify"}) {
+		t.Errorf("refresh calls = %q, want spotify twice", refreshed)
 	}
 }

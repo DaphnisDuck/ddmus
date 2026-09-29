@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
+	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/provider"
 )
@@ -20,22 +22,30 @@ type Sources struct {
 	// Channels is the built-in "cliamp radio" channel list, shown under
 	// Radio → Browse Stations.
 	Channels playlist.Provider
-	// MusicDir is the directory Local's Albums/Artists/Genres are scanned from.
+	// MusicDir is the folder the catalog indexes for Local's Albums,
+	// Artists and Genres.
 	MusicDir string
+	// Catalog, when set, backs Spotify browsing with the synced catalog
+	// instead of live provider calls, and Local's Albums, Artists and
+	// Genres with its index of MusicDir. Without it Local has only Folders
+	// and Playlists.
+	Catalog catalog.Catalog
 }
 
 // Root returns the top of the hierarchy: Music.
 func Root(src Sources) Level {
 	var entries []Entry
 	if src.Spotify != nil {
-		entries = append(entries, Entry{Title: "Spotify", Open: Spotify(src.Spotify)})
-	}
-	if src.Local != nil || src.MusicDir != "" {
-		var scanner *Scanner
-		if src.MusicDir != "" {
-			scanner = NewScanner(src.MusicDir)
+		spotify := Spotify(src.Spotify)
+		if src.Catalog != nil {
+			spotify = SpotifyCatalog(src.Catalog, src.Spotify)
 		}
-		entries = append(entries, Entry{Title: "Local", Open: local(src.Local, scanner)})
+		entries = append(entries, Entry{Title: "Spotify", Open: spotify})
+	}
+	if src.Catalog != nil && src.MusicDir != "" {
+		entries = append(entries, Entry{Title: "Local", Open: LocalCatalog(src.Catalog, src.Local, src.MusicDir)})
+	} else if src.Local != nil {
+		entries = append(entries, Entry{Title: "Local", Open: local(src.Local)})
 	}
 	if src.Radio != nil || src.Channels != nil {
 		entries = append(entries, Entry{Title: "Radio", Open: radio(src.Radio, src.Channels)})
@@ -183,16 +193,25 @@ func artistAlbumsLevel(prov playlist.Provider, ab provider.ArtistBrowser, artist
 		if err != nil {
 			return nil, err
 		}
-		entries := make([]Entry, len(albums))
-		for i, a := range albums {
-			detail := ""
-			if a.Year > 0 {
-				detail = fmt.Sprint(a.Year)
-			}
-			entries[i] = albumEntry(prov, a, detail)
-		}
-		return entries, nil
+		return artistAlbumEntries(prov, albums), nil
 	})
+}
+
+// artistAlbumEntries lists a discography with release years as detail.
+func artistAlbumEntries(prov playlist.Provider, albums []provider.AlbumInfo) []Entry {
+	entries := make([]Entry, len(albums))
+	for i, a := range albums {
+		entries[i] = albumEntry(prov, a, yearDetail(a.Year))
+	}
+	return entries
+}
+
+// yearDetail shows a release year, or nothing when it is unknown.
+func yearDetail(year int) string {
+	if year <= 0 {
+		return ""
+	}
+	return strconv.Itoa(year)
 }
 
 // — Radio —
@@ -285,59 +304,14 @@ func groupBySection(entries []Entry) []Entry {
 
 // — Local —
 
-// local returns the Local source menu. Albums, Artists and Genres come from
-// scanning the music directory; Folders opens the file browser; Playlists are
-// the local provider's saved playlists.
-func local(prov playlist.Provider, scanner *Scanner) Level {
-	var entries []Entry
-	if scanner != nil {
-		indexLevel := func(title string, entries func(*Index) []Entry) Level {
-			return NewLevel(title, func(ctx context.Context) ([]Entry, error) {
-				idx, err := scanner.Index(ctx)
-				if err != nil {
-					return nil, err
-				}
-				if len(idx.Albums) == 0 {
-					return []Entry{{Title: "No music found in " + scanner.Dir()}}, nil
-				}
-				return entries(idx), nil
-			})
-		}
-		entries = append(entries,
-			Entry{Title: "Albums", Open: indexLevel("Albums", func(idx *Index) []Entry { return albumEntries(idx.Albums) })},
-			Entry{Title: "Artists", Open: indexLevel("Artists", func(idx *Index) []Entry { return groupEntries(idx.Artists) })},
-			Entry{Title: "Genres", Open: indexLevel("Genres", func(idx *Index) []Entry { return groupEntries(idx.Genres) })},
-		)
-	}
+// local returns the Local source menu: the given catalog levels, then
+// Folders, which opens the file browser, and the local provider's saved
+// playlists.
+func local(prov playlist.Provider, indexed ...Entry) Level {
+	entries := append([]Entry{}, indexed...)
 	entries = append(entries, Entry{Title: "Folders", Intent: IntentFolders, Provider: prov})
 	if prov != nil {
 		entries = append(entries, Entry{Title: "Playlists", Open: playlistsLevel("Playlists", prov, nil, playlistEntry(prov))})
 	}
 	return Menu("Local", entries...)
-}
-
-func albumEntries(albums []*Album) []Entry {
-	entries := make([]Entry, len(albums))
-	for i, a := range albums {
-		detail := a.Artist
-		if a.Year > 0 {
-			detail = fmt.Sprintf("%s · %d", detail, a.Year)
-		}
-		tracks := a.Tracks
-		entries[i] = Entry{Title: a.Title, Detail: detail, Open: NewLevel(a.Title, func(context.Context) ([]Entry, error) {
-			return trackEntries(tracks), nil
-		})}
-	}
-	return entries
-}
-
-func groupEntries(groups []*Group) []Entry {
-	entries := make([]Entry, len(groups))
-	for i, g := range groups {
-		albums := g.Albums
-		entries[i] = Entry{Title: g.Name, Detail: fmt.Sprintf("%d albums", len(albums)), Open: NewLevel(g.Name, func(context.Context) ([]Entry, error) {
-			return albumEntries(albums), nil
-		})}
-	}
-	return entries
 }

@@ -16,7 +16,7 @@ Music
   - **Playlists** are the ones you own or follow.
   - **Liked Songs** is your saved tracks.
 - **Local:**
-  - **Albums**, **Artists** and **Genres** come from a tag scan of your music directory: `initial_directory` from config, else `$XDG_MUSIC_DIR`, else `~/Music`. The scan runs the first time you open one of them and is cached for the session.
+  - **Albums**, **Artists** and **Genres** come from an index of your music directory: `initial_directory` from config, else `$XDG_MUSIC_DIR`, else `~/Music`. Files are grouped into albums by album tag within a folder (per-disc folders like `CD1` stay one album); an album with several track artists is credited to Various Artists and listed under each of them.
   - **Folders** opens the file browser.
   - **Playlists** are your saved local playlists.
 - **Radio:**
@@ -25,6 +25,10 @@ Music
 - **Search:** until unified search (Milestone 3) lands, this opens the existing provider search (Spotify if configured, else Local).
 
 Enter on a track replaces the queue with the list it's in and starts at that track, the way an album plays. The library stays on screen.
+
+## The catalog and sync
+
+Spotify and Local browsing read from a local catalog (`~/.local/share/omatunes/library.db`), so lists open instantly and work offline. Spotify syncs at startup when its last sync is older than 30 minutes, Local re-indexes changed files at every startup, and `r` syncs the source you're browsing. The header shows each source's status (`↻ syncing`, `✓ synced 2m ago`, `sync failed · cached`). See [catalog.md](catalog.md) for what's cached, failure safety, and the `[omatunes]` settings.
 
 ## Keys
 
@@ -37,6 +41,7 @@ Enter on a track replaces the queue with the list it's in and starts at that tra
 | `h` `Esc` `Backspace` `←` | Back |
 | `q` | Back; quits at Music |
 | `/` | Search |
+| `r` | Sync the source you're browsing now (everything, at Music) |
 | `Space` | Play / pause |
 | `Tab` | Show the queue; `Tab`, `Esc` or `b` returns to the library |
 | `s` `<` `>` `,` `.` `+` `-` `Shift+←` `Shift+→` | Stop, previous/next, volume, seek |

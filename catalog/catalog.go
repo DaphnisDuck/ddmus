@@ -41,6 +41,7 @@ func (e *RateLimitError) Error() string {
 const (
 	Spotify = "spotify"
 	Local   = "local"
+	YouTube = "youtube"
 )
 
 // Collections a provider's sync can offer. The library menu of a synced

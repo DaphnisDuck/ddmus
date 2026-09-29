@@ -74,7 +74,7 @@ func (q Query) Text() string {
 //	"new world"           a phrase
 //	artist:ozawa          a word or phrase limited to a field
 //	                      (artist, album, title, genre)
-//	source:local          only one provider (spotify, local, radio); also provider:
+//	source:local          only one provider (spotify, youtube, local, radio); also provider:
 //	type:album            only one kind (artist, album, track, playlist, station)
 //
 // An unknown operator, or a known one with a value it does not know, is
@@ -160,7 +160,7 @@ func termField(name string) (string, bool) {
 
 func provider(v string) (string, bool) {
 	switch p := strings.ToLower(v); p {
-	case Spotify, Local, Radio:
+	case Spotify, Local, Radio, YouTube:
 		return p, true
 	}
 	return "", false

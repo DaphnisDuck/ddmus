@@ -105,7 +105,7 @@ Done when:
 - [x] M1.6: key allowlist gate (`ui/model/library_nav.go`). Follow-up: the `?`/`Ctrl+K` keymap overlay still lists upstream bindings, including disabled ones.
 - [x] M1.7: `main.go` wiring (`main_omatunes.go`), starting on the Library screen.
 - [x] M1.8: `docs/omatunes/navigation.md`.
-- [ ] M1.9: manual test and refinement pass with the user (see Verification in the kickoff plan).
+- [x] M1.9: manual test and refinement pass with the user; omatunes given its own files (docs/omatunes/files.md). M1 complete.
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.

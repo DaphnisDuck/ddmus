@@ -31,6 +31,10 @@ const (
 	catalogOpenTimeout = 10 * time.Second
 	// catalogStopTimeout bounds how long quitting waits for a sync to stop.
 	catalogStopTimeout = 5 * time.Second
+	// A failed sync retries after syncRetryMin, doubling up to syncRetryMax,
+	// so an outage clears without a restart or r.
+	syncRetryMin = time.Minute
+	syncRetryMax = 30 * time.Minute
 )
 
 // catalogRuntime owns the catalog for one run. Without a store, browsing
@@ -46,16 +50,20 @@ type catalogRuntime struct {
 	startup     model.CatalogStatus // stored status, read once at startup
 	stale       bool                // startup should sync
 
-	mu     sync.Mutex
-	wg     sync.WaitGroup
-	closed bool
-	send   func(tea.Msg) // set by start, before any sync runs
+	mu         sync.Mutex
+	wg         sync.WaitGroup
+	closed     bool
+	send       func(tea.Msg) // set by start, before any sync runs
+	retry      *time.Timer   // pending retry of a failed sync
+	retryDelay time.Duration // the last retry's delay; zero after a success
+	retryMin   time.Duration
+	retryMax   time.Duration
 }
 
 // openCatalog opens the catalog and, when Spotify is configured, a sync
 // engine for it. A catalog that cannot open is logged and left out.
 func openCatalog(sp *spotify.SpotifyProvider) *catalogRuntime {
-	rt := &catalogRuntime{}
+	rt := &catalogRuntime{retryMin: syncRetryMin, retryMax: syncRetryMax}
 	rt.ctx, rt.cancel = context.WithCancel(context.Background())
 	path, err := appdir.LibraryDBPath()
 	if err == nil {
@@ -160,11 +168,36 @@ func (rt *catalogRuntime) refresh() {
 		release := rt.filler.Hold()
 		err := rt.engine.Sync(rt.ctx, catalog.Spotify)
 		release()
-		if err != nil && !errors.Is(err, catalogsync.ErrRunning) && !errors.Is(err, context.Canceled) {
+		if errors.Is(err, catalogsync.ErrRunning) || rt.ctx.Err() != nil {
+			return // the running sync, or quitting, owns what happens next
+		}
+		if err != nil {
 			applog.Info("catalog sync: %v", err)
 		}
+		rt.scheduleRetry(err != nil)
 		rt.fill()
 	}()
+}
+
+// scheduleRetry arranges the next sync after one finished: after a failure,
+// a retry on a doubling delay; after a success, none, and the delay resets.
+func (rt *catalogRuntime) scheduleRetry(failed bool) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if rt.retry != nil {
+		rt.retry.Stop()
+		rt.retry = nil
+	}
+	if !failed {
+		rt.retryDelay = 0
+		return
+	}
+	if rt.closed {
+		return
+	}
+	rt.retryDelay = min(max(rt.retryDelay*2, rt.retryMin), rt.retryMax)
+	applog.Info("catalog sync: retrying in %v", rt.retryDelay)
+	rt.retry = time.AfterFunc(rt.retryDelay, rt.refresh)
 }
 
 // fill caches uncached saved albums' tracks in the background. A fill
@@ -208,6 +241,9 @@ func (rt *catalogRuntime) notify(ev catalogsync.Event) {
 func (rt *catalogRuntime) close() {
 	rt.mu.Lock()
 	rt.closed = true
+	if rt.retry != nil {
+		rt.retry.Stop()
+	}
 	rt.mu.Unlock()
 	rt.cancel()
 	done := make(chan struct{})

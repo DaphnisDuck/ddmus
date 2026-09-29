@@ -149,7 +149,7 @@ func NewSession(ctx context.Context, clientID string) (*Session, error) {
 func NewSessionSilent(ctx context.Context, clientID string) (*Session, error) {
 	creds, err := loadCreds()
 	if err != nil || creds.Username == "" || len(creds.Data) == 0 {
-		return nil, fmt.Errorf("no stored credentials")
+		return nil, errNoStoredCreds // omatunes: a sentinel for silentSessionError
 	}
 	return newSessionFromStored(ctx, clientID, creds, true)
 }

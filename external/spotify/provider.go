@@ -107,7 +107,7 @@ func (p *SpotifyProvider) ensureSession() error {
 	}
 	sess, err := NewSessionSilent(context.Background(), clientID)
 	if err != nil {
-		return playlist.ErrNeedsAuth
+		return silentSessionError(err) // omatunes: only credential failures need sign-in
 	}
 	p.mu.Lock()
 	p.session = sess

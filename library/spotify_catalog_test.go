@@ -182,3 +182,32 @@ func TestRootUsesCatalogWhenSet(t *testing.T) {
 		t.Error("Root without a catalog used catalog levels")
 	}
 }
+
+// fetchingCatalog is a catalog that can fetch and cache uncached albums.
+type fetchingCatalog struct {
+	*fakeCatalog
+	fetched []int64
+}
+
+func (f *fetchingCatalog) FetchAlbumTracks(_ context.Context, a catalog.Album) ([]catalog.Track, error) {
+	f.fetched = append(f.fetched, a.ID)
+	f.cached[a.ID] = true
+	f.albumTracks[a.ID] = []catalog.Track{{ID: 30, Title: "Fetched", PlayableURI: "spotify:track:t30"}}
+	return f.albumTracks[a.ID], nil
+}
+
+func TestSpotifyCatalogCachesUncachedAlbums(t *testing.T) {
+	cat, live, _ := newCatalogFixture()
+	fc := &fetchingCatalog{fakeCatalog: cat}
+	albums := load(t, child(t, SpotifyCatalog(fc, live), "Albums"))
+	for range 2 {
+		got := load(t, albums[1].Open)
+		if len(got) != 1 || got[0].ID != "30" || got[0].Track.Path != "spotify:track:t30" {
+			t.Errorf("uncached album = %+v", got)
+		}
+	}
+	// Fetched once through the catalog, then read from the cache; never live.
+	if !slices.Equal(fc.fetched, []int64{2}) || len(live.calls) != 0 {
+		t.Errorf("fetched %v, live calls %v", fc.fetched, live.calls)
+	}
+}

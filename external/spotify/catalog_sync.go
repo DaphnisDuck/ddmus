@@ -15,12 +15,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/bjarneo/cliamp/catalog"
+	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/provider"
 )
 
@@ -84,14 +86,14 @@ func (e savedEntry) track() *catalogTrack {
 
 // SavedAlbumRecords returns every saved album.
 func (p *SpotifyProvider) SavedAlbumRecords(ctx context.Context) ([]catalog.AlbumRecord, error) {
-	return pageRecords(ctx, p, "/v1/me/albums", nil, func(e savedEntry) (catalog.AlbumRecord, bool) {
+	return pageRecords(ctx, p, p.webAPI, "/v1/me/albums", nil, func(e savedEntry) (catalog.AlbumRecord, bool) {
 		return albumRecord(e.Album, e.AddedAt)
 	})
 }
 
 // LikedTrackRecords returns every liked track with its album and artists.
 func (p *SpotifyProvider) LikedTrackRecords(ctx context.Context) ([]catalog.TrackRecord, error) {
-	return pageRecords(ctx, p, "/v1/me/tracks", nil, func(e savedEntry) (catalog.TrackRecord, bool) {
+	return pageRecords(ctx, p, p.webAPI, "/v1/me/tracks", nil, func(e savedEntry) (catalog.TrackRecord, bool) {
 		return trackRecord(e.track(), e.AddedAt)
 	})
 }
@@ -101,7 +103,7 @@ func (p *SpotifyProvider) LikedTrackRecords(ctx context.Context) ([]catalog.Trac
 // with an error wrapping catalog.ErrForbidden.
 func (p *SpotifyProvider) PlaylistTrackRecords(ctx context.Context, playlistID string) ([]catalog.TrackRecord, error) {
 	path := "/v1/playlists/" + url.PathEscape(playlistID) + "/items"
-	return pageRecords(ctx, p, path, url.Values{"fields": {playlistItemFields}}, func(e savedEntry) (catalog.TrackRecord, bool) {
+	return pageRecords(ctx, p, p.webAPI, path, url.Values{"fields": {playlistItemFields}}, func(e savedEntry) (catalog.TrackRecord, bool) {
 		return trackRecord(e.track(), e.AddedAt)
 	})
 }
@@ -113,7 +115,7 @@ func (p *SpotifyProvider) PlaylistRecords(ctx context.Context) ([]catalog.Playli
 	if err != nil {
 		return nil, err
 	}
-	return pageRecords(ctx, p, "/v1/me/playlists", nil, func(it spotifyPlaylistItem) (catalog.PlaylistRecord, bool) {
+	return pageRecords(ctx, p, p.webAPI, "/v1/me/playlists", nil, func(it spotifyPlaylistItem) (catalog.PlaylistRecord, bool) {
 		if it.ID == "" {
 			return catalog.PlaylistRecord{}, false
 		}
@@ -200,10 +202,65 @@ func (p *SpotifyProvider) FollowedArtistRecords(ctx context.Context) ([]catalog.
 	return out, nil
 }
 
-// pageRecords GETs path with offset paging and maps each item with conv,
-// which may skip items (local files, episodes). It fails unless every item
-// Spotify reported was read and the total held steady across pages.
-func pageRecords[T, R any](ctx context.Context, p *SpotifyProvider, path string, extra url.Values, conv func(T) (R, bool)) ([]R, error) {
+// AlbumTrackRecords returns an album's full track list, retrying rate
+// limits as webAPI does. It suits a load the user is waiting on.
+func (p *SpotifyProvider) AlbumTrackRecords(ctx context.Context, albumID string) ([]catalog.TrackRecord, error) {
+	return p.albumTrackRecords(ctx, p.webAPI, albumID)
+}
+
+// AlbumTrackRecordsOnce is AlbumTrackRecords for background work: a rate
+// limit fails at once with a *catalog.RateLimitError, so the caller backs
+// off on its own schedule instead of warning the user about retries.
+func (p *SpotifyProvider) AlbumTrackRecordsOnce(ctx context.Context, albumID string) ([]catalog.TrackRecord, error) {
+	return p.albumTrackRecords(ctx, p.webAPIOnce, albumID)
+}
+
+// albumTrackRecords pages /v1/albums/{id}/tracks. Its simplified tracks
+// carry no album; the catalog attaches them to the album being cached.
+func (p *SpotifyProvider) albumTrackRecords(ctx context.Context, get webGetter, albumID string) ([]catalog.TrackRecord, error) {
+	path := "/v1/albums/" + url.PathEscape(albumID) + "/tracks"
+	return pageRecords(ctx, p, get, path, nil, func(t catalogTrack) (catalog.TrackRecord, bool) {
+		return trackRecord(&t, "")
+	})
+}
+
+// webGetter is webAPI's signature: one Web API request.
+type webGetter func(ctx context.Context, method, path string, query url.Values) (*http.Response, error)
+
+// webAPIOnce is webAPI without the 429 retries: a rate limit returns a
+// *catalog.RateLimitError carrying Spotify's Retry-After. Other failures
+// read as webAPI's do ("http status …"), so unreadable still matches them.
+func (p *SpotifyProvider) webAPIOnce(ctx context.Context, method, path string, query url.Values) (*http.Response, error) {
+	p.mu.Lock()
+	sess := p.session
+	p.mu.Unlock()
+	if sess == nil {
+		return nil, playlist.ErrNeedsAuth
+	}
+	resp, err := sess.webApiWithBody(ctx, method, path, query, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusOK {
+		return resp, nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests {
+		rl := &catalog.RateLimitError{}
+		if secs, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && secs > 0 {
+			rl.RetryAfter = time.Duration(secs) * time.Second
+		}
+		return nil, rl
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	return nil, fmt.Errorf("http status %s: %s", resp.Status, body)
+}
+
+// pageRecords GETs path through get with offset paging and maps each item
+// with conv, which may skip items (local files, episodes). It fails unless
+// every item Spotify reported was read and the total held steady across
+// pages.
+func pageRecords[T, R any](ctx context.Context, p *SpotifyProvider, get webGetter, path string, extra url.Values, conv func(T) (R, bool)) ([]R, error) {
 	if err := p.ensureSession(); err != nil {
 		return nil, err
 	}
@@ -214,7 +271,7 @@ func pageRecords[T, R any](ctx context.Context, p *SpotifyProvider, path string,
 		for k, v := range extra {
 			q[k] = v
 		}
-		resp, err := p.webAPI(ctx, "GET", path, q)
+		resp, err := get(ctx, "GET", path, q)
 		if err != nil {
 			return nil, fmt.Errorf("spotify: %s: %w", path, unreadable(err))
 		}

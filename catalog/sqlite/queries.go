@@ -51,6 +51,16 @@ func (s *Store) AlbumTracks(ctx context.Context, albumID int64) ([]catalog.Track
 	return tracks, cached, nil
 }
 
+// UncachedAlbums implements catalogsync.AlbumStore: provider's library
+// albums whose track lists are not cached, most recently saved first.
+func (s *Store) UncachedAlbums(ctx context.Context, provider string) ([]catalog.Album, error) {
+	return queryAll(ctx, s.db, scanAlbum, `SELECT `+albumColumns+` FROM albums al
+		JOIN (SELECT item_id, max(added_at) AS added_at FROM library_items
+			WHERE provider = ? AND kind = ? GROUP BY item_id) li ON li.item_id = al.id
+		WHERE al.tracks_cached_at IS NULL
+		ORDER BY li.added_at DESC, al.id`, provider, catalog.KindAlbum)
+}
+
 // Artists implements catalog.Catalog.
 func (s *Store) Artists(ctx context.Context, provider string) ([]catalog.Artist, error) {
 	return queryAll(ctx, s.db, func(r *sql.Rows) (a catalog.Artist, err error) {

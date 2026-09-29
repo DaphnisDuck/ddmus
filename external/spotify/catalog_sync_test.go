@@ -8,10 +8,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/oauth2"
 
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/catalogsync/spotifysrc"
@@ -184,5 +188,66 @@ func TestClosedSessionReturnsNeedsAuth(t *testing.T) {
 	p.mu.Unlock()
 	if _, err := p.webAPI(context.Background(), "GET", "/v1/me", nil); !errors.Is(err, playlist.ErrNeedsAuth) {
 		t.Errorf("webAPI() after Close = %v, want ErrNeedsAuth", err)
+	}
+}
+
+func TestAlbumTrackRecordsPagesSimplifiedTracks(t *testing.T) {
+	const total = 55
+	p := fakeSpotifyAPI(t, func(req *http.Request) (any, int) {
+		if req.URL.Path != "/v1/albums/al1/tracks" {
+			t.Errorf("unexpected path %s", req.URL.Path)
+		}
+		items := []map[string]any{}
+		for i := offsetOf(req); i < min(offsetOf(req)+catalogPageSize, total); i++ {
+			items = append(items, map[string]any{
+				"id": fmt.Sprintf("t%d", i), "name": fmt.Sprintf("Track %d", i), "type": "track",
+				"track_number": i + 1, "disc_number": 1, "duration_ms": 1000,
+				"artists": []map[string]any{{"id": "ar1", "name": "Ozawa"}},
+			})
+		}
+		return map[string]any{"items": items, "total": total}, 0
+	})
+	for name, fetch := range map[string]func(context.Context, string) ([]catalog.TrackRecord, error){
+		"retrying": p.AlbumTrackRecords, "once": p.AlbumTrackRecordsOnce,
+	} {
+		got, err := fetch(context.Background(), "al1")
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if len(got) != total {
+			t.Fatalf("%s: tracks = %d, want %d", name, len(got), total)
+		}
+		tr := got[54]
+		if tr.Ref.ProviderID != "t54" || tr.TrackNo != 55 || tr.PlayableURI != "spotify:track:t54" || tr.Album != nil ||
+			len(tr.Artists) != 1 || tr.Duration != time.Second {
+			t.Errorf("%s: last track = %+v", name, tr)
+		}
+	}
+}
+
+// The background fetch reports a rate limit at once, with Spotify's
+// requested wait, instead of retrying it.
+func TestAlbumTrackRecordsOnceReportsRateLimits(t *testing.T) {
+	calls := 0
+	status, retryAfter := http.StatusTooManyRequests, "7"
+	originalTransport := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		h := make(http.Header)
+		h.Set("Retry-After", retryAfter)
+		return &http.Response{StatusCode: status, Status: fmt.Sprintf("%d %s", status, http.StatusText(status)),
+			Header: h, Body: io.NopCloser(strings.NewReader(`{}`)), Request: req}, nil
+	})
+	t.Cleanup(func() { http.DefaultTransport = originalTransport })
+	p := New(&Session{tokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "token"})}, "client", 320)
+
+	_, err := p.AlbumTrackRecordsOnce(context.Background(), "al1")
+	var rl *catalog.RateLimitError
+	if !errors.As(err, &rl) || rl.RetryAfter != 7*time.Second || calls != 1 {
+		t.Errorf("err = %v, calls %d; want one call and a 7s RateLimitError", err, calls)
+	}
+	status, retryAfter = http.StatusNotFound, ""
+	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "gone"); !errors.Is(err, catalog.ErrForbidden) {
+		t.Errorf("404: %v, want ErrForbidden", err)
 	}
 }

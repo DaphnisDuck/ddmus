@@ -23,6 +23,7 @@ type fakeClient struct {
 	items       map[string][]catalog.TrackRecord
 	itemErr     map[string]error
 	itemFetches []string
+	albumCalls  []string
 }
 
 func (f *fakeClient) SavedAlbumRecords(context.Context) ([]catalog.AlbumRecord, error) {
@@ -41,6 +42,15 @@ func (f *fakeClient) PlaylistRecords(context.Context) ([]catalog.PlaylistRecord,
 func (f *fakeClient) PlaylistTrackRecords(_ context.Context, id string) ([]catalog.TrackRecord, error) {
 	f.itemFetches = append(f.itemFetches, id)
 	return f.items[id], f.itemErr[id]
+}
+
+func (f *fakeClient) AlbumTrackRecords(_ context.Context, id string) ([]catalog.TrackRecord, error) {
+	f.albumCalls = append(f.albumCalls, "retry:"+id)
+	return nil, nil
+}
+func (f *fakeClient) AlbumTrackRecordsOnce(_ context.Context, id string) ([]catalog.TrackRecord, error) {
+	f.albumCalls = append(f.albumCalls, "once:"+id)
+	return nil, nil
 }
 
 func track(id string) catalog.TrackRecord {
@@ -150,5 +160,20 @@ func TestSyncIntoCatalog(t *testing.T) {
 	}
 	if tracks, _ := store.PlaylistTracks(ctx, pls[0].ID); len(tracks) != 2 {
 		t.Errorf("playlist tracks after unchanged sync = %+v", tracks)
+	}
+}
+
+func TestAlbumTracksRouteByProviderID(t *testing.T) {
+	client := &fakeClient{}
+	src := New(client)
+	ctx := context.Background()
+	if _, err := src.AlbumTracks(ctx, ref("al1")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := src.AlbumTracksOnce(ctx, ref("al2")); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"retry:al1", "once:al2"}; !slices.Equal(client.albumCalls, want) {
+		t.Errorf("calls = %v, want %v", client.albumCalls, want)
 	}
 }

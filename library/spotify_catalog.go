@@ -22,9 +22,11 @@ type catalogLevel struct {
 func (l *catalogLevel) CatalogProvider() string { return l.provider }
 
 // SpotifyCatalog returns the Spotify menu backed by the synced catalog.
-// prov plays tracks and fills gaps the catalog cannot: an album whose tracks
-// are not cached yet, a playlist whose items could not be synced, and an
-// artist's full discography, which only the live API has.
+// An album whose tracks are not cached yet is fetched through the catalog
+// when it is a catalog.AlbumTrackFetcher, and cached on the way. prov plays
+// tracks and fills the other gaps: albums a plain catalog cannot fetch, a
+// playlist whose items could not be synced, and an artist's full
+// discography, which only the live API has.
 func SpotifyCatalog(cat catalog.Catalog, prov playlist.Provider) Level {
 	b := &catalogBrowser{cat: cat, prov: prov, provider: catalog.Spotify}
 	return Menu("Spotify",
@@ -91,7 +93,14 @@ func (b *catalogBrowser) albumEntry(a catalog.Album, detail string) Entry {
 		if cached {
 			return catalogTrackEntries(tracks), nil
 		}
-		// Not cached yet: ask the provider. M2.5 caches this result.
+		// Not cached yet: fetch and cache it, or at least show it live.
+		if f, ok := b.cat.(catalog.AlbumTrackFetcher); ok {
+			fetched, err := f.FetchAlbumTracks(ctx, a)
+			if err != nil {
+				return nil, err
+			}
+			return catalogTrackEntries(fetched), nil
+		}
 		loader, ok := b.prov.(provider.AlbumTrackLoader)
 		if !ok {
 			return catalogTrackEntries(tracks), nil

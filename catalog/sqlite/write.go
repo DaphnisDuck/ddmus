@@ -25,10 +25,8 @@ func (s *Store) ApplySnapshot(ctx context.Context, snap catalog.Snapshot) error 
 	}
 	defer tx.Rollback() // no-op after Commit
 
-	w := &snapWriter{
-		ctx: ctx, tx: tx, snap: &snap, now: time.Now().UnixMilli(),
-		artistIDs: map[catalog.Ref]int64{},
-	}
+	w := newWriter(ctx, tx, snap.Provider)
+	w.snap = &snap
 	if err := w.apply(); err != nil {
 		return fmt.Errorf("apply snapshot %s/%s: %w", snap.Provider, snap.Collection, err)
 	}
@@ -76,17 +74,46 @@ func (s *Store) PlaylistSnapshots(ctx context.Context, provider string) (map[str
 	return out, nil
 }
 
-// snapWriter applies one snapshot inside one transaction.
+// CacheAlbumTracks implements catalogsync.AlbumStore. It writes an album's
+// complete track list and marks the album cached, in one transaction. The
+// album must already be in the catalog; the tracks are attached to it
+// whatever album they name.
+func (s *Store) CacheAlbumTracks(ctx context.Context, album catalog.Ref, tracks []catalog.TrackRecord) error {
+	tx, err := s.wdb.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("cache album %s: begin: %w", album.ProviderID, err)
+	}
+	defer tx.Rollback()
+	w := newWriter(ctx, tx, album.Provider)
+	if err := w.albumTracks(album, tracks); err != nil {
+		return fmt.Errorf("cache album %s: %w", album.ProviderID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("cache album %s: commit: %w", album.ProviderID, err)
+	}
+	return nil
+}
+
+// snapWriter writes provider records inside one transaction: a whole
+// snapshot, or one album's track list.
 type snapWriter struct {
-	ctx  context.Context
-	tx   *sql.Tx
-	snap *catalog.Snapshot
-	now  int64 // Unix ms
-	gen  int64
+	ctx      context.Context
+	tx       *sql.Tx
+	provider string            // every record's provider
+	snap     *catalog.Snapshot // set when applying a snapshot
+	now      int64             // Unix ms
+	gen      int64
 
 	// Artists already written by this snapshot; many tracks share one.
 	// Albums are not cached: a later, fuller record of one must still land.
 	artistIDs map[catalog.Ref]int64
+}
+
+func newWriter(ctx context.Context, tx *sql.Tx, provider string) *snapWriter {
+	return &snapWriter{
+		ctx: ctx, tx: tx, provider: provider, now: time.Now().UnixMilli(),
+		artistIDs: map[catalog.Ref]int64{},
+	}
 }
 
 func (w *snapWriter) exec(query string, args ...any) error {
@@ -100,15 +127,15 @@ func (w *snapWriter) queryID(query string, args ...any) (int64, error) {
 	return id, err
 }
 
-// ref fills in the snapshot's provider when a record leaves it empty, and
-// rejects records the snapshot cannot own: an entity of another provider
+// ref fills in the writer's provider when a record leaves it empty, and
+// rejects records the writer cannot own: an entity of another provider
 // would escape both providers' sweeps.
 func (w *snapWriter) ref(r catalog.Ref) (catalog.Ref, error) {
 	if r.Provider == "" {
-		r.Provider = w.snap.Provider
+		r.Provider = w.provider
 	}
-	if r.Provider != w.snap.Provider {
-		return r, fmt.Errorf("record of provider %q in a %q snapshot", r.Provider, w.snap.Provider)
+	if r.Provider != w.provider {
+		return r, fmt.Errorf("record of provider %q written as %q", r.Provider, w.provider)
 	}
 	if r.ProviderID == "" {
 		return r, errors.New("record without a provider ID")
@@ -260,10 +287,6 @@ func (w *snapWriter) album(a catalog.AlbumRecord) (int64, error) {
 }
 
 func (w *snapWriter) track(t catalog.TrackRecord) (int64, error) {
-	ref, err := w.ref(t.Ref)
-	if err != nil {
-		return 0, err
-	}
 	var albumID sql.NullInt64
 	if t.Album != nil {
 		id, err := w.album(*t.Album)
@@ -271,6 +294,15 @@ func (w *snapWriter) track(t catalog.TrackRecord) (int64, error) {
 			return 0, err
 		}
 		albumID = sql.NullInt64{Int64: id, Valid: true}
+	}
+	return w.writeTrack(t, albumID)
+}
+
+// writeTrack upserts a track on albumID, ignoring t.Album.
+func (w *snapWriter) writeTrack(t catalog.TrackRecord, albumID sql.NullInt64) (int64, error) {
+	ref, err := w.ref(t.Ref)
+	if err != nil {
+		return 0, err
 	}
 	artistIDs, credit, err := w.credit(t.Artists)
 	if err != nil {
@@ -302,6 +334,37 @@ func (w *snapWriter) track(t catalog.TrackRecord) (int64, error) {
 		}
 	}
 	return id, nil
+}
+
+// albumTracks writes an album's track list onto the stored album and marks
+// it cached. Tracks without a year take the album's.
+func (w *snapWriter) albumTracks(album catalog.Ref, tracks []catalog.TrackRecord) error {
+	ref, err := w.ref(album)
+	if err != nil {
+		return err
+	}
+	var id int64
+	var year int
+	err = w.tx.QueryRowContext(w.ctx, `SELECT id, year FROM albums WHERE provider = ? AND provider_id = ?`,
+		ref.Provider, ref.ProviderID).Scan(&id, &year)
+	if errors.Is(err, sql.ErrNoRows) {
+		return catalog.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("find album: %w", err)
+	}
+	albumID := sql.NullInt64{Int64: id, Valid: true}
+	for _, t := range tracks {
+		if t.Year == 0 {
+			t.Year = year
+		}
+		if _, err := w.writeTrack(t, albumID); err != nil {
+			return err
+		}
+	}
+	return w.exec(`UPDATE albums SET tracks_cached_at = ?,
+			track_count = CASE WHEN track_count = 0 THEN ? ELSE track_count END
+		WHERE id = ?`, w.now, len(tracks), id)
 }
 
 // replaceCredits rewrites an album's or track's artist credits in order.

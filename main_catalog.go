@@ -1,7 +1,8 @@
 package main
 
 // omatunes: the catalog runtime. It opens the SQLite catalog, runs the
-// background Spotify sync and reports it to the library UI. Kept out of
+// background Spotify sync and album-track fill, and reports the sync to the
+// library UI. Kept out of
 // main.go so upstream merges there stay conflict-free.
 
 import (
@@ -37,6 +38,7 @@ const (
 type catalogRuntime struct {
 	store  *sqlite.Store
 	engine *catalogsync.Engine
+	filler *catalogsync.Filler
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -69,6 +71,7 @@ func openCatalog(sp *spotify.SpotifyProvider) *catalogRuntime {
 		src := spotifysrc.New(sp)
 		rt.collections = len(src.Collections())
 		rt.engine = catalogsync.New(rt.store, rt.notify, src)
+		rt.filler = catalogsync.NewFiller(rt.store, src, catalogsync.DefaultPacing)
 		var complete bool
 		rt.startup, complete = rt.status()
 		rt.stale = !complete || time.Since(rt.startup.LastSuccess) > catalogRefreshAfter
@@ -81,7 +84,18 @@ func (rt *catalogRuntime) catalog() catalog.Catalog {
 	if rt.store == nil || rt.engine == nil {
 		return nil
 	}
-	return rt.store
+	return fillingCatalog{rt.store, rt.filler}
+}
+
+// fillingCatalog is the store plus the filler's on-demand album fetch, so
+// opening an uncached album caches it.
+type fillingCatalog struct {
+	catalog.Catalog
+	filler *catalogsync.Filler
+}
+
+func (c fillingCatalog) FetchAlbumTracks(ctx context.Context, album catalog.Album) ([]catalog.Track, error) {
+	return c.filler.FetchAlbumTracks(ctx, album)
 }
 
 // configure gives the UI the stored sync status and the refresh action.
@@ -118,7 +132,7 @@ func (rt *catalogRuntime) status() (st model.CatalogStatus, complete bool) {
 }
 
 // start connects sync events to the program and syncs if the catalog is
-// stale or incomplete.
+// stale or incomplete. Either way, uncached albums are filled afterwards.
 func (rt *catalogRuntime) start(prog *tea.Program) {
 	if rt.engine == nil {
 		return
@@ -126,11 +140,14 @@ func (rt *catalogRuntime) start(prog *tea.Program) {
 	rt.send = prog.Send
 	if rt.stale {
 		rt.refresh()
+	} else {
+		rt.fill()
 	}
 }
 
-// refresh starts a Spotify sync in the background. A sync already running
-// makes it a no-op.
+// refresh starts a Spotify sync in the background, pausing the album fill
+// while it runs and filling newly saved albums after. A sync already
+// running makes it a no-op.
 func (rt *catalogRuntime) refresh() {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
@@ -140,9 +157,30 @@ func (rt *catalogRuntime) refresh() {
 	rt.wg.Add(1)
 	go func() {
 		defer rt.wg.Done()
+		release := rt.filler.Hold()
 		err := rt.engine.Sync(rt.ctx, catalog.Spotify)
+		release()
 		if err != nil && !errors.Is(err, catalogsync.ErrRunning) && !errors.Is(err, context.Canceled) {
 			applog.Info("catalog sync: %v", err)
+		}
+		rt.fill()
+	}()
+}
+
+// fill caches uncached saved albums' tracks in the background. A fill
+// already running makes it a no-op; that run picks up new albums itself.
+func (rt *catalogRuntime) fill() {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if rt.filler == nil || rt.closed {
+		return
+	}
+	rt.wg.Add(1)
+	go func() {
+		defer rt.wg.Done()
+		err := rt.filler.Run(rt.ctx)
+		if err != nil && !errors.Is(err, catalogsync.ErrRunning) && !errors.Is(err, context.Canceled) {
+			applog.Info("catalog album fill: %v", err)
 		}
 	}()
 }

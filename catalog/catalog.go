@@ -12,6 +12,7 @@ package catalog
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -22,6 +23,19 @@ var ErrNotFound = errors.New("not in catalog")
 // example a Spotify playlist it may list but not read. A sync skips the item
 // and keeps what the catalog already holds for it.
 var ErrForbidden = errors.New("provider refused access")
+
+// RateLimitError means a provider asked the client to slow down. RetryAfter
+// is the provider's requested wait, or zero when it gave none.
+type RateLimitError struct {
+	RetryAfter time.Duration
+}
+
+func (e *RateLimitError) Error() string {
+	if e.RetryAfter > 0 {
+		return fmt.Sprintf("provider rate limit (retry after %v)", e.RetryAfter)
+	}
+	return "provider rate limit"
+}
 
 // Provider names used in the catalog.
 const (
@@ -127,4 +141,13 @@ type Catalog interface {
 	// SyncStatus returns the last sync outcome of each of provider's
 	// collections.
 	SyncStatus(ctx context.Context, provider string) ([]CollectionStatus, error)
+}
+
+// AlbumTrackFetcher is an optional capability of a Catalog: fetching an
+// album's tracks from its provider when the catalog has not cached them, and
+// caching them so the album opens offline from then on.
+type AlbumTrackFetcher interface {
+	// FetchAlbumTracks returns the album's tracks, in disc and track order,
+	// as the catalog now stores them.
+	FetchAlbumTracks(ctx context.Context, album Album) ([]Track, error)
 }

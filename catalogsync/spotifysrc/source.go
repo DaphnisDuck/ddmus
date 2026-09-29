@@ -28,6 +28,10 @@ type Client interface {
 	LikedTrackRecords(ctx context.Context) ([]catalog.TrackRecord, error)
 	PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error)
 	PlaylistTrackRecords(ctx context.Context, playlistID string) ([]catalog.TrackRecord, error)
+	// AlbumTrackRecords retries rate limits; AlbumTrackRecordsOnce returns
+	// a *catalog.RateLimitError instead.
+	AlbumTrackRecords(ctx context.Context, albumID string) ([]catalog.TrackRecord, error)
+	AlbumTrackRecordsOnce(ctx context.Context, albumID string) ([]catalog.TrackRecord, error)
 }
 
 // Source syncs one Spotify account.
@@ -35,7 +39,10 @@ type Source struct {
 	client Client
 }
 
-var _ catalogsync.Source = (*Source)(nil)
+var (
+	_ catalogsync.Source      = (*Source)(nil)
+	_ catalogsync.AlbumSource = (*Source)(nil)
+)
 
 // New returns a Source reading through client.
 func New(client Client) *Source { return &Source{client: client} }
@@ -94,4 +101,14 @@ func (s *Source) playlists(ctx context.Context, known map[string]string) ([]cata
 		p.Tracks, p.TracksFetched = tracks, true
 	}
 	return lists, nil
+}
+
+// AlbumTracks implements catalogsync.AlbumSource.
+func (s *Source) AlbumTracks(ctx context.Context, album catalog.Ref) ([]catalog.TrackRecord, error) {
+	return s.client.AlbumTrackRecords(ctx, album.ProviderID)
+}
+
+// AlbumTracksOnce implements catalogsync.AlbumSource.
+func (s *Source) AlbumTracksOnce(ctx context.Context, album catalog.Ref) ([]catalog.TrackRecord, error) {
+	return s.client.AlbumTrackRecordsOnce(ctx, album.ProviderID)
 }

@@ -80,6 +80,9 @@ Done when:
 - Each provider answers three questions: Browse? Cache? Play?
 - Providers advertise capabilities. The app never assumes a provider behaves like Spotify.
 
+### M5: Deferred cleanup
+- Pay down what M1–M4 deferred: the keymap overlay, enrichment and YouTube sync robustness, catalog writer performance, sync correctness, and the live offline check. No new providers.
+
 ## Architecture invariants
 1. `library/` defines the navigation Node model and has no Bubbletea dependency. `ui/model` only talks to Nodes (and, from M2, the Catalog). The exception is playback, which uses the existing cliamp paths.
 2. Capability detection (type assertions on `provider/interfaces.go`) lives in the `library/` adapters, never in the view layer.
@@ -380,6 +383,34 @@ config/omatunes.go                 youtube_refresh
 - M4.5 Enrichment: background per-track metadata; a sync must not overwrite an enriched track's title and credits (an `enriched_at` marker, migration 003); YouTube Albums and Artists lists and Library membership from enriched tracks.
 - M4.6 `docs/omatunes/youtube.md` (both sign-in modes, the `+gnomekeyring` note, quota, what syncs, enrichment), README, review agents, live check, tag `v0.4.0`.
 
+## M5 implementation plan (deferred cleanup, v0.5)
+
+Goal: pay down what M1–M4 deferred before adding another provider. No new sources, no new menus. Every slice either fixes something a user can hit or recovers a missed budget, and each ends green (`make check`, `go test -race ./...`). Branch `m5-cleanup`.
+
+### Scope (checked against the code 2026-09-29)
+- **Keys:** the `?`/`Ctrl+K` keymap overlay lists upstream bindings the library gate swallows (M1.6).
+- **Enrichment:** an unrecognised permanent yt-dlp error ends every enrichment run at the same track, so nothing after it is ever enriched (M4.6).
+- **YouTube sync:** a playlist whose five sampled videos all refuse is left out, and reconciled away if it was already synced (M4.6). You can't switch Google accounts without deleting `ytmusic_credentials.json` (M4.6).
+- **Writer performance:** statements are prepared per call, unchanged rows are rewritten on every sync (WAL churn), and a collection is one transaction, so a large first playlist sync holds the writer for seconds (M2.2). The first full local index missed its budget by 55% (6.4 s → 10.0 s, M3.1).
+- **Sync correctness:** Spotify 403/404 is still recognised by matching `"http status 403"` text (`external/spotify/catalog_sync.go`, M2.3). Saved albums and liked songs are reread in full on every sync, although one request (total + newest) could show that nothing changed (M2.3). A change to local grouping rules regroups only changed files, because there is no indexer version (M2.7).
+- **Verification:** the live offline check (network off, browse and search the cache) has never been run (M2.7, M3.5).
+
+Not taken: `ensureSession` ignoring the sync context (upstream code); a same-total edit during a read (rare, and the next sync corrects it); checking the cookie feed's count (it reports none); telling own from saved playlists in the cookie feed (no data to do it with); `ArtistAlbums` listing out-of-library albums (intended as the offline discography); the open questions below.
+
+### Delivery
+- M5.1 Keymap overlay: when the library is enabled, the overlay lists what the library actually does: the allowlisted keys plus omatunes' own (`/`, `r`, `o`, `Tab`). Disabled keys are hidden, not greyed. Upstream's list is unchanged when the library is off. Test: every listed key is one `handleLibraryKey` handles, and every allowlisted key is listed. Update `docs/omatunes/navigation.md`.
+- M5.2 Enrichment and YouTube robustness:
+  - Per-track failure count (migration 004, `tracks.enrich_failures`). A track that exhausts its retries is skipped for the rest of the run and counted. At 3 failed runs it is marked read, like ErrForbidden.
+  - A run still ends after `MaxFailures` consecutive failures on *different* tracks, because that pattern means an outage, not one bad track.
+  - A known playlist whose samples all refuse keeps its stored classification and tracks instead of being reconciled away.
+  - `omatunes youtube signin --force` signs in anew, to switch accounts.
+- M5.3 Writer performance: prepare statements once per snapshot transaction; skip `UPDATE`s whose values are unchanged (compare before writing, or `WHERE … IS NOT` guards); write each playlist's tracks in its own transaction, with the collection's reconcile still running only after every playlist succeeded (the M2 invariant). Measure on a copy of the real catalog before and after: first local index (target ≤ 7 s), an unchanged Spotify sync (WAL bytes written), the first 305-track playlist.
+- M5.4 Sync correctness:
+  - A typed HTTP status error through the Spotify request path, replacing the text match (the existing test pins behaviour).
+  - Albums and liked songs skip the full read when total and newest `added_at` match the catalog, as `savedTracksUnchanged` already does for one case.
+  - `localsrc` stores an indexer version, and a bump regroups every file once, from stored tags without rereading them.
+- M5.5 Live offline check (scratch HOME, network off: start, browse Spotify/YouTube/Local, search, play Local, `r` fails gracefully with the cached badge), docs (`docs/omatunes/` for anything user-visible), review agents, tag `v0.5.0`.
+
 ## Status
 - [x] M0: add the `upstream` remote, create `plan.md`, add the CLAUDE.md fork note, write `docs/omatunes/upstream.md`, make the Makefile build `omatunes`, rebrand the UI title and terminal title.
 - [x] M1.1: `library/` Level/Entry model and root menu, with tests.
@@ -421,7 +452,8 @@ config/omatunes.go                 youtube_refresh
 - [x] M4.4 Wiring: `[omatunes] youtube_refresh` (default 2h); `youtubeClient` picks the sync client from the sign-in (cookies, OAuth, or both → `Mixed`) when YouTube is enabled and yt-dlp is installed; Music → YouTube Music (Playlists, Liked Music) with cliamp's `ytmusic` provider as player; search offers "Search <source> for …" for every synced source whose provider searches live (so none for OAuth-mode YouTube). Verified live (2026-09-29): 4 music playlists including a 305-track one (four yt-dlp pages), a saved one, and "Bubba's Essentials" alongside Spotify's playlist of the same name (two rows labelled Spotify · 34 and YouTube · 3, each with its own tracks); 14 Liked Music tracks newest first; a YouTube track played; YouTube tracks in search beside Spotify and Local; a forced sync with 3 new playlists to classify took about 21 s. Saved playlists: a playlist saved from someone else in YouTube Music (library or bookmark) appears in no list a sync can read (not the youtube.com feed, not the API), though it reads fine by ID. So `[omatunes] youtube_playlists = ["<link or ID>", …]` (one line) lists them: they sync as followed playlists without classification, deduplicated against the feed; a gone one is skipped, other failures keep the cache (`Client.PlaylistRecord`, `youtubesrc.New(client, extra...)`, `youtubesrc.PlaylistID`). Verified live: "Good soup" (14 tracks) synced beside the account's four. Automatic discovery through YouTube Music's private API (InnerTube) is deferred. Cosmetic: the cookie feed does not reliably tell own playlists from saved ones, so saved ones in the feed show under "Your playlists".
 - [x] M4.5 Enrichment: migration 003 (`tracks.enriched_at`); a sync keeps an enriched track's title and credits; `catalog.TrackMetadata`; store `UnenrichedTracks` (library tracks: liked or in library playlists, newest first), `EnrichTrack` (writes title, artists, album, year, or only marks a read that found nothing), `RefreshDerived` (the `derived` collection: albums and credited artists of enriched library tracks). `catalogsync.Enricher` (shares the Filler's pause control, now `pauser`; batches of 10 with a derived refresh and a UI reload after each; rate limits back off from 1 min to 30 min; unreadable tracks are marked read; 3 consecutive other failures end a run). `CookieCatalog.TrackMetadata` (full yt-dlp read; artists keyed `artist:<name>`, albums `album:<artist>/<title>`; bot checks and 429 → RateLimitError; cookies optional, so OAuth-only setups enrich anonymously). The runtime's per-source background `worker` (Spotify's filler, YouTube's enricher) is held during that source's sync and run after it; a source's `lists` add menu lists (YouTube: Albums, Artists). `SyncedSource.PartialAlbums`: YouTube albums open and play as the catalog has them, never fetched; the Spotify album fetch refuses other providers' albums. Verified live: within 90 s YouTube Music had Albums (10), Artists and search results, each album holding your tracks of it. A full first enrichment of about 360 tracks takes about 30 min in the background, resuming where it stopped.
 - [x] M4.6 Docs, review, tag v0.4.0 (tagged 2026-09-29, merged to main and pushed): `docs/omatunes/youtube.md`, README v0.4, `omatunes youtube signin` (OAuth sign-in outside the TUI). Review fixes: playlist classification never caches a failure or an empty playlist as non-music, and a failed classification (bot check, network, quota) fails the playlists collection so the sync keeps what it has, in both modes (OAuth sync now uses its own `classifyForSync`; cliamp's `classifyPlaylists` is untouched); more permanent yt-dlp refusals (age-gated, members-only, not in your country, private video) map to ErrForbidden so the Enricher marks them read; `Mixed` also falls back to cookies for Liked Music when OAuth refuses (quota); a batch that found nothing skips the derived refresh. Verified live (2026-09-29): a forced sync kept all five playlists, Albums intact, a Liked Music track played, `youtube signin` succeeded silently with the stored token. Known, deferred: an unrecognised permanent yt-dlp error still stops each enrichment run at the same track; the cookie playlists feed has no count to check a short read against; a playlist whose five sampled videos all refuse is left out (and reconciled away if it was synced); a forced sign-in to switch Google accounts. M4 (YouTube Music) complete.
-- Next: no M5 planned yet. Candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (Plex, Jellyfin or Navidrome); the deferred items above.
+- [ ] M5 (deferred cleanup, v0.5): planned 2026-09-29, see the M5 implementation plan.
+- [x] M5.1 Keymap overlay: with the library enabled, `?`/`Ctrl+K` (main screen only; other overlays keep their own context) lists the current context's own keys (Library, Search Results, Library Search, Queue) and then the cliamp commands whose every key the gate passes through, so `Nj` (digits swallowed), `i`, `a`, `Ctrl+F`, provider Esc and the like are gone (`ui/model/library_keymap.go`, one tagged line in `keymap.go`). Plugin key bindings are not listed, since the gate swallows them too. Tests pin both directions (no listed key is swallowed; every passthrough key is listed). Verified live in all four contexts. Next: M5.2. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists.
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.
@@ -464,6 +496,8 @@ config/omatunes.go                 youtube_refresh
 - 2026-09-29: The YouTube sync classifies playlists more strictly than cliamp: a failed read fails the playlists collection (the sync keeps what it has) and is never cached as non-music, and an empty playlist stays unknown. The OAuth sync uses its own `classifyForSync`; cliamp's `classifyPlaylists` is unchanged. With both sign-ins, Liked Music falls back to cookies when OAuth needs signing in or refuses (quota).
 
 - 2026-09-29: OAuth sign-in happens outside the TUI with `omatunes youtube signin`; the sync itself never signs in interactively.
+
+- 2026-09-29: M5 is deferred cleanup (v0.5), not a new provider: no Plex/Jellyfin/Navidrome server is in use to test against.
 
 ## Open questions
 - Whether `music_dir` should split from `initial_directory` (the Local scan folder vs the file browser's start folder). Default: keep reusing `initial_directory` until someone needs them apart.

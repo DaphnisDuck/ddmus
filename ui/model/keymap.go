@@ -44,6 +44,9 @@ func (m Model) buildKeymapEntries() []keymapEntry {
 	}
 
 	mode, label := m.keymapContext()
+	if mode == commandModeMain && m.libraryEnabled() { // omatunes: only keys the library gate lets through
+		return m.libraryKeymapEntries()
+	}
 	if mode != commandModeMain {
 		out = append(out, keymapEntry{action: "— current: " + label + " —", divider: true})
 		for _, command := range commandRegistry {

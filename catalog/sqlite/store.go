@@ -33,7 +33,16 @@ var ErrSchemaTooNew = errors.New("catalog database schema is newer than this ddm
 // dsnParams apply to every pooled connection. WAL lets the UI read while a
 // sync writes; _txlock=immediate takes the write lock when a transaction
 // begins, so a sync never fails upgrading a read lock mid-transaction.
-const dsnParams = "_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on&_synchronous=NORMAL&_txlock=immediate"
+const dsnParams = "_journal_mode=WAL&_foreign_keys=on&_synchronous=NORMAL&_txlock=immediate"
+
+// Busy timeouts, in milliseconds. Only background syncs write, and another
+// ddmus on the same catalog can hold the write lock for a whole snapshot
+// (a local index takes seconds), so the writer waits long; reads never wait
+// on a writer under WAL.
+const (
+	readBusyTimeout  = 5000
+	writeBusyTimeout = 60000
+)
 
 // Store is a catalog.Catalog and catalog.Writer backed by SQLite. Reads use
 // a pooled handle; writes go through a single-connection handle, so writers
@@ -63,8 +72,11 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 	if err := os.Chmod(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("secure catalog directory: %w", err)
 	}
-	dsn := dbPath + "?" + dsnParams
-	wdb, err := sql.Open("sqlite", dsn)
+	if err := securePrivateFiles(dbPath); err != nil {
+		return nil, err
+	}
+	dsn := dbPath + "?" + dsnParams + "&_busy_timeout="
+	wdb, err := sql.Open("sqlite", dsn+strconv.Itoa(writeBusyTimeout))
 	if err != nil {
 		return nil, fmt.Errorf("open catalog %s: %w", dbPath, err)
 	}
@@ -77,7 +89,7 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 		wdb.Close()
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", dsn+strconv.Itoa(readBusyTimeout))
 	if err != nil {
 		wdb.Close()
 		return nil, fmt.Errorf("open catalog %s: %w", dbPath, err)
@@ -86,6 +98,23 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 	// query may run beside it: keep one connection per kind plus one open.
 	db.SetMaxIdleConns(len(catalog.SearchKinds) + 1)
 	return &Store{db: db, wdb: wdb}, nil
+}
+
+// securePrivateFiles creates the database file private to the user, and
+// makes an existing one and its WAL files private too. SQLite gives the WAL
+// files it creates the database file's mode.
+func securePrivateFiles(dbPath string) error {
+	f, err := os.OpenFile(dbPath, os.O_RDONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		return fmt.Errorf("create catalog %s: %w", dbPath, err)
+	}
+	f.Close()
+	for _, p := range []string{dbPath, dbPath + "-wal", dbPath + "-shm"} {
+		if err := os.Chmod(p, 0o600); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("secure catalog file: %w", err)
+		}
+	}
+	return nil
 }
 
 // Close closes the database.

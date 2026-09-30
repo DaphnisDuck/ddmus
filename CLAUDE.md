@@ -102,7 +102,7 @@ make install      # installs binary into ~/.local/bin
 
 Tests are colocated with sources (`*_test.go`). Favor table-driven tests — the codebase already uses them heavily in `player/`, `playlist/`, `config/`, `ui/model/`, and `luaplugin/`.
 
-Config lives at `~/.config/cliamp/config.toml` (example at `config.toml.example`); plugins at `~/.config/cliamp/plugins/`; custom radios at `~/.config/cliamp/radios.toml`; themes at `~/.config/cliamp/themes/`.
+Config lives at `~/.config/ddmus/config.toml` (`DDMUS_CONFIG_DIR` overrides; example at `config.toml.example`); plugins, `radios.toml` and themes live beside it. See `docs/ddmus/files.md`.
 
 ---
 

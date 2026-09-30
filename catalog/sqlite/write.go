@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bjarneo/cliamp/catalog"
 )
@@ -59,7 +60,11 @@ func (s *Store) RecordSyncFailure(ctx context.Context, provider, collection stri
 	}
 	// Status is for display; keep provider error bodies from growing the row.
 	if len(msg) > maxErrorLen {
-		msg = msg[:maxErrorLen] + "…"
+		cut := maxErrorLen
+		for cut > 0 && !utf8.RuneStart(msg[cut]) {
+			cut-- // never split a character
+		}
+		msg = msg[:cut] + "…"
 	}
 	_, err := s.wdb.ExecContext(ctx, `INSERT INTO sync_state (provider, collection, last_attempt_at, last_error)
 		VALUES (?, ?, ?, ?)
@@ -142,9 +147,9 @@ func (s *Store) CollectionStates(ctx context.Context, provider string) (map[stri
 		}
 		st := out[collection]
 		st.Count, st.NewestAt = n, time.UnixMilli(newest)
-		// Members added in one go (a local index) all tie for newest; a
-		// list that long identifies nothing, and leaving it out only
-		// makes a head check read in full.
+		// Members added in one go (a local index) all tie for newest; only
+		// the first maxNewest of them (in no set order) are kept. A head
+		// check that misses the rest only reads the list in full.
 		if id.Valid && len(st.Newest) < maxNewest {
 			st.Newest = append(st.Newest, id.String)
 		}

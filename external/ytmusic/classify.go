@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bjarneo/cliamp/internal/appdir"
+	"github.com/bjarneo/cliamp/internal/fileutil"
 
 	"google.golang.org/api/youtube/v3"
 )
@@ -53,7 +54,7 @@ func saveClassification(scope string, music map[string]bool) {
 	data, _ := json.MarshalIndent(cache, "", "  ")
 	path := classificationCachePath()
 	os.MkdirAll(filepath.Dir(path), 0o700)
-	os.WriteFile(path, data, 0o600)
+	fileutil.WriteFileAtomic(path, data, 0o600) // ddmus: the catalog sync reads it concurrently
 }
 
 // classifyPlaylists determines which playlists contain music content by

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bjarneo/cliamp/catalog"
 )
@@ -269,6 +271,14 @@ func TestRecordSyncFailureTruncates(t *testing.T) {
 	st, _ := s.SyncStatus(context.Background(), catalog.Spotify)
 	if n := len(st[0].LastError); n > maxErrorLen+len("…") {
 		t.Errorf("stored error length = %d, want at most %d", n, maxErrorLen)
+	} // Multi-byte text is cut between characters, never inside one.
+	wide := strings.Repeat("é", maxErrorLen) // 2 bytes each; the cap falls mid-rune on odd offsets
+	if err := s.RecordSyncFailure(context.Background(), catalog.Spotify, "albums", errors.New("x"+wide)); err != nil {
+		t.Fatal(err)
+	}
+	st, _ = s.SyncStatus(context.Background(), catalog.Spotify)
+	if !utf8.ValidString(st[0].LastError) {
+		t.Errorf("stored error %q is not valid UTF-8", st[0].LastError)
 	}
 }
 

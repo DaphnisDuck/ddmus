@@ -81,6 +81,13 @@ func (q Query) Text() string {
 // plain text. An unbalanced quote runs to the end.
 func ParseQuery(s string) Query {
 	var q Query
+	// Control characters (a pasted NUL) would make SQLite reject the match.
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, s)
 	for _, tok := range tokenize(s) {
 		switch {
 		case tok.phrase:

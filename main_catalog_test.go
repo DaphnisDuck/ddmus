@@ -158,6 +158,29 @@ func TestSourcesStartupPolicy(t *testing.T) {
 	}
 }
 
+// A sync that failed after a recent success runs again at the next startup.
+func TestSourcesStartupRetriesAFailedSync(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+	if err := store.RecordSyncSuccess(ctx, catalog.Spotify, "albums"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordSyncFailure(ctx, catalog.Spotify, "albums", errors.New("offline")); err != nil {
+		t.Fatal(err)
+	}
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
+	rt.ctx, rt.cancel = context.WithCancel(ctx)
+	defer rt.cancel()
+	rt.setSources(source{Source: &namedSource{catalog.Spotify}, refresh: time.Hour})
+	if sp := rt.providers[catalog.Spotify]; sp == nil || !sp.stale {
+		t.Errorf("failed Spotify = %+v, want synced at startup", sp)
+	}
+}
+
 type namedSource struct{ name string }
 
 func (s *namedSource) Provider() string    { return s.name }

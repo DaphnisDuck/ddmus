@@ -66,6 +66,7 @@ type pauser struct {
 	holds   int
 	idle    chan struct{} // closed when holds drops to zero
 	running bool
+	rerun   bool // a run was asked for while one ran
 }
 
 var _ catalog.AlbumTrackFetcher = (*Filler)(nil)
@@ -132,15 +133,18 @@ func (f *Filler) FetchAlbumTracks(ctx context.Context, album catalog.Album) ([]c
 // Run caches every uncached library album, then lists again to pick up
 // albums saved meanwhile, until nothing new is left. An album the provider
 // refuses is skipped for this run. Run returns ErrRunning if a fill is
-// already running, ctx's error when cancelled, and an error after
+// already running (that fill then goes again when it is done), ctx's error when cancelled, and an error after
 // MaxFailures consecutive failures other than rate limits.
 func (f *Filler) Run(ctx context.Context) error {
-	provider := f.src.Provider()
 	if !f.begin() {
-		return fmt.Errorf("fill %s: %w", provider, ErrRunning)
+		return fmt.Errorf("fill %s: %w", f.src.Provider(), ErrRunning)
 	}
-	defer f.end()
+	return f.repeat(func() error { return f.fillAll(ctx) })
+}
 
+// fillAll is one Run's work.
+func (f *Filler) fillAll(ctx context.Context) error {
+	provider := f.src.Provider()
 	tried := map[int64]bool{}
 	var st fillState
 	for {
@@ -223,16 +227,29 @@ func (f *pauser) begin() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.running {
+		f.rerun = true // the running one goes again when it is done
 		return false
 	}
 	f.running = true
 	return true
 }
 
-func (f *pauser) end() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.running = false
+// repeat runs work until it fails, or it succeeds with no run asked for
+// meanwhile, and then ends the run. The check and the end are one step, so
+// a request refused with ErrRunning is never lost between them.
+func (f *pauser) repeat(work func() error) error {
+	for {
+		err := work()
+		f.mu.Lock()
+		if err == nil && f.rerun {
+			f.rerun = false
+			f.mu.Unlock()
+			continue
+		}
+		f.running, f.rerun = false, false
+		f.mu.Unlock()
+		return err
+	}
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) error {

@@ -246,6 +246,10 @@ func TestAlbumTrackRecordsOnceReportsRateLimits(t *testing.T) {
 	if !errors.As(err, &rl) || rl.RetryAfter != 7*time.Second || calls != 1 {
 		t.Errorf("err = %v, calls %d; want one call and a 7s RateLimitError", err, calls)
 	}
+	retryAfter = "99999999999" // an absurd wait is capped, not overflowed
+	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "al1"); !errors.As(err, &rl) || rl.RetryAfter != time.Hour {
+		t.Errorf("huge Retry-After: %v, want a 1h RateLimitError", err)
+	}
 	status, retryAfter = http.StatusNotFound, ""
 	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "gone"); !errors.Is(err, catalog.ErrForbidden) {
 		t.Errorf("404: %v, want ErrForbidden", err)

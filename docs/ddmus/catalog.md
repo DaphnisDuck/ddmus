@@ -11,7 +11,7 @@ ddmus keeps your Spotify library and an index of your local music folder in one 
 - **Search index:** a full-text index of everything above, kept in step with every change. See [search.md](search.md).
 - **Not in the catalog:** the radio directory, local playlists, and an artist's full Spotify discography. These are always loaded live.
 
-No passwords or tokens are stored in the catalog. Spotify credentials stay in `~/.config/ddmus/spotify_credentials.json`.
+No account passwords or tokens are stored in the catalog: Spotify and YouTube credentials stay in `~/.config/ddmus/` (`spotify_credentials.json`, `ytmusic_credentials.json`). A radio station's URL is stored as written, so a station URL that carries a password or token puts it in the catalog. The catalog file and its folder are readable only by you.
 
 ## When it updates
 

@@ -2,6 +2,8 @@ package ytmusic
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/internal/browser"
+	"github.com/bjarneo/cliamp/internal/fileutil"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -160,7 +163,7 @@ func newInteractiveSession(ctx context.Context, clientID, clientSecret string, o
 // cancelled (e.g. the user retries auth), the listener is closed and the
 // function returns promptly, freeing the callback port.
 func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) { // ddmus: opts
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", CallbackPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", CallbackPort)) // ddmus: the redirect URI's host only, not every interface
 	if err != nil {
 		return nil, fmt.Errorf("ytmusic: listen on port %d (is another instance running?): %w", CallbackPort, err)
 	}
@@ -169,25 +172,13 @@ func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.
 	oauthConf := googleOAuthConfig(clientID, clientSecret)
 
 	verifier := oauth2.GenerateVerifier()
-	authURL := oauthConf.AuthCodeURL("", append([]oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier), oauth2.AccessTypeOffline}, opts...)...) // ddmus: opts
+	// ddmus: a callback without this state is not Google's.
+	state := rand.Text()
+	authURL := oauthConf.AuthCodeURL(state, append([]oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier), oauth2.AccessTypeOffline}, opts...)...) // ddmus: opts
 
 	codeCh := make(chan string, 1)
 	go func() {
-		if err := http.Serve(lis, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			code := r.URL.Query().Get("code")
-			if code != "" {
-				codeCh <- code
-			}
-			w.Header().Set("Content-Type", "text/html")
-			_, _ = w.Write([]byte(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>cliamp</title></head>
-<body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0">
-<div style="text-align:center">
-<h2>Authenticated!</h2>
-<p>You can close this tab now.</p>
-<script>setTimeout(function(){window.close()},1500)</script>
-</div></body></html>`))
-		})); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := http.Serve(lis, oauthCallback(state, codeCh)); err != nil && !errors.Is(err, net.ErrClosed) { // ddmus: oauthCallback
 			fmt.Fprintf(os.Stderr, "ytmusic: auth callback server error: %v\n", err)
 		}
 	}()
@@ -208,6 +199,35 @@ func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.
 
 	fmt.Println("YouTube Music: authenticated.")
 	return token, nil
+}
+
+// oauthCallback serves the OAuth redirect: it hands on the first code that
+// carries state, and turns away requests without it (another local process
+// or page racing the browser). ddmus: extracted from doOAuth, with the state
+// check and a send that never blocks.
+func oauthCallback(state string, codeCh chan<- string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(state)) != 1 {
+			http.Error(w, "unexpected sign-in callback", http.StatusBadRequest)
+			return
+		}
+		if code := q.Get("code"); code != "" {
+			select {
+			case codeCh <- code:
+			default: // a code is already waiting
+			}
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>cliamp</title></head>
+<body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0">
+<div style="text-align:center">
+<h2>Authenticated!</h2>
+<p>You can close this tab now.</p>
+<script>setTimeout(function(){window.close()},1500)</script>
+</div></body></html>`))
+	}
 }
 
 // Service returns the YouTube API service, holding the lock briefly.
@@ -256,5 +276,5 @@ func saveCreds(creds *storedCreds) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o600)
+	return fileutil.WriteFileAtomic(path, data, 0o600) // ddmus: the catalog sync reads it concurrently
 }

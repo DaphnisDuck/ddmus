@@ -370,8 +370,8 @@ func TestFrameBorderAndRules(t *testing.T) {
 				t.Errorf("%dx%d: no rule above the key bar:\n%s", size.w, size.h, album)
 			}
 			queue := strings.Join(lines(s["Queue"].m), "\n")
-			if !strings.Contains(queue, "  │  SRC") || !strings.Contains(queue, "──┴──") {
-				t.Errorf("%dx%d: no column divider meeting the rule:\n%s", size.w, size.h, queue)
+			if !strings.Contains(queue, "  │  SRC") || strings.Contains(queue, "┴") {
+				t.Errorf("%dx%d: want the column divider, not joined to the rule:\n%s", size.w, size.h, queue)
 			}
 		}
 	}

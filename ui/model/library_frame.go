@@ -50,15 +50,11 @@ func (m Model) libFrameStyle() lipgloss.Style {
 }
 
 // libSpacerRule is the row between the body and the key bar: a rule with
-// the border, else blank. Below the two columns the divider meets it.
+// the border, else blank. The column divider above it stops short of it,
+// as it does of the headers at its top.
 func (m Model) libSpacerRule() string {
 	if !m.layout.border {
 		return ""
-	}
-	if m.layout.twoColumn {
-		half := strings.Repeat("─", columnGutterWidth/2)
-		return dimStyle.Render(strings.Repeat("─", m.layout.playlistWidth) + half + "┴" + half +
-			strings.Repeat("─", m.layout.settingsWidth))
 	}
 	return dimStyle.Render(strings.Repeat("─", ui.PanelWidth))
 }

@@ -11,7 +11,7 @@ ddmus fills the terminal. On a taller terminal, every list shows more rows. On a
 
 ## Border
 
-A rounded border runs around the screen from 56×16 up; below that it is left out to keep rows for the list. From 80×24 up, a rule also separates the list from the key bar, and a line divides the queue from its settings column, meeting the rule below them. The border takes the place of the frame's outer padding, so it costs no list rows; the queue's rule costs one. To turn it off:
+A rounded border runs around the screen from 56×16 up; below that it is left out to keep rows for the list. From 80×24 up, a rule also separates the list from the key bar, and a line divides the queue from its settings column. The border takes the place of the frame's outer padding, so it costs no list rows; the queue's rule costs one. To turn it off:
 
 ```toml
 [ddmus]

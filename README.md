@@ -27,13 +27,13 @@ The application owns navigation; providers own content and playback. The roadmap
 3. **Unified search** (v0.3): search-as-you-type across Spotify, local files and your radio stations at once, offline, plus an All Music menu that lists every source's albums and artists together.
 4. **More providers**, one per release: **YouTube Music** (v0.4) syncs your playlists and Liked Music, with albums and artists read in the background; Plex, Jellyfin, Navidrome and cliamp's other providers can follow.
 
-v0.6 renames the player: omatunes is now DaphnisDuck's Music Player, `ddmus` for short (omatunes is another player's name). Nothing else changes; to keep your settings and library, move your folders once as shown in [docs/ddmus/files.md](docs/ddmus/files.md#moving-from-omatunes-before-v06). v0.5 was a cleanup release: faster, quieter syncs, sturdier YouTube enrichment, and a keymap that shows only the keys that work.
+v0.7 makes the queue view work under the library: shuffle, repeat, play next, track info, queue editing, lyrics and the sound keys are back, the settings panel's SRC names the playing track's source, and every view lists its keys in a bar at the bottom. v0.6 renamed the player: omatunes is now DaphnisDuck's Music Player, `ddmus` for short (omatunes is another player's name); to keep your settings and library, move your folders once as shown in [docs/ddmus/files.md](docs/ddmus/files.md#moving-from-omatunes-before-v06). v0.5 was a cleanup release: faster, quieter syncs, sturdier YouTube enrichment, and a keymap that shows only the keys that work.
 
 The full plan lives in [plan.md](plan.md).
 
 ## Status
 
-v0.6 is an early release for people comfortable building from source.
+v0.7 is an early release for people comfortable building from source.
 
 - **In the Music hierarchy:** Spotify, YouTube Music, local files and internet radio.
 - **YouTube Music:** your music playlists and Liked Music sync into the catalog (browser cookies or your own Google OAuth client, as in cliamp), and each track's artist, album and year is read in the background, giving YouTube Albums and Artists too. See [docs/ddmus/youtube.md](docs/ddmus/youtube.md).
@@ -41,7 +41,8 @@ v0.6 is an early release for people comfortable building from source.
 - **Search:** `/` from anywhere searches the whole catalog as you type, with operators like `artist:`, `album:` and `source:local`. Enter on a track plays its album from that track, and rows at the end run a source's own live search or a radio-directory search. See [docs/ddmus/search.md](docs/ddmus/search.md).
 - **All Music:** Music → All Music lists albums and artists from Spotify, YouTube Music and Local together, each labelled with its source. Albums sort by title; `o` sorts them by artist.
 - **Hidden for now:** cliamp's other providers (podcasts, non-music YouTube, SoundCloud, Mixcloud, Navidrome, Plex, Jellyfin, Emby, Qobuz, Tidal, and more) are still in the code but have no entry in the menu yet. They come back one per release.
-- **Disabled keys:** most of cliamp's jump keys (provider switching, theme and visualizer pickers, file browser and similar) are turned off while the new navigation settles. `?` or `Ctrl+K` lists the keys that work where you are. See [docs/ddmus/navigation.md](docs/ddmus/navigation.md).
+- **The queue:** `Tab` shows what's playing, with shuffle, repeat, play next, remove and reorder, track info, lyrics, EQ presets, mono and speed. The settings panel's SRC shows where the playing track comes from.
+- **Key bar:** each view lists every key that works there at the bottom, wrapping onto more lines as needed (`Ctrl+G` hides it). Most of cliamp's jump keys (provider switching, theme and visualizer pickers and similar) stay off while the new navigation settles. See [docs/ddmus/navigation.md](docs/ddmus/navigation.md).
 - **Runs alongside cliamp:** ddmus keeps its own config, data and media-key (MPRIS) name, so you can install both. See [docs/ddmus/files.md](docs/ddmus/files.md).
 
 ## Build and install
@@ -98,9 +99,9 @@ ddmus ~/Music/some-album       # load a directory into the queue (Tab shows it)
 | `Space` | Play / pause |
 | `Tab` | Switch between the library and the queue |
 | `q` | Back; quits at Music |
-| `Ctrl+K` | All keybindings |
+| `Ctrl+G` | Hide or show the key bar |
 
-Selecting a track replaces the queue with its album or playlist and starts playing there. The full key list is in [docs/ddmus/navigation.md](docs/ddmus/navigation.md).
+Selecting a track replaces the queue with its album or playlist and starts playing there. The bar at the bottom lists the keys of the view you're in; the full lists, the queue's included, are in [docs/ddmus/navigation.md](docs/ddmus/navigation.md).
 
 ## Configuration
 

@@ -2,9 +2,11 @@ package model
 
 // ddmus: the key table of each library view (Library, Search Results,
 // Library Search, Queue). A view's table lists the library's own keys and
-// the cliamp keys it passes through. The gate (handleLibraryKey), the key
-// bar at the bottom and the keymap overlay's entries are all read from it, so
-// a listed key always works and a key that works is always listed.
+// the cliamp keys it passes through. The gate (handleLibraryKey) passes
+// exactly the table's cliamp keys, and the key bar at the bottom and the
+// keymap overlay's entries render the table, so a cliamp key works in a view
+// if and only if it is listed. The library's own keys are handled in
+// handleLibraryKey's switch; a new one needs its row here too.
 
 import (
 	"slices"
@@ -40,6 +42,7 @@ var (
 	libBackKey    = libKeyHelp{[]string{"esc", "h", "left", "backspace"}, "Esc/h", "Back"}
 	libSearchKey  = libKeyHelp{[]string{"/"}, "/", "Search"}
 	libPauseKey   = libKeyHelp{[]string{"space"}, "Space", "Pause"}
+	libQuitKey    = libKeyHelp{[]string{"q"}, "q", "Quit"}
 	libQueueKey   = libKeyHelp{[]string{"tab"}, "Tab", "Queue"}
 	libOrderKey   = libKeyHelp{[]string{"o"}, "o", "Order"}
 	libRefreshKey = libKeyHelp{[]string{"r"}, "r", "Sync"}
@@ -75,7 +78,7 @@ var (
 	// stay swallowed.
 	libQueuePassKeys = slices.Concat(libMoveKeys, []libKeyHelp{
 		{[]string{"enter"}, "Enter", "Play"},
-		{[]string{"space"}, "Space", "Pause"},
+		libPauseKey,
 		{[]string{"left", "right"}, "←/→", "Seek"},
 		{[]string{"/"}, "/", "Filter"},
 		{[]string{"z"}, "z", "Shuffle"},
@@ -91,7 +94,7 @@ var (
 		{[]string{"i"}, "i", "Info"},
 		{[]string{"y"}, "y", "Lyrics"},
 		{[]string{"ctrl+j"}, "Ctrl+J", "Jump"},
-		{[]string{"q"}, "q", "Quit"},
+		libQuitKey,
 	})
 
 	// The gate's sets, read from the tables.
@@ -99,13 +102,11 @@ var (
 	queuePassthroughKeys   = libKeySet(libQueuePassKeys)
 )
 
-func libKeySet(rows ...[]libKeyHelp) map[string]bool {
+func libKeySet(rows []libKeyHelp) map[string]bool {
 	set := make(map[string]bool)
-	for _, rs := range rows {
-		for _, r := range rs {
-			for _, k := range r.keys {
-				set[k] = true
-			}
+	for _, r := range rows {
+		for _, k := range r.keys {
+			set[k] = true
 		}
 	}
 	return set
@@ -124,7 +125,7 @@ func (m Model) libraryKeyView() libKeyView {
 		return libKeyView{title: "Search Results", own: libResultKeys, pass: libPlayerKeys}
 	}
 	own := slices.Concat(libMoveKeys, []libKeyHelp{libOpenKey})
-	quit := libKeyHelp{[]string{"q"}, "q", "Quit"}
+	quit := libQuitKey
 	if len(m.lib.stack) > 1 {
 		own = append(own, libBackKey)
 		quit.label = "Back"
@@ -217,9 +218,9 @@ func (m *Model) libFitKeyBar(width, body int) int {
 	if !m.libraryOnScreen() {
 		return 0
 	}
-	extra := min(len(m.libKeyBarLines(width))-1, max(0, body-libMinBodyRows))
-	m.lib.barRows = 1 + max(0, extra)
-	return max(0, extra)
+	extra := max(0, min(len(m.libKeyBarLines(width))-1, body-libMinBodyRows))
+	m.lib.barRows = 1 + extra
+	return extra
 }
 
 // libraryKeymapEntries lists the view's keys, for a keymap overlay opened

@@ -154,7 +154,8 @@ func syncAge(d time.Duration) string {
 	}
 }
 
-// libHelpLine is the library view's key bar (library_keymap.go).
+// libHelpLine is the library overlay's help piece. renderTierHelp draws the
+// key bar (library_keymap.go) before reaching it; this keeps the overlay whole.
 func (m *Model) libHelpLine() string {
 	bar, _ := m.libKeyBar(ui.PanelWidth)
 	return bar

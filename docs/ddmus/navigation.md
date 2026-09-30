@@ -38,6 +38,10 @@ Spotify and Local browsing read from a local catalog (`~/.local/share/ddmus/libr
 
 ## Keys
 
+The bar at the bottom of each view lists every key that works there, and only those. It wraps onto more lines when the keys don't fit on one; `Ctrl+G` hides it. A terminal too short for the whole bar keeps at least three rows for the list and shows the bar's first lines.
+
+### Library
+
 | Key | Action |
 |---|---|
 | `j` `k` / `↓` `↑` | Move (wraps) |
@@ -50,16 +54,52 @@ Spotify and Local browsing read from a local catalog (`~/.local/share/ddmus/libr
 | `r` | Sync the source you're browsing now (everything, at Music) |
 | `o` | In an Albums list, switch between sorting by title and by artist |
 | `Space` | Play / pause |
-| `Tab` | Show the queue; `Tab`, `Esc` or `b` returns to the library |
-| `s` `<` `>` `,` `.` `+` `-` `Shift+←` `Shift+→` | Stop, previous/next, volume, seek |
-| `?` `Ctrl+K` | Keymap |
+| `Tab` | Show the queue |
+| `<` `>` (`,` `.`) | Previous / next track |
+| `s` | Stop |
+| `Shift+←` `Shift+→` | Seek by the large step |
+| `+` `-` | Volume |
+| `Ctrl+G` | Hide or show the key bar |
 
 On an error screen, Enter retries. When Spotify needs you to sign in, Enter starts sign-in in your browser and reloads once it finishes.
 
-In the queue view, list navigation, Enter, `/` (filter the queue) and the transport keys work as in cliamp.
+In search results, `/`, `Esc` and `h` return to the query and `q` goes back; while typing, Enter or Tab moves to the results, `Esc` closes search and `Ctrl+U` clears the query. See [search.md](search.md).
+
+### Queue
+
+`Tab` shows the queue (Now Playing): the tracks playing, with the settings panel beside them. `Tab`, `Esc` or `b` returns to the library.
+
+| Key | Action |
+|---|---|
+| `j` `k` / `↓` `↑`, `g` `G`, `PgUp` `PgDn` | Move, as in the library |
+| `Enter` | Play the selected track |
+| `Space` | Play / pause |
+| `←` `→` | Seek 5 seconds; `Shift+←` `Shift+→` seek by the large step |
+| `<` `>` (`,` `.`) | Previous / next track |
+| `s` | Stop |
+| `+` `-` | Volume |
+| `/` | Filter the queue |
+| `z` | Shuffle on / off |
+| `r` | Repeat: off, all, one |
+| `a` | Play the selected track next (again to take it back) |
+| `A` | Up next: the tracks queued with `a` |
+| `x` | Remove the selected track; `Ctrl+Z` undoes it |
+| `Shift+↑` `Shift+↓` | Move the selected track up / down |
+| `e` | Next EQ preset |
+| `m` | Mono on / off |
+| `[` `]` | Speed down / up |
+| `i` | Track info |
+| `y` | Lyrics |
+| `Ctrl+J` | Jump to a time |
+| `q` | Quit |
+| `Ctrl+G` | Hide or show the key bar |
+
+Track info, lyrics, Up next and Jump open over the queue; `Esc` returns to it. `r` means repeat in the queue and sync in the library.
+
+The settings panel shows the queue's settings: **SRC** is the playing track's source (`[Spotify]`, `[YouTube]`, `[Local]`, `[Radio]`), then volume, EQ, shuffle, repeat and speed. It is display only; the keys above change it. For a track the library didn't start (a file or URL given on the command line, the file browser, a provider's own search), SRC shows what the track's path tells, or nothing.
 
 ## Disabled cliamp keys
 
-Keys that jump to other parts of cliamp are disabled, including provider switching (`S`, `R`, `L`, `N`, …), `o`, `u`, `p`, `t`, `v`, `e`, `y` and `w`. They are swallowed by an allowlist in `ui/model/library_nav.go` (`libraryPassthroughKeys`, `queuePassthroughKeys`). To bring one back, add it there.
+Keys that jump to other parts of cliamp are disabled, including provider switching (`S`, `R`, `L`, `N`, …), the pickers (`t`, `v`, `d`), `u`, `p`, `w`, Favorite (`n`), Metadata (`Ctrl+I`, which terminals send as Tab) and the keymap overlay (`?`, `Ctrl+K`). The key bar replaces the overlay; `Ctrl+K` still opens it over cliamp's own screens.
 
-The keymap (`?` or `Ctrl+K`) follows the same allowlist: in the library, the queue and search it lists only the keys that work there (the library's own keys, then the player keys passed through to cliamp), built in `ui/model/library_keymap.go`. A key brought back through the allowlist shows up in the keymap by itself when cliamp's command registry describes it.
+Each view's keys come from one table in `ui/model/library_keymap.go`: the library's own keys, then the cliamp keys it passes through. The gate passes exactly the cliamp keys the table lists, and the key bar shows the same table, so a cliamp key works in a view if and only if its bar lists it. The library's own keys are handled in `handleLibraryKey` (`ui/model/library_nav.go`); a new one needs a row in the table too. To bring a cliamp key back, add a row to the view's table.

@@ -3,7 +3,8 @@ package model
 // ddmus: the library navigation stack (Music → source → concept → item).
 // The library owns the main screen; the playback chrome around it is
 // cliamp's, untouched. Upstream files reach this code only through small
-// "// ddmus:" hooks in handleKey, Update, activeScreen and activeOverlay.
+// "// ddmus:" hooks (handleKey, Update, activeScreen, activeOverlay, the
+// layout, the key bar and the SRC row).
 
 import (
 	"cmp"
@@ -353,6 +354,8 @@ func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool
 		case "/", "esc", "h", "left", "backspace":
 			m.lib.searchInput = true // back to the query
 			return nil, true
+		case "r":
+			return nil, true // sync belongs to the browse views, not results
 		}
 	}
 

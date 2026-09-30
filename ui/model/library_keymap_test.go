@@ -194,10 +194,11 @@ func barHas(plain, label string) bool {
 
 // The bar wraps within the frame, and the frame still fits the terminal.
 func TestLibraryKeyBarFits(t *testing.T) {
+	views := libViews(t)
 	for _, size := range []struct{ w, h int }{{80, 24}, {120, 40}, {56, 16}, {40, 12}} {
-		for name := range libViews(t) {
+		for name, view := range views {
 			t.Run(fmt.Sprintf("%dx%d/%s", size.w, size.h, name), func(t *testing.T) {
-				m := libViews(t)[name]
+				m := libClone(view)
 				m.width, m.height = size.w, size.h
 				m.recomputeLayout()
 				out := m.View().Content
@@ -239,5 +240,19 @@ func TestLibraryViewsHaveNoKeymapOverlay(t *testing.T) {
 	updated, _ := m.Update(keyMsg(t, "ctrl+k"))
 	if !updated.(Model).keymap.visible {
 		t.Error("Ctrl+K over the queue manager did not open the keymap")
+	}
+}
+
+// r syncs only where the bar lists it: not in search results.
+func TestLibrarySyncKeyOnlyWhereListed(t *testing.T) {
+	for name, m := range libViews(t) {
+		synced := 0
+		c := libClone(m)
+		c.lib.refresh = func(string) { synced++ }
+		c.handleLibraryKey(keyMsg(t, "r"))
+		listed := c.libraryKeyView().has("r") && name != "Queue" // the queue's r is repeat
+		if (synced == 1) != listed {
+			t.Errorf("%s: r synced %d times, listed as Sync %v", name, synced, listed)
+		}
 	}
 }

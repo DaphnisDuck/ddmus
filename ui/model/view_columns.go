@@ -220,6 +220,9 @@ func (m Model) settingsVolume(w int) string {
 // settingsSource renders the active provider, or "" when there is only one
 // source to pick from and the row would say nothing.
 func (m Model) settingsSource(w int) string {
+	if m.libraryEnabled() { // ddmus: the playing track's source (library_source.go)
+		return m.libSourceRow(w)
+	}
 	if len(m.providers) <= 1 {
 		return ""
 	}

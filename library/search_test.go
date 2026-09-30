@@ -333,3 +333,33 @@ func TestPartialAlbums(t *testing.T) {
 		t.Errorf("searched track plays %v from %d, want its known album from it", got, i)
 	}
 }
+
+// Rows record their source where it is decided: a source's root entry, and
+// each row of a list that mixes sources.
+func TestRowsCarryTheirSource(t *testing.T) {
+	cat, sp, search := newSearchFixture(t)
+	var got []string
+	for _, e := range searchFor(t, search, "holst") {
+		got = append(got, e.Title+"="+e.Source)
+	}
+	want := []string{"Ozawa=spotify", "Holst=local", "Cached=spotify", "The Planets=local", "Venus=local",
+		"Mine=spotify", "WBGO=radio", "Search Spotify for “holst”=", "Search the radio directory for “holst”=radio"}
+	if !slices.Equal(got, want) {
+		t.Errorf("search sources = %v, want %v", got, want)
+	}
+
+	root := Root(Sources{Spotify: sp, Local: &fakeProvider{name: "Local"}, Radio: &fakeProvider{name: "Radio"},
+		MusicDir: "/m", Catalog: cat, Synced: spotifySynced(sp)})
+	got = nil
+	for _, e := range load(t, root) {
+		got = append(got, e.Title+"="+e.Source)
+	}
+	if want := []string{"All Music=", "Spotify=spotify", "Local=local", "Radio=radio", "Search="}; !slices.Equal(got, want) {
+		t.Errorf("root sources = %v, want %v", got, want)
+	}
+	for _, e := range load(t, child(t, child(t, root, "All Music"), "Albums")) {
+		if e.Source == "" {
+			t.Errorf("All Music album %q has no source", e.Title)
+		}
+	}
+}

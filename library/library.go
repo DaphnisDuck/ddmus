@@ -90,6 +90,11 @@ type Entry struct {
 	Provider playlist.Provider
 	// Query is the text an IntentSearch row searches for.
 	Query string
+	// Source is the catalog provider (catalog.Spotify, catalog.Radio, …)
+	// whose content the row holds. Rows beneath inherit it, so it is set
+	// only where the source is decided: a source's menu entry, and the rows
+	// of lists that mix sources (All Music, search).
+	Source string
 }
 
 // Tracks returns the tracks of the Track entries in entries, in order, and the

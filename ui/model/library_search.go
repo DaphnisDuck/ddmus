@@ -71,7 +71,7 @@ func (m *Model) libraryOpenSearch(sl library.SearchLevel) tea.Cmd {
 		m.lib.stack = append(m.lib.stack, libFrame{level: level})
 		return nil
 	}
-	return m.libraryPush(level)
+	return m.libraryPush(level, "") // search mixes sources; each row names its own
 }
 
 // handleLibrarySearchInput edits the query while the input has focus.
@@ -137,7 +137,7 @@ func (m *Model) handleLibrarySearchTick(msg librarySearchTickMsg) tea.Cmd {
 
 // libraryPlayFrom plays what a row's PlayFrom resolves (a searched track's
 // album), from the index it names.
-func (m *Model) libraryPlayFrom(e library.Entry) tea.Cmd {
+func (m *Model) libraryPlayFrom(e library.Entry, source string) tea.Cmd {
 	gen := nextRequest(&m.lib.gen)
 	m.lib.playGen = gen
 	playFrom, title := e.PlayFrom, e.Title
@@ -145,7 +145,7 @@ func (m *Model) libraryPlayFrom(e library.Entry) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
 		defer cancel()
 		tracks, index, err := playFrom(ctx)
-		return libraryPlayMsg{gen: gen, title: title, tracks: tracks, index: index, err: err}
+		return libraryPlayMsg{gen: gen, title: title, source: source, tracks: tracks, index: index, err: err}
 	}
 }
 

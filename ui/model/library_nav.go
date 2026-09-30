@@ -6,6 +6,7 @@ package model
 // "// ddmus:" hooks in handleKey, Update, activeScreen and activeOverlay.
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"time"
@@ -125,6 +126,9 @@ type libFrame struct {
 	// stale marks a catalog level below the top whose provider synced since
 	// it loaded; it reloads when it becomes the top again.
 	stale bool
+	// source is the catalog provider of the level's content, from the row
+	// that opened it (or its frame); "" where sources mix.
+	source string
 }
 
 func (f *libFrame) loading() bool { return f.cancel != nil }
@@ -138,6 +142,7 @@ type libraryLoadedMsg struct {
 type libraryPlayMsg struct {
 	gen    uint64
 	title  string
+	source string
 	tracks []playlist.Track
 	index  int // the track to start at
 	err    error
@@ -195,8 +200,8 @@ func (m Model) libraryVisible() bool { return m.libraryEnabled() && m.lib.visibl
 
 func (m *Model) libTop() *libFrame { return &m.lib.stack[len(m.lib.stack)-1] }
 
-func (m *Model) libraryPush(level library.Level) tea.Cmd {
-	m.lib.stack = append(m.lib.stack, libFrame{level: level})
+func (m *Model) libraryPush(level library.Level, source string) tea.Cmd {
+	m.lib.stack = append(m.lib.stack, libFrame{level: level, source: source})
 	return m.libraryLoad()
 }
 
@@ -329,7 +334,7 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 			m.status.Warningf(statusTTLDefault, "%s: nothing to play", msg.title)
 			return nil, true
 		}
-		return m.libraryPlayTracks(msg.tracks, min(max(msg.index, 0), len(msg.tracks)-1)), true
+		return m.libraryPlayTracks(msg.tracks, min(max(msg.index, 0), len(msg.tracks)-1), msg.source), true
 
 	case librarySearchTickMsg:
 		return m.handleLibrarySearchTick(msg), true
@@ -460,17 +465,18 @@ func (m *Model) libraryActivate() tea.Cmd {
 		return nil
 	}
 	e := f.entries[f.cursor]
+	source := cmp.Or(e.Source, f.source)
 	switch {
 	case e.Open != nil:
 		if sl, ok := e.Open.(library.SearchLevel); ok {
 			return m.libraryOpenSearch(sl)
 		}
-		return m.libraryPush(e.Open)
+		return m.libraryPush(e.Open, source)
 	case e.Track != nil && e.PlayFrom != nil:
-		return m.libraryPlayFrom(e)
+		return m.libraryPlayFrom(e, source)
 	case e.Track != nil:
 		tracks, at := library.Tracks(f.entries, f.cursor)
-		return m.libraryPlayTracks(tracks, at)
+		return m.libraryPlayTracks(tracks, at, source)
 	case e.Play != nil:
 		gen := nextRequest(&m.lib.gen)
 		m.lib.playGen = gen
@@ -480,7 +486,7 @@ func (m *Model) libraryActivate() tea.Cmd {
 			ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
 			defer cancel()
 			tracks, err := play(ctx)
-			return libraryPlayMsg{gen: gen, title: title, tracks: tracks, err: err}
+			return libraryPlayMsg{gen: gen, title: title, source: source, tracks: tracks, err: err}
 		}
 	case e.Intent == library.IntentFolders:
 		m.openFileBrowser()
@@ -516,11 +522,12 @@ func (m *Model) librarySignIn() tea.Cmd {
 
 // libraryPlayTracks replaces the queue with tracks and plays tracks[index],
 // the way an album or playlist plays in a library player. The library stays
-// on screen; Tab shows the queue.
-func (m *Model) libraryPlayTracks(tracks []playlist.Track, index int) tea.Cmd {
+// on screen; Tab shows the queue. Each track records source for SRC.
+func (m *Model) libraryPlayTracks(tracks []playlist.Track, index int, source string) tea.Cmd {
 	if index < 0 || index >= len(tracks) {
 		return nil
 	}
+	tracks = withLibrarySource(tracks, source)
 	m.player.Stop()
 	m.player.ClearPreload()
 	m.preloading = false

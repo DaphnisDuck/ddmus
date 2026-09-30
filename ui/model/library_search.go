@@ -113,7 +113,8 @@ func (m *Model) handleLibrarySearchInput(msg tea.KeyPressMsg, sl library.SearchL
 	f.gen = nextRequest(&m.lib.gen) // drops a load of the old query
 	if query == "" {
 		m.lib.searchPending = false
-		f.entries, f.err, f.cursor, f.scroll = nil, nil, 0, 0
+		f.err, f.cursor, f.scroll = nil, 0, 0
+		f.setEntries(nil)
 		return nil
 	}
 	m.lib.searchPending = true

@@ -27,6 +27,10 @@ type libraryState struct {
 	visible bool
 	stack   []libFrame
 	gen     uint64 // request generation shared by loads, plays and sign-ins
+	// fits caches the queue's and Up next's row columns (library_rows.go).
+	fits *libFits
+	// border draws the frame's border and rules (library_frame.go).
+	border bool
 
 	playGen   uint64
 	authGen   uint64
@@ -133,6 +137,11 @@ type libFrame struct {
 	// source is the catalog provider of the level's content, from the row
 	// that opened it (or its frame); "" where sources mix.
 	source string
+	// needs is each row's width, and column the list's detail column
+	// (setEntries, library_layout.go).
+	needs    []int
+	column   int
+	titleCol int // the title column of rows with a detail, on a wide terminal
 }
 
 func (f *libFrame) loading() bool { return f.cancel != nil }
@@ -161,7 +170,8 @@ type libraryAuthDoneMsg struct {
 // load without I/O (a static menu), because Init cannot issue its load.
 func (m *Model) SetLibrary(root library.Level) {
 	entries, err := root.Load(context.Background())
-	m.lib = libraryState{visible: true, stack: []libFrame{{level: root, entries: entries, err: err}}}
+	m.lib = libraryState{visible: true, stack: []libFrame{{level: root, err: err}}, fits: &libFits{}}
+	m.lib.stack[0].setEntries(entries)
 	m.focus = focusPlaylist
 }
 
@@ -271,7 +281,7 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 		f.cancel = nil
 		f.err = msg.err
 		if msg.err == nil {
-			f.entries = msg.entries
+			f.setEntries(msg.entries)
 			f.cursor = min(f.cursor, max(len(f.entries)-1, 0))
 			if f.keepID != "" {
 				for i, e := range f.entries {

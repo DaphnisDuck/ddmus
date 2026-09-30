@@ -37,7 +37,7 @@ func (m Model) renderBodyRegion() string {
 
 	joined := make([]string, rows)
 	for i := range joined {
-		joined[i] = left[i] + columnGutter + right[i]
+		joined[i] = left[i] + m.libColumnGutter() + right[i] // ddmus: a divider with the border (library_frame.go)
 	}
 	return strings.Join(joined, "\n")
 }
@@ -61,7 +61,7 @@ func (m Model) renderColumnHeaders() string {
 	// against their own column width, and the settings separator is re-fitted
 	// either way. The queue's header arrives here when it is toggled on.
 	return fillSeparator(m.renderPlaylistHeader(), m.layout.playlistWidth) +
-		columnGutter +
+		m.libColumnGutter() + // ddmus: a divider with the border (library_frame.go)
 		fillSeparator(sepHeader("Settings"), m.layout.settingsWidth)
 }
 

@@ -89,6 +89,67 @@ func (s *Store) PlaylistSnapshots(ctx context.Context, provider string) (map[str
 	return out, nil
 }
 
+// CollectionStates implements catalog.Writer.
+func (s *Store) CollectionStates(ctx context.Context, provider string) (map[string]catalog.CollectionState, error) {
+	out := map[string]catalog.CollectionState{}
+	rows, err := s.wdb.QueryContext(ctx, `SELECT collection, last_applied_at, source_version FROM sync_state
+		WHERE provider = ?`, provider)
+	if err != nil {
+		return nil, fmt.Errorf("collection states %s: %w", provider, err)
+	}
+	for rows.Next() {
+		var collection string
+		var applied sql.NullInt64
+		var st catalog.CollectionState
+		if err := rows.Scan(&collection, &applied, &st.Version); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("collection states %s: %w", provider, err)
+		}
+		if applied.Valid {
+			st.AppliedAt = time.UnixMilli(applied.Int64)
+		}
+		out[collection] = st
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("collection states %s: %w", provider, err)
+	}
+	// Each collection's count, and the provider IDs of its newest members.
+	rows, err = s.wdb.QueryContext(ctx, `WITH m AS (
+			SELECT collection, count(*) AS n, max(added_at) AS newest FROM library_items
+			WHERE provider = ? GROUP BY collection)
+		SELECT m.collection, m.n, m.newest,
+			COALESCE(al.provider_id, ar.provider_id, t.provider_id, p.provider_id)
+		FROM m JOIN library_items li ON li.provider = ? AND li.collection = m.collection AND li.added_at = m.newest
+		LEFT JOIN albums al ON li.kind = 'album' AND al.id = li.item_id
+		LEFT JOIN artists ar ON li.kind = 'artist' AND ar.id = li.item_id
+		LEFT JOIN tracks t ON li.kind = 'track' AND t.id = li.item_id
+		LEFT JOIN playlists p ON li.kind = 'playlist' AND p.id = li.item_id`, provider, provider)
+	if err != nil {
+		return nil, fmt.Errorf("collection states %s: %w", provider, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var collection string
+		var n int
+		var newest int64
+		var id sql.NullString
+		if err := rows.Scan(&collection, &n, &newest, &id); err != nil {
+			return nil, fmt.Errorf("collection states %s: %w", provider, err)
+		}
+		st := out[collection]
+		st.Count, st.NewestAt = n, time.UnixMilli(newest)
+		if id.Valid {
+			st.Newest = append(st.Newest, id.String)
+		}
+		out[collection] = st
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("collection states %s: %w", provider, err)
+	}
+	return out, nil
+}
+
 // CacheAlbumTracks implements catalogsync.AlbumStore. It writes an album's
 // complete track list and marks the album cached, in one transaction. The
 // album must already be in the catalog; the tracks are attached to it
@@ -288,8 +349,9 @@ func (w *snapWriter) apply() error {
 		w.snap.Provider, w.snap.Collection, w.gen); err != nil {
 		return fmt.Errorf("reconcile: %w", err)
 	}
-	if err := w.exec(`UPDATE sync_state SET last_attempt_at = ?, last_success_at = ?, last_error = ''
-		WHERE provider = ? AND collection = ?`, w.now, w.now, w.snap.Provider, w.snap.Collection); err != nil {
+	if err := w.exec(`UPDATE sync_state SET last_attempt_at = ?, last_success_at = ?, last_applied_at = ?,
+			source_version = ?, last_error = ''
+		WHERE provider = ? AND collection = ?`, w.now, w.now, w.now, w.snap.Version, w.snap.Provider, w.snap.Collection); err != nil {
 		return fmt.Errorf("record success: %w", err)
 	}
 	return nil

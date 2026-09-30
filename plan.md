@@ -469,7 +469,15 @@ Not taken: `ensureSession` ignoring the sync context (upstream code); a same-tot
   - Real first local index (opt-in `TestIndexRealLibrary`, `OMATUNES_BENCH_MUSIC`, 26,406 files, warm cache): write 8.2 s → 4.7 s, total 10.9 s → 7.4 s, just over the 7 s target. What is left is inserts and FTS index building; a 64 MB page cache gained only 0.1 s and was not kept.
   - Per-playlist transactions were not built: the 6,000-track playlists collection now holds the writer 0.39 s (was 1.67 s), and UI reads never wait on it.
   - Test: `TestUnchangedSyncRewritesNothing` (temp triggers record every update and delete; mutation-checked). Verified live on a scratch catalog: a forced sync of YouTube, Local and Radio kept every count, with nothing in the log.
-  - Next: M5.4. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists.
+- [x] M5.4 Sync correctness:
+  - `spotify.StatusError` (fork file `status_error.go`) replaces upstream's `"http status …"` errors in `webAPIWithBody` (one tagged line, same message) and in `webAPIOnce`. `unreadable` matches the code through `errors.As`.
+  - Migration 005: `sync_state.last_applied_at` and `source_version`. `catalog.CollectionState` (count, newest `added_at` and its IDs, last full read, version) comes from `Store.CollectionStates` into `Known.Collections`. `catalog.CollectionHead` and `CollectionState.Matches` implement the total-plus-newest rule.
+  - `spotifysrc` asks `SavedAlbumsHead`/`LikedTracksHead` (one `limit=1` request) and returns ErrUnchanged when the head matches and the last full read is under a day old (`fullReadEvery`). A failed head read falls through to the full read.
+  - `localsrc.indexerVersion` (1): a stored version that differs regroups every file once from stored tags (a rule needing unstored tags must also force a reread). `Snapshot.Version` is stored on apply.
+  - `TestSearchMigrationBackfills` now seeds its v1 catalog with v1 SQL, since today's writer needs v5 columns.
+  - Docs: catalog.md explains the head check.
+  - Live (scratch catalog): the upgrade regrouped Local once from stored tags with identical counts, and the next start was unchanged. The Spotify head check was not verified live (the account was still rate-limited); it is covered by `TestSavedCollectionsSkipUnchanged` and the real request path shared with `webAPI`.
+  - Next: M5.5. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists.
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.

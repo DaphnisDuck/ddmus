@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/bjarneo/cliamp/applog"
 	"github.com/bjarneo/cliamp/catalog"
@@ -32,11 +33,21 @@ type Client interface {
 	// a *catalog.RateLimitError instead.
 	AlbumTrackRecords(ctx context.Context, albumID string) ([]catalog.TrackRecord, error)
 	AlbumTrackRecordsOnce(ctx context.Context, albumID string) ([]catalog.TrackRecord, error)
+	// SavedAlbumsHead and LikedTracksHead read a collection's count and
+	// newest item in one request.
+	SavedAlbumsHead(ctx context.Context) (catalog.CollectionHead, error)
+	LikedTracksHead(ctx context.Context) (catalog.CollectionHead, error)
 }
+
+// fullReadEvery is how long saved albums and liked tracks may go on being
+// found unchanged by their head alone before they are read in full again,
+// so changed titles or artwork of stored items still land.
+const fullReadEvery = 24 * time.Hour
 
 // Source syncs one Spotify account.
 type Source struct {
 	client Client
+	now    func() time.Time // replaced in tests
 }
 
 var (
@@ -45,7 +56,7 @@ var (
 )
 
 // New returns a Source reading through client.
-func New(client Client) *Source { return &Source{client: client} }
+func New(client Client) *Source { return &Source{client: client, now: time.Now} }
 
 // Provider implements catalogsync.Source.
 func (*Source) Provider() string { return catalog.Spotify }
@@ -60,10 +71,16 @@ func (s *Source) Fetch(ctx context.Context, collection string, known catalogsync
 	var err error
 	switch collection {
 	case Albums:
+		if s.unchanged(ctx, s.client.SavedAlbumsHead, known.Collections[Albums]) {
+			return catalog.Snapshot{}, catalogsync.ErrUnchanged
+		}
 		snap.Albums, err = s.client.SavedAlbumRecords(ctx)
 	case Artists:
 		snap.Artists, err = s.client.FollowedArtistRecords(ctx)
 	case Liked:
+		if s.unchanged(ctx, s.client.LikedTracksHead, known.Collections[Liked]) {
+			return catalog.Snapshot{}, catalogsync.ErrUnchanged
+		}
 		snap.Tracks, err = s.client.LikedTrackRecords(ctx)
 	case Playlists:
 		snap.Playlists, err = s.playlists(ctx, known.PlaylistSnapshots)
@@ -74,6 +91,17 @@ func (s *Source) Fetch(ctx context.Context, collection string, known catalogsync
 		return catalog.Snapshot{}, err
 	}
 	return snap, nil
+}
+
+// unchanged reports whether a collection read in full within fullReadEvery
+// still matches its head, so the full read can be skipped. A failed head
+// read answers no: the full read then reports what went wrong.
+func (s *Source) unchanged(ctx context.Context, head func(context.Context) (catalog.CollectionHead, error), stored catalog.CollectionState) bool {
+	if stored.AppliedAt.IsZero() || s.now().Sub(stored.AppliedAt) >= fullReadEvery {
+		return false
+	}
+	h, err := head(ctx)
+	return err == nil && stored.Matches(h)
 }
 
 // playlists lists the library playlists and fetches tracks only for those

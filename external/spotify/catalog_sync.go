@@ -18,7 +18,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/bjarneo/cliamp/catalog"
@@ -89,6 +88,51 @@ func (p *SpotifyProvider) SavedAlbumRecords(ctx context.Context) ([]catalog.Albu
 	return pageRecords(ctx, p, p.webAPI, "/v1/me/albums", nil, func(e savedEntry) (catalog.AlbumRecord, bool) {
 		return albumRecord(e.Album, e.AddedAt)
 	})
+}
+
+// SavedAlbumsHead returns the saved albums' count and newest album, in
+// one request.
+func (p *SpotifyProvider) SavedAlbumsHead(ctx context.Context) (catalog.CollectionHead, error) {
+	return p.collectionHead(ctx, "/v1/me/albums", func(e savedEntry) (string, bool) {
+		r, ok := albumRecord(e.Album, e.AddedAt)
+		return r.Ref.ProviderID, ok
+	})
+}
+
+// LikedTracksHead returns the liked tracks' count and newest track, in one
+// request.
+func (p *SpotifyProvider) LikedTracksHead(ctx context.Context) (catalog.CollectionHead, error) {
+	return p.collectionHead(ctx, "/v1/me/tracks", func(e savedEntry) (string, bool) {
+		r, ok := trackRecord(e.track(), e.AddedAt)
+		return r.Ref.ProviderID, ok
+	})
+}
+
+// collectionHead reads the first item of a saved collection, which Spotify
+// lists newest first, with its total. An item the sync would skip (a local
+// file, say) leaves NewestID empty, so the head matches nothing stored.
+func (p *SpotifyProvider) collectionHead(ctx context.Context, path string, id func(savedEntry) (string, bool)) (catalog.CollectionHead, error) {
+	if err := p.ensureWebAPI(); err != nil {
+		return catalog.CollectionHead{}, err
+	}
+	resp, err := p.webAPI(ctx, "GET", path, url.Values{"limit": {"1"}})
+	if err != nil {
+		return catalog.CollectionHead{}, fmt.Errorf("spotify: %s: %w", path, unreadable(err))
+	}
+	var page struct {
+		Items []savedEntry `json:"items"`
+		Total int          `json:"total"`
+	}
+	if err := decodeBody(resp, &page); err != nil {
+		return catalog.CollectionHead{}, fmt.Errorf("spotify: parse %s: %w", path, err)
+	}
+	head := catalog.CollectionHead{Total: page.Total}
+	if len(page.Items) > 0 {
+		if newest, ok := id(page.Items[0]); ok {
+			head.NewestID, head.NewestAt = newest, parseAdded(page.Items[0].AddedAt)
+		}
+	}
+	return head, nil
 }
 
 // LikedTrackRecords returns every liked track with its album and artists.
@@ -228,8 +272,8 @@ func (p *SpotifyProvider) albumTrackRecords(ctx context.Context, get webGetter, 
 type webGetter func(ctx context.Context, method, path string, query url.Values) (*http.Response, error)
 
 // webAPIOnce is webAPI without the 429 retries: a rate limit returns a
-// *catalog.RateLimitError carrying Spotify's Retry-After. Other failures
-// read as webAPI's do ("http status …"), so unreadable still matches them.
+// *catalog.RateLimitError carrying Spotify's Retry-After. Other statuses
+// are a *StatusError, as webAPI's are.
 func (p *SpotifyProvider) webAPIOnce(ctx context.Context, method, path string, query url.Values) (*http.Response, error) {
 	p.mu.Lock()
 	sess := p.session
@@ -252,8 +296,8 @@ func (p *SpotifyProvider) webAPIOnce(ctx context.Context, method, path string, q
 		}
 		return nil, rl
 	}
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-	return nil, fmt.Errorf("http status %s: %s", resp.Status, body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 512))
+	return nil, statusError(resp.StatusCode, resp.Status, body, err)
 }
 
 // pageRecords GETs path through get with offset paging and maps each item
@@ -309,11 +353,10 @@ func pageRecords[T, R any](ctx context.Context, p *SpotifyProvider, get webGette
 
 // unreadable marks 403 and 404 as catalog.ErrForbidden: Development Mode
 // apps may list followed playlists but not read their items, and removed or
-// editorial playlists can 404. The status text comes from webAPIWithBody;
-// TestPlaylistRecordsAndForbiddenItems pins the match through it.
+// editorial playlists can 404.
 func unreadable(err error) error {
-	msg := err.Error()
-	if strings.Contains(msg, "http status 403") || strings.Contains(msg, "http status 404") {
+	var se *StatusError
+	if errors.As(err, &se) && (se.Code == http.StatusForbidden || se.Code == http.StatusNotFound) {
 		return fmt.Errorf("%w: %w", catalog.ErrForbidden, err)
 	}
 	return err

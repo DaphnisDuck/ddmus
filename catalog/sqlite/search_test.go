@@ -294,9 +294,9 @@ func TestSearchMigrationBackfills(t *testing.T) {
 	if err := migrate(context.Background(), v1, fstest.MapFS{"migrations/001_initial.sql": {Data: first}}); err != nil {
 		t.Fatal(err)
 	}
-	old := &Store{db: v1, wdb: v1}
-	if err := old.ApplySnapshot(context.Background(), catalog.Snapshot{Provider: catalog.Spotify, Collection: "albums",
-		Albums: []catalog.AlbumRecord{{Ref: sref("a"), Title: "Kind of Blue"}}}); err != nil {
+	// Written as a v1 writer would: today's writer needs later columns.
+	if _, err := v1.Exec(`INSERT INTO albums (provider, provider_id, title, sort_title, updated_at)
+		VALUES ('spotify', 'a', 'Kind of Blue', 'kind of blue', 0)`); err != nil {
 		t.Fatal(err)
 	}
 	v1.Close()

@@ -21,6 +21,9 @@ type Snapshot struct {
 	// Files marks a local index: Tracks are every indexed file, so the
 	// stored file index is reconciled to their File records.
 	Files bool
+	// Version is the version of the source's own rules that built the
+	// snapshot, stored with the collection (see CollectionState.Version).
+	Version int
 }
 
 // ArtistRecord is an artist as a provider describes it.
@@ -132,4 +135,7 @@ type Writer interface {
 	// PlaylistSnapshots returns the stored change marker of each of
 	// provider's playlists, keyed by provider ID.
 	PlaylistSnapshots(ctx context.Context, provider string) (map[string]string, error)
+	// CollectionStates returns what is stored of each of provider's synced
+	// collections, keyed by collection.
+	CollectionStates(ctx context.Context, provider string) (map[string]CollectionState, error)
 }

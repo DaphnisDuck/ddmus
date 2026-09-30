@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/catalog/sqlite"
@@ -24,16 +25,37 @@ type fakeClient struct {
 	itemErr     map[string]error
 	itemFetches []string
 	albumCalls  []string
+	reads       []string // full reads and head reads of albums and liked
 }
 
 func (f *fakeClient) SavedAlbumRecords(context.Context) ([]catalog.AlbumRecord, error) {
+	f.reads = append(f.reads, "albums")
 	return f.albums, nil
 }
 func (f *fakeClient) FollowedArtistRecords(context.Context) ([]catalog.ArtistRecord, error) {
 	return f.artists, nil
 }
 func (f *fakeClient) LikedTrackRecords(context.Context) ([]catalog.TrackRecord, error) {
+	f.reads = append(f.reads, "liked")
 	return f.liked, nil
+}
+
+// The heads describe the lists as given, newest first.
+func (f *fakeClient) SavedAlbumsHead(context.Context) (catalog.CollectionHead, error) {
+	f.reads = append(f.reads, "albums head")
+	h := catalog.CollectionHead{Total: len(f.albums)}
+	if len(f.albums) > 0 {
+		h.NewestID, h.NewestAt = f.albums[0].Ref.ProviderID, f.albums[0].AddedAt
+	}
+	return h, nil
+}
+func (f *fakeClient) LikedTracksHead(context.Context) (catalog.CollectionHead, error) {
+	f.reads = append(f.reads, "liked head")
+	h := catalog.CollectionHead{Total: len(f.liked)}
+	if len(f.liked) > 0 {
+		h.NewestID, h.NewestAt = f.liked[0].Ref.ProviderID, f.liked[0].AddedAt
+	}
+	return h, nil
 }
 func (f *fakeClient) PlaylistRecords(context.Context) ([]catalog.PlaylistRecord, error) {
 	// Return a copy: the source fills in tracks.
@@ -175,5 +197,69 @@ func TestAlbumTracksRouteByProviderID(t *testing.T) {
 	}
 	if want := []string{"retry:al1", "once:al2"}; !slices.Equal(client.albumCalls, want) {
 		t.Errorf("calls = %v, want %v", client.albumCalls, want)
+	}
+}
+
+// Saved albums and liked tracks are read in full only when their head
+// changed, or a day after the last full read.
+func TestSavedCollectionsSkipUnchanged(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	day := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	album := func(id string, added time.Time) catalog.AlbumRecord {
+		return catalog.AlbumRecord{Ref: ref(id), Title: id, AddedAt: added}
+	}
+	liked := func(id string, added time.Time) catalog.TrackRecord {
+		tr := track(id)
+		tr.AddedAt = added
+		return tr
+	}
+	client := &fakeClient{
+		albums: []catalog.AlbumRecord{album("a2", day.Add(time.Hour)), album("a1", day)},
+		liked:  []catalog.TrackRecord{liked("t2", day.Add(time.Hour)), liked("t1", day)},
+	}
+	src := New(client)
+	now := day.Add(48 * time.Hour)
+	src.now = func() time.Time { return now }
+	eng := catalogsync.New(store, nil, src)
+	sync := func() []string {
+		t.Helper()
+		client.reads = nil
+		if err := eng.Sync(ctx, catalog.Spotify); err != nil {
+			t.Fatal(err)
+		}
+		return client.reads
+	}
+
+	// Never read in full: no head check.
+	if got := sync(); !slices.Equal(got, []string{"albums", "liked"}) {
+		t.Errorf("first sync read %q", got)
+	}
+	// Written just now (the store stamps the real time): heads match.
+	now = time.Now()
+	if got := sync(); !slices.Equal(got, []string{"albums head", "liked head"}) {
+		t.Errorf("unchanged sync read %q", got)
+	}
+	// A new album moves the newest: albums are read in full.
+	client.albums = append([]catalog.AlbumRecord{album("a3", day.Add(2*time.Hour))}, client.albums...)
+	if got := sync(); !slices.Equal(got, []string{"albums head", "albums", "liked head"}) {
+		t.Errorf("after adding an album read %q", got)
+	}
+	// A removed liked track changes the count.
+	client.liked = client.liked[:1]
+	if got := sync(); !slices.Equal(got, []string{"albums head", "liked head", "liked"}) {
+		t.Errorf("after unliking read %q", got)
+	}
+	if tracks, _ := store.LikedTracks(ctx, catalog.Spotify); len(tracks) != 1 {
+		t.Errorf("liked = %d tracks, want 1", len(tracks))
+	}
+	// A day on, both are read in full again.
+	now = now.Add(fullReadEvery + time.Minute)
+	if got := sync(); !slices.Equal(got, []string{"albums", "liked"}) {
+		t.Errorf("a day later read %q", got)
 	}
 }

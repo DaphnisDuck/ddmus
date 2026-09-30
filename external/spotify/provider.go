@@ -841,10 +841,7 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 		if !ok {
 			respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
 			resp.Body.Close()
-			if readErr != nil {
-				return nil, fmt.Errorf("http status %s (failed to read body: %v)", resp.Status, readErr)
-			}
-			return nil, fmt.Errorf("http status %s: %s", resp.Status, string(respBody))
+			return nil, statusError(resp.StatusCode, resp.Status, respBody, readErr) // omatunes: typed, same message
 		}
 		return resp, nil
 	}

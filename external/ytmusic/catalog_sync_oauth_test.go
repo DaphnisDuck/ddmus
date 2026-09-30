@@ -6,14 +6,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
 
@@ -215,5 +218,26 @@ func TestOAuthPlaylistRecord(t *testing.T) {
 	}
 	if _, err := c.PlaylistRecord(context.Background(), "PLmissing"); !errors.Is(err, catalog.ErrForbidden) {
 		t.Errorf("missing = %v, want ErrForbidden", err)
+	}
+}
+
+// Only a refused grant or client asks for signing in again; being offline
+// keeps its cause.
+func TestSignInError(t *testing.T) {
+	offline := &url.Error{Op: "Post", URL: "https://oauth2.googleapis.com/token", Err: errors.New("dial tcp: network is unreachable")}
+	tests := []struct {
+		err       error
+		needsAuth bool
+	}{
+		{fmt.Errorf("ytmusic: silent refresh: %w", &oauth2.RetrieveError{ErrorCode: "invalid_grant"}), true},
+		{&oauth2.RetrieveError{ErrorCode: "unauthorized_client"}, true},
+		{&oauth2.RetrieveError{ErrorCode: "temporarily_unavailable"}, false},
+		{fmt.Errorf("ytmusic: silent refresh: %w", offline), false},
+	}
+	for _, tt := range tests {
+		got := signInError(tt.err)
+		if errors.Is(got, playlist.ErrNeedsAuth) != tt.needsAuth || !errors.Is(got, tt.err) {
+			t.Errorf("signInError(%v) = %v, want needs auth %v", tt.err, got, tt.needsAuth)
+		}
 	}
 }

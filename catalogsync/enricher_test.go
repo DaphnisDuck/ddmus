@@ -3,6 +3,7 @@ package catalogsync
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -107,38 +108,122 @@ func TestEnricherSkipsEmptyRefresh(t *testing.T) {
 	}
 }
 
+// addTracks adds liked videos, newer than those already stored.
+func addTracks(t *testing.T, store *sqlite.Store, videos ...string) {
+	t.Helper()
+	snap := catalog.Snapshot{Provider: catalog.YouTube, Collection: "more" + videos[0]}
+	for _, v := range videos {
+		snap.Tracks = append(snap.Tracks, catalog.TrackRecord{Ref: catalog.Ref{Provider: catalog.YouTube, ProviderID: v},
+			Title: "video " + v, PlayableURI: "https://music.youtube.com/watch?v=" + v})
+	}
+	if err := store.ApplySnapshot(context.Background(), snap); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func unenriched(t *testing.T, store *sqlite.Store) []string {
+	t.Helper()
+	left, err := store.UnenrichedTracks(context.Background(), catalog.YouTube, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, tr := range left {
+		out = append(out, tr.Ref.ProviderID)
+	}
+	return out
+}
+
 // A track that keeps failing is skipped, so the tracks after it are still
-// enriched, and after enrichGiveUpRuns failed runs it is marked read.
+// enriched. Each run that read another track counts against it; after
+// enrichGiveUpRuns of them it is marked read.
 func TestEnricherSkipsABadTrack(t *testing.T) {
 	store, src, e, _, _ := enricherSetup(t, "v1", "v2", "v3")
 	bad := errors.New("yt-dlp: some new refusal")
-	for range enrichGiveUpRuns * enrichAttempts {
+	for range 10 {
 		src.errs["v2"] = append(src.errs["v2"], bad)
 	}
 	ctx := context.Background()
 	for run := 1; run <= enrichGiveUpRuns; run++ {
+		if run > 1 {
+			addTracks(t, store, fmt.Sprintf("new%d", run)) // read before v2
+		}
 		if err := e.Run(ctx); !errors.Is(err, bad) {
 			t.Fatalf("run %d: %v, want the skipped track's error", run, err)
 		}
-		left, _ := store.UnenrichedTracks(ctx, catalog.YouTube, 10)
 		want := []string{"v2"}
 		if run == enrichGiveUpRuns {
 			want = nil // marked read
 		}
-		var got []string
-		for _, tr := range left {
-			got = append(got, tr.Ref.ProviderID)
-		}
-		if !slices.Equal(got, want) {
+		if got := unenriched(t, store); !slices.Equal(got, want) {
 			t.Fatalf("run %d: unenriched %v, want %v", run, got, want)
 		}
 	}
 	if err := e.Run(ctx); err != nil {
 		t.Errorf("after giving up: %v", err)
 	}
-	if !slices.Contains(src.reads, "v1") || len(src.errs["v2"]) != 0 {
-		t.Errorf("reads %v, v2 errors left %d", src.reads, len(src.errs["v2"]))
+}
+
+// A run that reads nothing cannot tell bad tracks from an outage, so it
+// counts nothing: one or two new tracks met while offline stay unread.
+func TestEnricherCountsNothingWithoutASuccess(t *testing.T) {
+	store, src, e, _, _ := enricherSetup(t, "v1", "v2")
+	down := errors.New("dial tcp: no route to host")
+	for _, v := range []string{"v1", "v2"} {
+		for range 10 * enrichAttempts {
+			src.errs[v] = append(src.errs[v], down)
+		}
 	}
+	for run := 1; run <= enrichGiveUpRuns+1; run++ {
+		if err := e.Run(context.Background()); !errors.Is(err, down) {
+			t.Fatalf("run %d: %v", run, err)
+		}
+	}
+	if got := unenriched(t, store); !slices.Equal(got, []string{"v2", "v1"}) {
+		t.Errorf("unenriched %v, want both kept for a later read", got)
+	}
+}
+
+// A failure to write what was read is the catalog's: the run ends and the
+// track is not counted.
+func TestEnricherStopsOnStoreFailure(t *testing.T) {
+	store, _, e, _, _ := enricherSetup(t, "v1")
+	e.store = failingEnrichStore{store}
+	if err := e.Run(context.Background()); !errors.Is(err, errDiskFull) {
+		t.Fatalf("Run = %v, want the store error", err)
+	}
+	if got := unenriched(t, store); !slices.Equal(got, []string{"v1"}) {
+		t.Errorf("unenriched %v", got)
+	}
+}
+
+// Cancelling a run counts nothing, not even a track that failed first.
+func TestEnricherCancelledCountsNothing(t *testing.T) {
+	store, src, e, _, _ := enricherSetup(t, "v1", "v2")
+	for range 10 {
+		src.errs["v2"] = append(src.errs["v2"], errors.New("refused"))
+	}
+	for run := 1; run <= enrichGiveUpRuns; run++ {
+		ctx, cancel := context.WithCancel(context.Background())
+		e.sleep = func(ctx context.Context, _ time.Duration) error { cancel(); return ctx.Err() }
+		if err := e.Run(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("run %d: %v, want cancelled", run, err)
+		}
+	}
+	if got := unenriched(t, store); !slices.Equal(got, []string{"v2", "v1"}) {
+		t.Errorf("unenriched %v, want both", got)
+	}
+}
+
+var errDiskFull = errors.New("disk full")
+
+type failingEnrichStore struct{ *sqlite.Store }
+
+func (failingEnrichStore) EnrichTrack(context.Context, catalog.Ref, catalog.TrackMetadata) error {
+	return errDiskFull
+}
+func (failingEnrichStore) RecordEnrichFailure(context.Context, catalog.Ref, int) (bool, error) {
+	return false, errors.New("counted a store failure")
 }
 
 // MaxFailures tracks failing in a row is an outage: the run ends, and the

@@ -22,7 +22,9 @@ type CollectionHead struct {
 
 // Matches reports whether head describes the stored collection: the same
 // number of items, with the same newest one. Adding moves the newest, so
-// with an unchanged count nothing was added or removed.
+// with an unchanged count nothing was added or removed. The one miss: an
+// add in the same second as the newest one plus a removal; the periodic
+// full read catches it.
 func (st CollectionState) Matches(head CollectionHead) bool {
 	if head.Total != st.Count {
 		return false

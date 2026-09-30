@@ -71,11 +71,13 @@ func NewEnricher(store EnrichStore, src MetadataSource, pace Pacing, changed fun
 
 // Run enriches every unread library track, refreshing the derived lists
 // as it goes and at the end. A track that fails enrichAttempts times is
-// skipped for the rest of the run and its failure counted. MaxFailures
-// skipped in a row look like an outage rather than bad tracks: the run
-// ends with the error, and that streak is not counted against its tracks.
-// Run returns ErrRunning if a run is already going, ctx's error when
-// cancelled, and an error naming the last failure when tracks were skipped.
+// skipped for the rest of the run. Its failure is counted only when the
+// same run read another track afterwards, or earlier when it failed at the
+// end: a run that read nothing may be an outage, not bad tracks. MaxFailures
+// skipped in a row end the run with the error, uncounted. Run returns
+// ErrRunning if a run is already going, ctx's error when cancelled, a store
+// failure at once, and an error naming the last failure when tracks were
+// skipped.
 func (e *Enricher) Run(ctx context.Context) error {
 	provider := e.src.Provider()
 	if !e.begin() {
@@ -90,8 +92,9 @@ func (e *Enricher) Run(ctx context.Context) error {
 	var (
 		st      fillState
 		skip    = make(map[catalog.Ref]bool)
-		failed  []catalog.Ref // skipped between successes: counted
+		failed  []catalog.Ref // skipped before a success: counted
 		streak  []catalog.Ref // skipped since the last success
+		read    bool          // a track was read this run
 		lastErr error
 	)
 	for {
@@ -101,7 +104,10 @@ func (e *Enricher) Run(ctx context.Context) error {
 		}
 		tracks = slices.DeleteFunc(tracks, func(t catalog.Track) bool { return skip[t.Ref] })
 		if len(tracks) == 0 {
-			return e.countFailures(ctx, append(failed, streak...), lastErr)
+			if read { // the tracks after the last success failed on their own
+				failed = append(failed, streak...)
+			}
+			return e.countFailures(ctx, failed, len(skip), lastErr)
 		}
 		found := false
 		for _, t := range tracks {
@@ -109,19 +115,22 @@ func (e *Enricher) Run(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			if errors.Is(err, errStore) {
+				return fmt.Errorf("enrich %s: %w", provider, err)
+			}
 			if err != nil {
 				skip[t.Ref] = true
 				streak = append(streak, t.Ref)
 				lastErr = fmt.Errorf("enrich %s: %q: %w", provider, t.Title, err)
 				if len(streak) >= e.pace.MaxFailures {
-					if cerr := e.countFailures(ctx, failed, nil); cerr != nil {
+					if cerr := e.countFailures(ctx, failed, 0, nil); cerr != nil {
 						return errors.Join(lastErr, cerr)
 					}
 					return lastErr
 				}
 				continue
 			}
-			failed, streak = append(failed, streak...), nil
+			failed, streak, read = append(failed, streak...), nil, true
 			found = found || ok
 		}
 		// A batch that found nothing changed no album or artist.
@@ -134,18 +143,22 @@ func (e *Enricher) Run(ctx context.Context) error {
 }
 
 // countFailures records a failed run for each of tracks and returns
-// lastErr, so the run's end reports that tracks were skipped.
-func (e *Enricher) countFailures(ctx context.Context, tracks []catalog.Ref, lastErr error) error {
+// lastErr, so the run's end reports that skipped tracks were left unread.
+func (e *Enricher) countFailures(ctx context.Context, tracks []catalog.Ref, skipped int, lastErr error) error {
 	for _, t := range tracks {
 		if _, err := e.store.RecordEnrichFailure(ctx, t, enrichGiveUpRuns); err != nil && !errors.Is(err, catalog.ErrNotFound) {
 			return errors.Join(lastErr, err)
 		}
 	}
 	if lastErr != nil {
-		return fmt.Errorf("skipped %d tracks: %w", len(tracks), lastErr)
+		return fmt.Errorf("skipped %d tracks: %w", skipped, lastErr)
 	}
 	return nil
 }
+
+// errStore marks a failure to write a read track: the catalog's, not the
+// track's, so it ends the run instead of counting against the track.
+var errStore = errors.New("store")
 
 func (e *Enricher) refresh(ctx context.Context) error {
 	if err := e.store.RefreshDerived(ctx, e.src.Provider()); err != nil {
@@ -172,6 +185,9 @@ func (e *Enricher) enrich(ctx context.Context, t catalog.Track, st *fillState) (
 		}
 		if err == nil {
 			err = e.store.EnrichTrack(ctx, t.Ref, meta)
+			if err != nil && !errors.Is(err, catalog.ErrNotFound) && ctx.Err() == nil {
+				return false, fmt.Errorf("%w: %w", errStore, err)
+			}
 		}
 		var rl *catalog.RateLimitError
 		switch {

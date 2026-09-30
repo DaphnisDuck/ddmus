@@ -80,7 +80,7 @@ A playlist knows each track only as a video title and the channel that uploaded 
 - YouTube Music's **Albums** and **Artists** lists fill in, and they join **All Music** and search.
 - A YouTube album holds the tracks of it you have, not the whole album; opening it plays those.
 - A track with no music details (a fan upload, say) keeps its video title and uploader.
-- A track yt-dlp keeps failing to read is skipped, so the rest are still read; after three passes that failed on it, it is left as it is (video title and uploader). When several tracks in a row fail, omatunes takes it for an outage, stops, and tries again after the next sync, without holding it against those tracks.
+- A track yt-dlp keeps failing to read is skipped, so the rest are still read. After three passes that read other tracks but failed on it, it is left as it is (video title and uploader). A pass that reads nothing, or fails on several tracks in a row, looks like an outage: omatunes stops and tries again after the next sync, without holding it against those tracks.
 
 The first pass over a large library takes a while (about half an hour for 360 tracks); it pauses while YouTube syncs, resumes after a restart, and slows right down if YouTube asks it to (a "not a bot" check).
 

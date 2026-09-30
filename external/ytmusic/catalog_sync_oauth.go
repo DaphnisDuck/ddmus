@@ -13,6 +13,7 @@ import (
 	"slices"
 	"time"
 
+	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/youtube/v3"
 
@@ -22,8 +23,8 @@ import (
 
 // OAuthCatalog reads a YouTube account for the catalog through the Data
 // API, signed in with the stored OAuth credentials. It never signs in
-// interactively: without stored credentials it fails with
-// playlist.ErrNeedsAuth.
+// interactively: without stored credentials, or when Google refuses them,
+// it fails with playlist.ErrNeedsAuth.
 type OAuthCatalog struct {
 	clientID, clientSecret string
 	// service returns the API client and the account's classification
@@ -39,11 +40,29 @@ func NewOAuthCatalog(clientID, clientSecret string) *OAuthCatalog {
 }
 
 func (c *OAuthCatalog) silentService(ctx context.Context) (*youtube.Service, string, error) {
+	if creds, err := loadCreds(); err != nil || creds.RefreshToken == "" {
+		return nil, "", fmt.Errorf("youtube: %w: no stored sign-in", playlist.ErrNeedsAuth)
+	}
 	sess, err := NewSessionSilent(ctx, c.clientID, c.clientSecret)
 	if err != nil {
-		return nil, "", fmt.Errorf("youtube: %w: %w", playlist.ErrNeedsAuth, err)
+		return nil, "", signInError(err)
 	}
 	return sess.Service(), sess.cacheScope, nil
+}
+
+// signInError wraps a failed silent sign-in in playlist.ErrNeedsAuth only
+// when signing in again would help: Google refused the stored grant (expired
+// or revoked, as a Testing-status app's are weekly) or the client. Other
+// failures, such as being offline, keep their cause.
+func signInError(err error) error {
+	var re *oauth2.RetrieveError
+	if errors.As(err, &re) {
+		switch re.ErrorCode {
+		case "invalid_grant", "invalid_client", "unauthorized_client":
+			return fmt.Errorf("youtube: %w: %w", playlist.ErrNeedsAuth, err)
+		}
+	}
+	return fmt.Errorf("youtube: sign in: %w", err)
 }
 
 // PlaylistRecords returns the account's music playlists, without tracks,
@@ -95,7 +114,7 @@ func (c *OAuthCatalog) PlaylistRecords(ctx context.Context, synced map[string]st
 	for _, l := range all {
 		// A synced playlist that cannot be classified yet stays.
 		isMusic, known := music[l.entry.ID]
-		if _, ok := synced[l.entry.ID]; isMusic || !known && ok {
+		if _, ok := synced[l.entry.ID]; isMusic || (!known && ok) {
 			records = append(records, catalog.PlaylistRecord{
 				Ref: youtubeRef(l.entry.ID), Name: l.entry.Name, Own: true, TrackCount: l.entry.TrackCount,
 				Snapshot: fmt.Sprintf("%d:%s", l.entry.TrackCount, l.etag),

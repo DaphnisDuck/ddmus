@@ -89,6 +89,9 @@ func (s *Store) PlaylistSnapshots(ctx context.Context, provider string) (map[str
 	return out, nil
 }
 
+// maxNewest caps CollectionState.Newest.
+const maxNewest = 20
+
 // CollectionStates implements catalog.Writer.
 func (s *Store) CollectionStates(ctx context.Context, provider string) (map[string]catalog.CollectionState, error) {
 	out := map[string]catalog.CollectionState{}
@@ -139,7 +142,10 @@ func (s *Store) CollectionStates(ctx context.Context, provider string) (map[stri
 		}
 		st := out[collection]
 		st.Count, st.NewestAt = n, time.UnixMilli(newest)
-		if id.Valid {
+		// Members added in one go (a local index) all tie for newest; a
+		// list that long identifies nothing, and leaving it out only
+		// makes a head check read in full.
+		if id.Valid && len(st.Newest) < maxNewest {
 			st.Newest = append(st.Newest, id.String)
 		}
 		out[collection] = st
@@ -631,13 +637,18 @@ func (w *snapWriter) playlist(p catalog.PlaylistRecord) (int64, error) {
 	}
 	// An empty marker keeps the stored one: either the tracks were not
 	// fetched, or the source has no marker and refetches every time anyway.
+	// Unfetched tracks leave an unknown (zero) count as stored too.
+	count := "excluded.track_count"
+	if !p.TracksFetched {
+		count = "COALESCE(NULLIF(excluded.track_count, 0), track_count)"
+	}
 	var id int64
 	err = w.upsert("playlists", ref, `INSERT INTO playlists (provider, provider_id, name, own, snapshot, track_count, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (provider, provider_id) `+doUpdate(
 		"name", "excluded.name", "own", "excluded.own",
 		"snapshot", "COALESCE(NULLIF(excluded.snapshot, ''), snapshot)",
-		"track_count", "excluded.track_count"),
+		"track_count", count),
 		[]any{ref.Provider, ref.ProviderID, p.Name, p.Own, snapshot, p.TrackCount, w.now}, "id", &id)
 	if err != nil {
 		return 0, fmt.Errorf("upsert playlist %s: %w", ref.ProviderID, err)

@@ -344,6 +344,11 @@ func TestUnchangedSyncRewritesNothing(t *testing.T) {
 	if got := writes(); !slices.Equal(got, []string{"UPDATE tracks"}) {
 		t.Errorf("a retitled track wrote %q, want its row once", got)
 	}
+	// A listing without tracks or a count keeps the stored count.
+	apply(t, s, catalog.Snapshot{Collection: "playlists", Playlists: []catalog.PlaylistRecord{{Ref: sref("pl1"), Name: "Mix"}}})
+	if pls, _ := s.Playlists(context.Background(), catalog.Spotify); len(pls) != 1 || pls[0].TrackCount != 2 {
+		t.Errorf("playlists after an unfetched listing = %+v", pls)
+	}
 	tracks, _ := s.PlaylistTracks(context.Background(), 1)
 	if len(tracks) != 2 || tracks[1].Title != "I. Trauermarsch" || tracks[1].Artist != "Ozawa, BSO, Ozawa" {
 		t.Errorf("playlist tracks = %+v", tracks)

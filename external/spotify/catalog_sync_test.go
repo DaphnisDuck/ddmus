@@ -251,3 +251,51 @@ func TestAlbumTrackRecordsOnceReportsRateLimits(t *testing.T) {
 		t.Errorf("404: %v, want ErrForbidden", err)
 	}
 }
+
+// A head is one limit=1 request: the total and the first (newest) item,
+// with its added_at at the second the catalog stores it at.
+func TestCollectionHeads(t *testing.T) {
+	var liked []map[string]any
+	var likedTotal int
+	p := fakeSpotifyAPI(t, func(req *http.Request) (any, int) {
+		if req.URL.Query().Get("limit") != "1" {
+			t.Errorf("%s limit = %q, want 1", req.URL.Path, req.URL.Query().Get("limit"))
+		}
+		switch req.URL.Path {
+		case "/v1/me/albums":
+			return map[string]any{"total": 2141, "items": []map[string]any{
+				{"added_at": "2026-09-20T18:04:05Z", "album": map[string]any{"id": "al1", "name": "A"}}}}, 0
+		case "/v1/me/tracks":
+			return map[string]any{"total": likedTotal, "items": liked}, 0
+		}
+		t.Errorf("unexpected path %s", req.URL.Path)
+		return nil, http.StatusNotFound
+	})
+	ctx := context.Background()
+	at := time.Date(2026, 9, 20, 18, 4, 5, 0, time.UTC)
+	albums, err := p.SavedAlbumsHead(ctx)
+	if err != nil || albums != (catalog.CollectionHead{Total: 2141, NewestID: "al1", NewestAt: albums.NewestAt}) || !albums.NewestAt.Equal(at) {
+		t.Fatalf("albums head = %+v, %v", albums, err)
+	}
+	stored := catalog.CollectionState{Count: 2141, NewestAt: time.UnixMilli(at.UnixMilli()), Newest: []string{"al1"}}
+	if !stored.Matches(albums) {
+		t.Error("head does not match the catalog's copy of it")
+	}
+
+	for _, tt := range []struct {
+		name  string
+		total int
+		items []map[string]any
+		want  catalog.CollectionHead
+	}{
+		{"empty", 0, nil, catalog.CollectionHead{}},
+		{"local file first", 3, []map[string]any{{"added_at": "2026-09-20T18:04:05Z",
+			"track": map[string]any{"id": "", "name": "home.mp3", "is_local": true}}}, catalog.CollectionHead{Total: 3}},
+	} {
+		liked, likedTotal = tt.items, tt.total
+		got, err := p.LikedTracksHead(ctx)
+		if err != nil || got.Total != tt.want.Total || got.NewestID != tt.want.NewestID {
+			t.Errorf("%s: liked head = %+v, %v; want %+v", tt.name, got, err, tt.want)
+		}
+	}
+}

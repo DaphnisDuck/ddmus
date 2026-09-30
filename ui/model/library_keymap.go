@@ -85,7 +85,7 @@ func (m Model) libraryKeymapSections() []libKeymapSection {
 			own = append(own, libOrderKey)
 		}
 		if m.lib.refresh != nil {
-			own = append(slices.Clip(own), libRefreshKey)
+			own = append(own, libRefreshKey)
 		}
 		current = libKeymapSection{title: "Library", own: own}
 	}

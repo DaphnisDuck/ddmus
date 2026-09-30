@@ -40,7 +40,7 @@ type Pacing struct {
 	Delay       time.Duration // between albums
 	MinBackoff  time.Duration // first wait after a rate limit or failure
 	MaxBackoff  time.Duration // the backoff doubles up to this
-	MaxFailures int           // consecutive non-rate-limit failures before giving up
+	MaxFailures int           // consecutive non-rate-limit failures before giving up (Enricher: tracks skipped in a row)
 }
 
 // DefaultPacing keeps a library fill well under Spotify's rate limit.

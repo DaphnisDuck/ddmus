@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -97,7 +98,7 @@ func (s *Store) RecordEnrichFailure(ctx context.Context, track catalog.Ref, give
 		WHERE provider = ? AND provider_id = ?
 		RETURNING enriched_at IS NOT NULL`,
 		giveUpAfter, time.Now().UnixMilli(), track.Provider, track.ProviderID).Scan(&gaveUp)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		err = catalog.ErrNotFound
 	}
 	if err != nil {

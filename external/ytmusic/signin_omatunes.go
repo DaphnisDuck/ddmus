@@ -13,5 +13,8 @@ import (
 // account can be picked and a new refresh token is issued. The stored
 // credentials are replaced only when the sign-in succeeds.
 func NewSessionForced(ctx context.Context, clientID, clientSecret string) (*Session, error) {
-	return newInteractiveSession(ctx, clientID, clientSecret, oauth2.SetAuthURLParam("prompt", "select_account consent"))
+	return newInteractiveSession(ctx, clientID, clientSecret, forcedSignIn)
 }
+
+// forcedSignIn asks Google for its account chooser and consent screen.
+var forcedSignIn = oauth2.SetAuthURLParam("prompt", "select_account consent")

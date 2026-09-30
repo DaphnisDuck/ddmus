@@ -578,7 +578,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	if len(resolved.Tracks) == 0 && len(resolved.Pending) == 0 && pl.Len() == 0 {
 		m.StartInProvider()
 	}
-	// omatunes: the library navigation is the main screen, backed by the
+	// ddmus: the library navigation is the main screen, backed by the
 	// synced catalog when one is available.
 	cat := openCatalog(spotifyProv, radioProv, cfg)
 	defer cat.close()
@@ -715,7 +715,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 		go publishV2JobEvents(ipcSrv.Done(), ipcSrv.JobStore(), pluginBroker)
 	}
 
-	cat.start(prog) // omatunes: background catalog sync, once the program is about to run
+	cat.start(prog) // ddmus: background catalog sync, once the program is about to run
 	finalModel, err := mediactl.Run(prog, svc)
 	if err != nil {
 		return err

@@ -1,4 +1,4 @@
-// Package catalog is omatunes' music catalog: the albums, artists, tracks
+// Package catalog is ddmus' music catalog: the albums, artists, tracks
 // and playlists known across providers, and which of them are in the user's
 // library. It defines the types and the interface the UI reads through; it
 // holds no SQL and no Bubbletea. catalog/sqlite implements it, and

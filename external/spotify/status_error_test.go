@@ -1,6 +1,6 @@
 package spotify
 
-// omatunes: StatusError keeps upstream's message and drives unreadable.
+// ddmus: StatusError keeps upstream's message and drives unreadable.
 
 import (
 	"errors"

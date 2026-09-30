@@ -1,6 +1,6 @@
 //go:build !windows
 
-// omatunes: pins the Playlists() sections the library navigation splits on.
+// ddmus: pins the Playlists() sections the library navigation splits on.
 
 package spotify
 

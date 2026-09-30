@@ -67,7 +67,7 @@ func newClient(baseURL, token, userID, user, password string, d dialect) *Client
 		userID:     userID,
 		user:       user,
 		password:   password,
-		deviceID:   appmeta.DeviceName(), // omatunes: distinct session from cliamp
+		deviceID:   appmeta.DeviceName(), // ddmus: distinct session from cliamp
 		dialect:    d,
 		httpClient: defaultHTTPClient,
 	}

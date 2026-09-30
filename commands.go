@@ -54,7 +54,7 @@ func buildApp() *cli.Command {
 	}
 
 	return &cli.Command{
-		Name:                  appmeta.ClientName(), // omatunes
+		Name:                  appmeta.ClientName(), // ddmus
 		Usage:                 "retro terminal music player",
 		Version:               version,
 		EnableShellCompletion: true,
@@ -76,7 +76,7 @@ func buildApp() *cli.Command {
 			historyCommand(),
 			radioCommand(),
 			setupCommand(),
-			youtubeCommand(), // omatunes: YouTube Music sign-in (commands_omatunes.go)
+			youtubeCommand(), // ddmus: YouTube Music sign-in (commands_ddmus.go)
 			spotifyCommand(),
 			qobuzCommand(),
 			tidalCommand(),
@@ -231,15 +231,15 @@ func overridesFromFlags(c *cli.Command) (config.Overrides, error) {
 	return ov, nil
 }
 
-// omatunes: the self-updater downloads cliamp's releases, which would replace
-// omatunes with cliamp. It stays registered (hidden) so `omatunes upgrade`
+// ddmus: the self-updater downloads cliamp's releases, which would replace
+// ddmus with cliamp. It stays registered (hidden) so `ddmus upgrade`
 // explains itself instead of failing as an unknown command.
-var errUpgradeDisabled = errors.New("upgrade is disabled in omatunes: it would install cliamp over omatunes; update by pulling and rebuilding (git pull && make install)")
+var errUpgradeDisabled = errors.New("upgrade is disabled in ddmus: it would install cliamp over ddmus; update by pulling and rebuilding (git pull && make install)")
 
 func upgradeCommand() *cli.Command {
 	return &cli.Command{
 		Name:   "upgrade",
-		Usage:  "disabled in omatunes; update by pulling and rebuilding",
+		Usage:  "disabled in ddmus; update by pulling and rebuilding",
 		Hidden: true,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "prerelease", Usage: "upgrade to the latest prerelease"},

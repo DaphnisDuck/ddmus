@@ -123,7 +123,7 @@ func silentTokenRefresh(clientID, clientSecret, refreshToken string) (*oauth2.To
 }
 
 // newInteractiveSession performs an OAuth2 flow to authenticate.
-func newInteractiveSession(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*Session, error) { // omatunes: opts
+func newInteractiveSession(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*Session, error) { // ddmus: opts
 	token, err := doOAuth(ctx, clientID, clientSecret, opts...)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func newInteractiveSession(ctx context.Context, clientID, clientSecret string, o
 // exchanges code for token. The context controls cancellation — if ctx is
 // cancelled (e.g. the user retries auth), the listener is closed and the
 // function returns promptly, freeing the callback port.
-func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) { // omatunes: opts
+func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) { // ddmus: opts
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", CallbackPort))
 	if err != nil {
 		return nil, fmt.Errorf("ytmusic: listen on port %d (is another instance running?): %w", CallbackPort, err)
@@ -169,7 +169,7 @@ func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.
 	oauthConf := googleOAuthConfig(clientID, clientSecret)
 
 	verifier := oauth2.GenerateVerifier()
-	authURL := oauthConf.AuthCodeURL("", append([]oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier), oauth2.AccessTypeOffline}, opts...)...) // omatunes: opts
+	authURL := oauthConf.AuthCodeURL("", append([]oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier), oauth2.AccessTypeOffline}, opts...)...) // ddmus: opts
 
 	codeCh := make(chan string, 1)
 	go func() {

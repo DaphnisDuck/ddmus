@@ -1,4 +1,4 @@
-// omatunes: favorite and local stations for the library navigation and the
+// ddmus: favorite and local stations for the library navigation and the
 // catalog. Kept in its own file so upstream merges of provider.go stay
 // conflict-free.
 

@@ -136,7 +136,7 @@ func New(send func(tea.Msg)) (*Service, error) {
 		return nil, fmt.Errorf("mpris: session bus: %w", err)
 	}
 
-	reply, err := conn.RequestName("org.mpris.MediaPlayer2."+appmeta.ClientName(), // omatunes: coexist with cliamp
+	reply, err := conn.RequestName("org.mpris.MediaPlayer2."+appmeta.ClientName(), // ddmus: coexist with cliamp
 		dbus.NameFlagDoNotQueue)
 	if err != nil {
 		conn.Close()
@@ -168,7 +168,7 @@ func New(send func(tea.Msg)) (*Service, error) {
 
 	propsSpec := map[string]map[string]*prop.Prop{
 		"org.mpris.MediaPlayer2": {
-			"Identity":            {Value: appmeta.ClientName(), Writable: false, Emit: prop.EmitTrue}, // omatunes
+			"Identity":            {Value: appmeta.DisplayName(), Writable: false, Emit: prop.EmitTrue}, // ddmus
 			"CanQuit":             {Value: true, Writable: false, Emit: prop.EmitTrue},
 			"CanRaise":            {Value: false, Writable: false, Emit: prop.EmitTrue},
 			"HasTrackList":        {Value: false, Writable: false, Emit: prop.EmitTrue},

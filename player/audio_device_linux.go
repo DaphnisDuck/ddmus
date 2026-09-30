@@ -124,7 +124,7 @@ func matchCliamp(props map[string]string, pidStr string, idx int) int {
 	if props["application.process.id"] == pidStr {
 		return idx
 	}
-	// omatunes: match this player by name, never a running cliamp.
+	// ddmus: match this player by name, never a running cliamp.
 	if strings.EqualFold(props["application.process.binary"], appmeta.ClientName()) {
 		return idx
 	}

@@ -1,4 +1,4 @@
--- omatunes catalog schema v5: per-collection source bookkeeping.
+-- ddmus catalog schema v5: per-collection source bookkeeping.
 -- last_applied_at is when a collection was last read in full and written:
 -- a source that can tell cheaply that nothing changed still reads
 -- everything now and then, so metadata changes land. source_version is the

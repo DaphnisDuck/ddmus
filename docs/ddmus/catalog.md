@@ -1,6 +1,6 @@
 # The music catalog
 
-omatunes keeps your Spotify library and an index of your local music folder in one SQLite database, `~/.local/share/omatunes/library.db`. The library screens read from it, so lists open instantly and keep working offline. Playback still goes to Spotify, or to the file itself.
+ddmus keeps your Spotify library and an index of your local music folder in one SQLite database, `~/.local/share/ddmus/library.db`. The library screens read from it, so lists open instantly and keep working offline. Playback still goes to Spotify, or to the file itself.
 
 ## What it holds
 
@@ -11,7 +11,7 @@ omatunes keeps your Spotify library and an index of your local music folder in o
 - **Search index:** a full-text index of everything above, kept in step with every change. See [search.md](search.md).
 - **Not in the catalog:** the radio directory, local playlists, and an artist's full Spotify discography. These are always loaded live.
 
-No passwords or tokens are stored in the catalog. Spotify credentials stay in `~/.config/omatunes/spotify_credentials.json`.
+No passwords or tokens are stored in the catalog. Spotify credentials stay in `~/.config/ddmus/spotify_credentials.json`.
 
 ## When it updates
 
@@ -35,22 +35,22 @@ The top of the library shows each source's state:
 - `✓ synced 2m ago`
 - `sync failed · cached`: the last attempt failed, and you're browsing what the catalog already holds.
 
-With both Spotify and Local, each status is prefixed with its source. Details of a failure are in `~/.config/omatunes/cliamp.log`.
+With both Spotify and Local, each status is prefixed with its source. Details of a failure are in `~/.config/ddmus/cliamp.log`.
 
 ## Failure safety
 
 A sync either applies completely or changes nothing:
 
 - **Spotify:** if any page of a collection fails, or the library changes while it's being read, that collection keeps what it had.
-- **Local:** if the music folder is missing, or is empty while the catalog holds files (an unmounted drive, for example), the index is left as it is. Files under a folder omatunes can't read are kept too.
+- **Local:** if the music folder is missing, or is empty while the catalog holds files (an unmounted drive, for example), the index is left as it is. Files under a folder ddmus can't read are kept too.
 - **Sign-in:** a Spotify sign-in that fails because Spotify is unreachable or down is reported as that error, not as "sign-in required". The sync retries by itself.
 
 ## Settings
 
-In `~/.config/omatunes/config.toml`:
+In `~/.config/ddmus/config.toml`:
 
 ```toml
-[omatunes]
+[ddmus]
 spotify_refresh = "30m"   # sync Spotify at startup if the last sync is older than this; "0s" syncs every time
 youtube_refresh = "2h"    # the same for YouTube Music
 youtube_playlists = []    # other people's YouTube playlists to sync, by link (see youtube.md)
@@ -60,4 +60,4 @@ Durations use Go's format: `90s`, `30m`, `2h`. An invalid value keeps the defaul
 
 ## Starting over
 
-The catalog can always be rebuilt from Spotify and your music folder. To reset it, quit omatunes and delete `~/.local/share/omatunes/library.db`, along with the `library.db-wal` and `library.db-shm` files next to it. The next start syncs everything again.
+The catalog can always be rebuilt from Spotify and your music folder. To reset it, quit ddmus and delete `~/.local/share/ddmus/library.db`, along with the `library.db-wal` and `library.db-shm` files next to it. The next start syncs everything again.

@@ -374,7 +374,7 @@ func (p *Provider) AppendCatalog(stations []CatalogStation) {
 func (p *Provider) ToggleFavorite(id string) (added bool, name string, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	defer p.favoritesToggled() // omatunes: resync catalogued favorites
+	defer p.favoritesToggled() // ddmus: resync catalogued favorites
 
 	if strings.HasPrefix(id, "f:") {
 		station, err := p.favoriteStation(id)

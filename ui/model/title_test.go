@@ -68,7 +68,7 @@ func TestRenderTerminalTitle(t *testing.T) {
 
 	t.Run("playing", func(t *testing.T) {
 		got := renderTerminalTitle(terminalTitleValuesForTrack(track, "", true, false))
-		want := "▶ Angel - Massive Attack | omatunes"
+		want := "▶ Angel - Massive Attack | ddmus"
 		if got != want {
 			t.Fatalf("render(playing) = %q, want %q", got, want)
 		}
@@ -76,7 +76,7 @@ func TestRenderTerminalTitle(t *testing.T) {
 
 	t.Run("paused", func(t *testing.T) {
 		got := renderTerminalTitle(terminalTitleValuesForTrack(track, "", true, true))
-		want := "⏸ Angel - Massive Attack | omatunes"
+		want := "⏸ Angel - Massive Attack | ddmus"
 		if got != want {
 			t.Fatalf("render(paused) = %q, want %q", got, want)
 		}
@@ -128,14 +128,14 @@ func TestCurrentTerminalTitleSanitizesRenderedTitle(t *testing.T) {
 				stateIcon: "▶",
 				metadata:  "Song\a\x1b[31m - Artist\r\nName",
 			},
-			want: "▶ Song[31m - Artist Name | omatunes",
+			want: "▶ Song[31m - Artist Name | ddmus",
 		},
 		{
 			name: "collapses control whitespace",
 			values: terminalTitleValues{
 				metadata: "Song\r\n\tArtist",
 			},
-			want: "Song Artist | omatunes",
+			want: "Song Artist | ddmus",
 		},
 	}
 

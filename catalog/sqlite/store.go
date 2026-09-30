@@ -26,9 +26,9 @@ import (
 //go:embed migrations/*.sql
 var migrationFS embed.FS
 
-// ErrSchemaTooNew means the database was migrated by a newer omatunes than
+// ErrSchemaTooNew means the database was migrated by a newer ddmus than
 // this one, so this binary must not write to it.
-var ErrSchemaTooNew = errors.New("catalog database schema is newer than this omatunes")
+var ErrSchemaTooNew = errors.New("catalog database schema is newer than this ddmus")
 
 // dsnParams apply to every pooled connection. WAL lets the UI read while a
 // sync writes; _txlock=immediate takes the write lock when a transaction

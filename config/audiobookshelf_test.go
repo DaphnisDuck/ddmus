@@ -9,7 +9,7 @@ import (
 func TestLoadAudiobookshelfSection(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

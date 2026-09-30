@@ -60,7 +60,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.publishIPCRuntimeState()
 	}()
 
-	// omatunes: library navigation messages.
+	// ddmus: library navigation messages.
 	if cmd, ok := m.handleLibraryMsg(msg); ok {
 		return m, cmd
 	}

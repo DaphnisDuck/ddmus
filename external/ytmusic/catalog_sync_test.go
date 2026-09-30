@@ -1,4 +1,4 @@
-// omatunes: tests for the cookie-mode catalog fetchers.
+// ddmus: tests for the cookie-mode catalog fetchers.
 
 package ytmusic
 

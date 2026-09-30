@@ -503,7 +503,7 @@ func (m Model) centerFrame(frame string) string {
 }
 
 func (m Model) renderTitle() string {
-	title := titleStyle.Render("O M A T U N E S") // omatunes: branding
+	title := titleStyle.Render(brandTitle) // ddmus: branding (library_view.go)
 	label := m.focus.label()
 	if screen := m.activeScreen(); screen != screenMain {
 		label = screen.label()

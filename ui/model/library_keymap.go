@@ -1,6 +1,6 @@
 package model
 
-// omatunes: the Ctrl+K / ? overlay while the library owns the main screen.
+// ddmus: the Ctrl+K / ? overlay while the library owns the main screen.
 // It lists the library's own keys and only those cliamp commands whose keys
 // the gate passes through, so no swallowed key is advertised.
 

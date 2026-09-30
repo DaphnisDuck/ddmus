@@ -1,4 +1,4 @@
-// omatunes: tests for the library and catalog station helpers.
+// ddmus: tests for the library and catalog station helpers.
 
 package radio
 

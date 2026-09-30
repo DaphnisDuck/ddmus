@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	baseTerminalTitle         = "omatunes" // omatunes: branding
+	baseTerminalTitle         = "ddmus" // ddmus: branding
 	defaultTerminalTitleIntro = "It really whips the terminal's ass."
 	titleIntroViewportMin     = 18
 	titleIntroViewportDefault = 24

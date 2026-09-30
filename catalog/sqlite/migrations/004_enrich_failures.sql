@@ -1,4 +1,4 @@
--- omatunes catalog schema v4: enrichment failures. enrich_failures counts
+-- ddmus catalog schema v4: enrichment failures. enrich_failures counts
 -- the enrichment runs in which a track could not be read for a reason not
 -- known to be permanent; after a few, the track is marked read (enriched_at
 -- set) so one bad track no longer stops every run.

@@ -1,6 +1,6 @@
 package main
 
-// omatunes: tests for omatunes' own subcommands.
+// ddmus: tests for ddmus' own subcommands.
 
 import (
 	"context"

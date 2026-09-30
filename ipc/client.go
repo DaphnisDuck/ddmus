@@ -11,7 +11,7 @@ import (
 func DefaultSocketPath() string {
 	dir, err := appdir.Dir()
 	if err != nil {
-		return filepath.Join(os.TempDir(), appdir.Name+".sock") // omatunes
+		return filepath.Join(os.TempDir(), appdir.Name+".sock") // ddmus
 	}
 	return filepath.Join(dir, "cliamp.sock")
 }

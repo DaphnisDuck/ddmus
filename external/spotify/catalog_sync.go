@@ -1,4 +1,4 @@
-// omatunes: whole-collection fetchers for the catalog sync. Each pages one
+// ddmus: whole-collection fetchers for the catalog sync. Each pages one
 // library collection with the caller's context and returns catalog records
 // carrying Spotify IDs, or an error: never a partial collection. Kept in its
 // own file so upstream merges of provider.go stay conflict-free.

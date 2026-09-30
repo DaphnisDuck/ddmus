@@ -107,7 +107,7 @@ func TestCacheAlbumArtUsesContentHash(t *testing.T) {
 		t.Fatalf("cacheAlbumArt URLs = %q and %q, want same non-empty URL", first, second)
 	}
 
-	matches, err := filepath.Glob(filepath.Join(home, ".local", "share", "omatunes", albumArtCacheDir, "*"))
+	matches, err := filepath.Glob(filepath.Join(home, ".local", "share", "ddmus", albumArtCacheDir, "*"))
 	if err != nil {
 		t.Fatalf("Glob: %v", err)
 	}

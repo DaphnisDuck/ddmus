@@ -1,6 +1,6 @@
 package model
 
-// omatunes: the Ctrl+K / ? overlay lists only keys the library acts on or
+// ddmus: the Ctrl+K / ? overlay lists only keys the library acts on or
 // passes through to cliamp.
 
 import (

@@ -1,4 +1,4 @@
-// omatunes: whole-collection fetchers for the catalog sync in cookie mode.
+// ddmus: whole-collection fetchers for the catalog sync in cookie mode.
 // yt-dlp reads the account's playlists feed, playlists and Liked Music with
 // the browser session, and each fetcher returns catalog records carrying
 // YouTube IDs, or an error: never a partial collection. Kept in its own file

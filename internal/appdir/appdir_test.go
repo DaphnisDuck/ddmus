@@ -71,7 +71,7 @@ func TestPluginDir(t *testing.T) {
 	}
 
 	if !strings.HasSuffix(dir, filepath.Join(Name, "plugins")) {
-		t.Fatalf("PluginDir() = %q, expected to end with omatunes/plugins", dir)
+		t.Fatalf("PluginDir() = %q, expected to end with ddmus/plugins", dir)
 	}
 }
 
@@ -90,17 +90,17 @@ func TestPluginDirIsSubdirOfDir(t *testing.T) {
 	}
 }
 
-// omatunes: under go test OMATUNES_CONFIG_DIR is ignored, so upstream tests
+// ddmus: under go test DDMUS_CONFIG_DIR is ignored, so upstream tests
 // that isolate themselves with CLIAMP_CONFIG_DIR or a temporary HOME stay
 // isolated even when a developer exports it.
-func TestOmatunesOverrideIgnoredInTests(t *testing.T) {
-	t.Setenv(ConfigDirEnv, "/omatunes-cfg")
+func TestDdmusOverrideIgnoredInTests(t *testing.T) {
+	t.Setenv(ConfigDirEnv, "/ddmus-cfg")
 	t.Setenv("CLIAMP_CONFIG_DIR", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	if got, _ := Dir(); got != filepath.Join(home, ".config", Name) {
-		t.Fatalf("Dir() = %q, want the temporary HOME, not OMATUNES_CONFIG_DIR", got)
+		t.Fatalf("Dir() = %q, want the temporary HOME, not DDMUS_CONFIG_DIR", got)
 	}
 	t.Setenv("CLIAMP_CONFIG_DIR", "/cliamp-cfg")
 	if got, _ := Dir(); got != "/cliamp-cfg" {
@@ -108,7 +108,7 @@ func TestOmatunesOverrideIgnoredInTests(t *testing.T) {
 	}
 }
 
-// omatunes: the catalog lives in DataDir.
+// ddmus: the catalog lives in DataDir.
 func TestLibraryDBPath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

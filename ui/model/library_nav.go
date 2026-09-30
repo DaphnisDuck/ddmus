@@ -1,9 +1,9 @@
 package model
 
-// omatunes: the library navigation stack (Music → source → concept → item).
+// ddmus: the library navigation stack (Music → source → concept → item).
 // The library owns the main screen; the playback chrome around it is
 // cliamp's, untouched. Upstream files reach this code only through small
-// "// omatunes:" hooks in handleKey, Update, activeScreen and activeOverlay.
+// "// ddmus:" hooks in handleKey, Update, activeScreen and activeOverlay.
 
 import (
 	"context"

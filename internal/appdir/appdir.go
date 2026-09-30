@@ -6,20 +6,20 @@ import (
 	"runtime"
 )
 
-// Dir returns the omatunes configuration directory.
+// Dir returns the ddmus configuration directory.
 //
 // Resolution order:
 //   - CLIAMP_CONFIG_DIR (explicit override)
-//   - OMATUNES_CONFIG_DIR (explicit override; omatunes)
-//   - XDG_CONFIG_HOME/omatunes
-//   - HOME/.config/omatunes
-//   - on Windows: APPDATA/omatunes
-//   - fallback: os.UserHomeDir()/.config/omatunes
+//   - DDMUS_CONFIG_DIR (explicit override; ddmus)
+//   - XDG_CONFIG_HOME/ddmus
+//   - HOME/.config/ddmus
+//   - on Windows: APPDATA/ddmus
+//   - fallback: os.UserHomeDir()/.config/ddmus
 func Dir() (string, error) {
 	if dir, ok := os.LookupEnv("CLIAMP_CONFIG_DIR"); ok && dir != "" {
 		return dir, nil
 	}
-	// omatunes: see configDirOverride for why this comes second.
+	// ddmus: see configDirOverride for why this comes second.
 	if dir := configDirOverride(); dir != "" {
 		return dir, nil
 	}
@@ -41,7 +41,7 @@ func Dir() (string, error) {
 	return filepath.Join(home, ".config", Name), nil
 }
 
-// PluginDir returns the omatunes plugin directory.
+// PluginDir returns the ddmus plugin directory.
 func PluginDir() (string, error) {
 	dir, err := Dir()
 	if err != nil {
@@ -50,7 +50,7 @@ func PluginDir() (string, error) {
 	return filepath.Join(dir, "plugins"), nil
 }
 
-// DataDir returns the omatunes data directory (~/.local/share/omatunes), used for
+// DataDir returns the ddmus data directory (~/.local/share/ddmus), used for
 // state that is not user-edited config: plugin stores, downloaded assets, etc.
 func DataDir() (string, error) {
 	// Honor HOME first, matching Dir(); on Windows os.UserHomeDir() reads

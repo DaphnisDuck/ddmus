@@ -1,4 +1,4 @@
--- omatunes catalog schema v1. Never edit a migration once merged; add the
+-- ddmus catalog schema v1. Never edit a migration once merged; add the
 -- next numbered file instead. Times are Unix milliseconds.
 
 CREATE TABLE artists (

@@ -224,7 +224,11 @@ func (m *Model) renderLibraryList(budget int) string {
 			lines = append(lines, dimStyle.Render(labeledSeparator("", library.CleanText(row.section))))
 			continue
 		}
-		restore := ui.WithPanelWidth(listRowWidth(panel, f.column, f.needs[row.index]))
+		need := 0
+		if row.index < len(f.needs) {
+			need = f.needs[row.index]
+		}
+		restore := ui.WithPanelWidth(listRowWidth(panel, f.column, need))
 		lines = append(lines, cursorLine(libEntryLabel(f.entries[row.index], numbers[row.index], titleCol),
 			showCursor && row.index == f.cursor))
 		restore()
@@ -268,17 +272,17 @@ func libEntryLabel(e library.Entry, number, titleCol int) string {
 		title = "★ " + title
 	}
 	avail := width - lipgloss.Width(suffix)
+	if d := library.CleanText(e.Detail); titleCol > 0 && d != "" {
+		// Wide: the title column, then the detail, which keeps up to half
+		// the row when the title is long.
+		title = truncate(title, max(avail-2-min(lipgloss.Width(d), avail/2), 4))
+		gap := max(titleCol-lipgloss.Width(title), 0) + 2
+		return title + strings.Repeat(" ", gap) + truncate(d, max(avail-lipgloss.Width(title)-gap, 0)) + suffix
+	}
 	detail := truncate(library.CleanText(e.Detail), avail/2)
 	titleW := avail
 	if detail != "" {
 		titleW -= lipgloss.Width(detail) + 2
-	}
-	if titleCol > 0 && detail != "" {
-		detail = library.CleanText(e.Detail)
-		title = truncate(title, max(avail-2-min(lipgloss.Width(detail), avail/2), 4))
-		gap := max(titleCol-lipgloss.Width(title), 0) + 2
-		detail = truncate(detail, max(avail-lipgloss.Width(title)-gap, 0))
-		return title + strings.Repeat(" ", gap) + detail + suffix
 	}
 	title = truncate(title, max(titleW, 4))
 	if detail == "" {

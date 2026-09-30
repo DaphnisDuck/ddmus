@@ -7,6 +7,8 @@ package model
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,7 +21,11 @@ import (
 	"github.com/bjarneo/cliamp/ui"
 )
 
-const layoutRows = 300
+const layoutRows = 150
+
+// upNextRows is how many tracks the Up next screen queues: more than the
+// tallest body tested (100x120).
+const upNextRows = 120
 
 // bigLibraryRoot has Albums (layoutRows albums, with details) and an album
 // of layoutRows tracks.
@@ -76,20 +82,12 @@ func checkFrame(t *testing.T, m Model, w, h int) {
 	}
 }
 
-// layoutScreens builds each library screen at w×h with a long list in front.
-func layoutScreens(t *testing.T, w, h int) map[string]struct {
-	m      Model
-	marker string
-} {
-	return layoutScreensWith(t, w, h, frameOpts{vis: true})
-}
-
 // frameOpts are the frame settings layoutScreensWith builds with.
 type frameOpts struct{ border, vis bool }
 
-// layoutScreensWith is layoutScreens with the border and visualizer on or
-// off.
-func layoutScreensWith(t *testing.T, w, h int, o frameOpts) map[string]struct {
+// layoutScreensWith builds each library screen at w×h with a long list in
+// front (names, or all of them), with the border and visualizer on or off.
+func layoutScreensWith(t *testing.T, w, h int, o frameOpts, names ...string) map[string]struct {
 	m      Model
 	marker string // text on each list row
 } {
@@ -101,9 +99,6 @@ func layoutScreensWith(t *testing.T, w, h int, o frameOpts) map[string]struct {
 		m.SetFrameBorder(o.border)
 		return m
 	}
-	albums := resized(t, bordered(newLibraryModel(bigLibraryRoot())), w, h)
-	albums = libPress(t, albums, "enter")
-
 	queueAt := func() Model {
 		q := resized(t, bordered(newLibraryModel(bigLibraryRoot())), w, h)
 		for _, k := range []string{"j", "enter", "enter", "tab"} {
@@ -111,38 +106,52 @@ func layoutScreensWith(t *testing.T, w, h int, o frameOpts) map[string]struct {
 		}
 		return q
 	}
-	queue := queueAt()
-
-	lyr := queue
-	lyr.lyrics.visible = true
-	lyr.lyrics.lines = make([]lyrics.Line, layoutRows)
-	for i := range lyr.lyrics.lines {
-		lyr.lyrics.lines[i] = lyrics.Line{Text: fmt.Sprintf("Lyric line %03d", i)}
-	}
-	lyr.recomputeLayout() // the lyrics screen has its own chrome
-
-	info := queuePress(queue, "i")
-
-	upNext := queueAt() // its own playlist: queuing marks the tracks
-	for range 150 {
-		upNext = queuePress(queuePress(upNext, "a"), "j")
-	}
-	upNext = queuePress(upNext, "A")
-
-	search, _ := newSearchModel(t)
-	search = resized(t, bordered(search), w, h)
-
-	return map[string]struct {
-		m      Model
+	builders := map[string]struct {
+		build  func() Model
 		marker string
 	}{
-		"Albums":  {albums, "Album "},
-		"Queue":   {queue, "Track "},
-		"Lyrics":  {lyr, "Lyric line "},
-		"Search":  {search, ""},
-		"Info":    {info, ""},
-		"Up next": {upNext, "Track "},
+		"Albums": {func() Model {
+			return libPress(t, resized(t, bordered(newLibraryModel(bigLibraryRoot())), w, h), "enter")
+		}, "Album "},
+		"Queue": {queueAt, "Track "},
+		"Lyrics": {func() Model {
+			m := queueAt()
+			m.lyrics.visible = true
+			m.lyrics.lines = make([]lyrics.Line, layoutRows)
+			for i := range m.lyrics.lines {
+				m.lyrics.lines[i] = lyrics.Line{Text: fmt.Sprintf("Lyric line %03d", i)}
+			}
+			m.recomputeLayout() // the lyrics screen has its own chrome
+			return m
+		}, "Lyric line "},
+		"Search": {func() Model {
+			m, _ := newSearchModel(t)
+			return resized(t, bordered(m), w, h)
+		}, ""},
+		"Info": {func() Model { return queuePress(queueAt(), "i") }, ""},
+		"Up next": {func() Model {
+			m := queueAt() // its own playlist: queuing marks the tracks
+			for range upNextRows {
+				m = queuePress(queuePress(m, "a"), "j")
+			}
+			return queuePress(m, "A")
+		}, "Track "},
 	}
+	if len(names) == 0 {
+		names = slices.Collect(maps.Keys(builders))
+	}
+	out := make(map[string]struct {
+		m      Model
+		marker string
+	}, len(names))
+	for _, name := range names {
+		b := builders[name]
+		out[name] = struct {
+			m      Model
+			marker string
+		}{b.build(), b.marker}
+	}
+	return out
 }
 
 // Every library screen fills the terminal at every size, and its list takes
@@ -155,13 +164,27 @@ func TestLibraryScreensFillTheTerminal(t *testing.T) {
 			for name, s := range layoutScreensWith(t, size.w, size.h, o) {
 				t.Run(fmt.Sprintf("%+v/%dx%d/%s", o, size.w, size.h, name), func(t *testing.T) {
 					checkFrame(t, s.m, size.w, size.h)
-					if _, rows := s.m.bodySize(); rows != s.m.layout.bodyRows {
+					if s.m.layout.border {
+						// A status message takes the row cliamp leaves for it,
+						// never the border's bottom line.
+						withStatus := s.m
+						withStatus.status.text = "a status message"
+						checkFrame(t, withStatus, size.w, size.h)
+					}
+					// Not capped: cliamp caps plVisible at 12 or 24 rows.
+					_, rows := s.m.bodySize()
+					if rows != s.m.layout.bodyRows {
 						t.Errorf("list rows = %d, body = %d: the list is capped", rows, s.m.layout.bodyRows)
 					}
+					// Albums and the queue list a row per body row; Up next and
+					// lyrics may spend one on a header or the current line.
+					slack := 1
+					if name == "Albums" || name == "Queue" {
+						slack = 0
+					}
 					if s.marker != "" {
-						_, rows := s.m.bodySize()
-						if got := countRows(s.m, s.marker); got < rows-1 {
-							t.Errorf("%d rows listed, want about %d", got, rows)
+						if got := countRows(s.m, s.marker); got < rows-slack {
+							t.Errorf("%d rows listed, want %d", got, rows)
 						}
 					}
 				})
@@ -175,7 +198,7 @@ func TestTallerTerminalListsMore(t *testing.T) {
 	for _, screen := range []string{"Albums", "Queue", "Lyrics"} {
 		var prev, prevH int
 		for _, h := range []int{40, 60, 120} { // below 40 the visualizer yields rows too
-			s := layoutScreens(t, 120, h)[screen]
+			s := layoutScreensWith(t, 120, h, frameOpts{vis: true}, screen)[screen]
 			got := countRows(s.m, s.marker)
 			if prevH > 0 && got-prev != h-prevH {
 				t.Errorf("%s: %d rows at height %d, %d at %d; want %d more", screen, prev, prevH, got, h, h-prevH)
@@ -188,13 +211,13 @@ func TestTallerTerminalListsMore(t *testing.T) {
 // Resizing down and back up keeps the cursor's row on screen, and the list
 // grows back to the taller terminal.
 func TestResizeKeepsTheCursorOnScreen(t *testing.T) {
-	m := layoutScreens(t, 120, 60)["Albums"].m
-	for range 250 {
+	m := layoutScreensWith(t, 120, 60, frameOpts{vis: true}, "Albums")["Albums"].m
+	for range 120 {
 		m = libPress(t, m, "j")
 	}
 	for _, size := range []struct{ w, h int }{{80, 24}, {56, 16}, {200, 80}, {120, 60}} {
 		m = resized(t, m, size.w, size.h)
-		if out := stripAnsi(m.View().Content); !strings.Contains(out, "> Album 250") {
+		if out := stripAnsi(m.View().Content); !strings.Contains(out, "> Album 120") {
 			t.Fatalf("%dx%d: the cursor's row is off screen:\n%s", size.w, size.h, out)
 		}
 		checkFrame(t, m, size.w, size.h)
@@ -287,7 +310,7 @@ func TestListRowWidth(t *testing.T) {
 // The queue's durations stay beside its titles on a wide terminal, and Up
 // next's too, while the settings column keeps its place.
 func TestWideQueueRowsEndAtTheirContent(t *testing.T) {
-	screens := layoutScreens(t, 300, 30)
+	screens := layoutScreensWith(t, 300, 30, frameOpts{vis: true}, "Queue", "Up next")
 	for _, name := range []string{"Queue", "Up next"} {
 		for _, l := range strings.Split(stripAnsi(screens[name].m.View().Content), "\n") {
 			if !strings.Contains(l, "Track 010") {
@@ -306,13 +329,15 @@ func TestWideQueueRowsEndAtTheirContent(t *testing.T) {
 // On a short terminal the queue's visualizer gives up rows for the list, and
 // keeps one; on a tall one it keeps its height.
 func TestShortQueueVisualizerYields(t *testing.T) {
-	for _, tt := range []struct{ w, h, minRows int }{{80, 24, libQueueMinRows}, {56, 16, libMinBodyRows}, {120, 60, 30}} {
-		m := resized(t, newLibraryModel(bigLibraryRoot()), tt.w, tt.h)
-		m.vis = ui.NewVisualizer(44100)
-		for _, k := range []string{"j", "enter", "enter", "tab"} {
-			m = libPress(t, m, k)
-		}
-		m.recomputeLayout()
+	for _, tt := range []struct {
+		screen     string
+		w, h, rows int
+	}{
+		{"Queue", 80, 24, libPlaybackMinRows}, {"Queue", 56, 16, libMinBodyRows}, {"Queue", 120, 60, 30},
+		{"Info", 80, 24, libPlaybackMinRows}, {"Info", 56, 16, libMinBodyRows},
+	} {
+		m := layoutScreensWith(t, tt.w, tt.h, frameOpts{vis: true}, tt.screen)[tt.screen].m
+		tt := struct{ w, h, minRows int }{tt.w, tt.h, tt.rows}
 		if _, rows := m.bodySize(); rows < tt.minRows {
 			t.Errorf("%dx%d: %d list rows, want at least %d", tt.w, tt.h, rows, tt.minRows)
 		}
@@ -332,7 +357,7 @@ func TestShortQueueVisualizerYields(t *testing.T) {
 func TestFrameBorderAndRules(t *testing.T) {
 	lines := func(m Model) []string { return strings.Split(stripAnsi(m.View().Content), "\n") }
 	for _, size := range []struct{ w, h int }{{56, 16}, {80, 24}, {200, 60}} {
-		s := layoutScreensWith(t, size.w, size.h, frameOpts{border: true, vis: true})
+		s := layoutScreensWith(t, size.w, size.h, frameOpts{border: true, vis: true}, "Albums", "Queue", "Info")
 		for _, name := range []string{"Albums", "Queue", "Info"} {
 			l := lines(s[name].m)
 			if !strings.HasPrefix(l[0], "╭") || !strings.HasPrefix(l[len(l)-1], "╰") || !strings.HasPrefix(l[1], "│") {
@@ -352,19 +377,45 @@ func TestFrameBorderAndRules(t *testing.T) {
 	}
 	// Without a status message cliamp's frame is a row shorter; bordered, it
 	// still reaches the terminal's last row.
-	quiet := layoutScreensWith(t, 80, 24, frameOpts{border: true, vis: true})["Queue"].m
+	quiet := layoutScreensWith(t, 80, 24, frameOpts{border: true, vis: true}, "Queue")["Queue"].m
 	quiet.status.text = ""
 	if l := lines(quiet); len(l) != 24 || !strings.HasPrefix(l[23], "╰") {
 		t.Errorf("without a status the bordered queue is %d rows, last %q", len(l), l[len(l)-1])
 	}
-	small := layoutScreensWith(t, 40, 12, frameOpts{border: true, vis: true})["Albums"].m
+	small := layoutScreensWith(t, 40, 12, frameOpts{border: true, vis: true}, "Albums")["Albums"].m
 	if l := lines(small); strings.ContainsAny(l[0]+l[len(l)-1], "╭╰") {
 		t.Error("the minimal tier draws the border")
 	}
-	off := layoutScreensWith(t, 120, 40, frameOpts{vis: true})
+	off := layoutScreensWith(t, 120, 40, frameOpts{vis: true}, "Albums", "Queue")
 	for _, name := range []string{"Albums", "Queue"} {
 		if out := stripAnsi(off[name].m.View().Content); strings.ContainsAny(out, "╭╰┴") || strings.Contains(out, "  │  ") {
 			t.Errorf("%s with the border off draws it", name)
 		}
+	}
+}
+
+// Up next's durations hold one column while the list scrolls: the column
+// is measured over every queued track, not the rows in view.
+func TestUpNextColumnHoldsWhileScrolling(t *testing.T) {
+	m := layoutScreensWith(t, 300, 30, frameOpts{vis: true}, "Up next")["Up next"].m
+	// Vary the names so each window of rows would measure differently.
+	for i := range upNextRows {
+		tr, _ := m.playlist.Track(i)
+		tr.Title = strings.Repeat("x", i%97+1)
+		m.playlist.SetTrack(i, tr)
+	}
+	at := -1
+	for range 60 {
+		for _, l := range strings.Split(stripAnsi(m.View().Content), "\n") {
+			if !strings.Contains(l, "3:20") || strings.Contains(l, "Settings") {
+				continue
+			}
+			if i := strings.Index(l, "3:20"); at < 0 {
+				at = i
+			} else if i != at && lipgloss.Width(l[:i]) < 3+listReadWidth {
+				t.Fatalf("a duration at %d, another at %d", at, i)
+			}
+		}
+		m = queuePress(m, "j")
 	}
 }

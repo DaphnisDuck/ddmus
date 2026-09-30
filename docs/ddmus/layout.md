@@ -5,13 +5,13 @@ ddmus fills the terminal. On a taller terminal, every list shows more rows. On a
 ## What you see
 
 - **Height:** the library's lists (levels, search results), the queue, Up next, lyrics and track info get every row between the header and the key bar. The now-playing lines, seek bar and visualizer keep their heights; extra rows go to the list.
-- **Short terminals:** the queue, and track info, lyrics or Up next over it, keep at least 8 list rows. The visualizer shrinks first, down to one row, then the queue's key bar shows only its first lines. Below 40×10, ddmus shows "Terminal too small" until the terminal grows.
+- **Short terminals:** the queue, and track info, lyrics or Up next over it, take rows from the visualizer (down to one row) until the list has 8. If that is not enough, the queue's key bar shows only its first lines, keeping at least 3 list rows. Below 40×10, ddmus shows "Terminal too small" until the terminal grows.
 - **Width up to 100 columns:** rows fill the width, with the detail (artist, year) or duration at the right edge.
 - **Width over 100 columns:** a list's rows form a table. Titles take a column wide enough for 9 in 10 of the list's titles, and details start after it; a longer title pushes its own detail right instead of being cut. Track rows (an album's tracks, the queue, Up next) end where most of their rows end. Rows never get narrower than 100 columns. The queue's settings column stays at the right edge.
 
 ## Border
 
-A rounded border runs around the screen, a rule separates the list from the key bar, and a line divides the queue from its settings column, meeting the rule below them. The border takes the place of the frame's outer padding, so it costs no list rows; the queue's rule costs one. Below 56×16 the border is left out to keep rows for the list. To turn it off:
+A rounded border runs around the screen from 56×16 up; below that it is left out to keep rows for the list. From 80×24 up, a rule also separates the list from the key bar, and a line divides the queue from its settings column, meeting the rule below them. The border takes the place of the frame's outer padding, so it costs no list rows; the queue's rule costs one. To turn it off:
 
 ```toml
 [ddmus]

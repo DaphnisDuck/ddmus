@@ -27,8 +27,8 @@ type libraryState struct {
 	visible bool
 	stack   []libFrame
 	gen     uint64 // request generation shared by loads, plays and sign-ins
-	// queueFit caches the queue's widest row (library_layout.go).
-	queueFit *queueFit
+	// fits caches the queue's and Up next's row columns (library_rows.go).
+	fits *libFits
 	// border draws the frame's border and rules (library_frame.go).
 	border bool
 
@@ -170,7 +170,7 @@ type libraryAuthDoneMsg struct {
 // load without I/O (a static menu), because Init cannot issue its load.
 func (m *Model) SetLibrary(root library.Level) {
 	entries, err := root.Load(context.Background())
-	m.lib = libraryState{visible: true, stack: []libFrame{{level: root, err: err}}, queueFit: &queueFit{}}
+	m.lib = libraryState{visible: true, stack: []libFrame{{level: root, err: err}}, fits: &libFits{}}
 	m.lib.stack[0].setEntries(entries)
 	m.focus = focusPlaylist
 }

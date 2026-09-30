@@ -232,6 +232,7 @@ func (s topLevelScreen) label() string {
 }
 
 // maxPlVisible caps the playlist at a readable height even on tall terminals.
+// ddmus: not with the library enabled, where lists fill the body (layout.go).
 // maxPlExpandVisible is the higher cap used by content-first list screens.
 const (
 	maxPlVisible       = 12

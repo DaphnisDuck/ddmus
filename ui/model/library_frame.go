@@ -23,10 +23,10 @@ func (m *Model) SetFrameBorder(on bool) {
 }
 
 // libBorderOn reports whether a frame laid out as l draws the border: it is
-// on, the library is enabled, and l's tier has padding for it to take.
+// on, the library is enabled, and l's tier is compact or full, whose sizes
+// leave the frame a cell of padding on each side for it to take.
 func (m Model) libBorderOn(l frameLayout) bool {
-	return m.lib.border && m.libraryEnabled() && l.paddingV >= 1 && l.paddingH >= 1 &&
-		(l.tier == layoutCompact || l.tier == layoutFull)
+	return m.lib.border && m.libraryEnabled() && (l.tier == layoutCompact || l.tier == layoutFull)
 }
 
 // libFrameStyle is the frame style for m.layout: its padding, with the
@@ -36,6 +36,9 @@ func (m Model) libBorderOn(l frameLayout) bool {
 // row under the border.
 func (m Model) libFrameStyle() lipgloss.Style {
 	l := m.layout
+	if !m.libraryEnabled() {
+		return ui.FrameStyle.Padding(l.paddingV, l.paddingH) // cliamp's frame, as before
+	}
 	s := ui.FrameStyle.Border(lipgloss.RoundedBorder(), l.border).BorderForeground(ui.ColorDim).Height(0)
 	if l.border {
 		return s.Padding(l.paddingV-1, l.paddingH-1).Height(m.height)

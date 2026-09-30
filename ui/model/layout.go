@@ -57,7 +57,8 @@ func (l frameLayout) chromeRowsFreed() int {
 // playlistMinWidth.
 const (
 	// columnGutter is the blank channel between the two columns. It runs
-	// unbroken down the body, which is what separates them. Its width is the
+	// unbroken down the body, which is what separates them. (ddmus: with the
+	// border a divider runs down its middle, library_frame.go.) Its width is the
 	// declared one, not len(): a non-ASCII gutter would make those differ.
 	columnGutterWidth = 5
 	columnGutter      = "     "
@@ -154,6 +155,12 @@ func (m *Model) recomputeLayout() {
 			layout.fixedRows = 6 // ddmus: compact draws no spacer above the hint bar (mainSections)
 		} else {
 			layout.fixedRows = 7
+		}
+		if layout.border {
+			// ddmus: these counts leave a status line to push the frame's
+			// bottom padding row off; with the border that row is its
+			// bottom line.
+			layout.fixedRows++
 		}
 	} else if simplified {
 		layout.visualizerRows = 0

@@ -30,7 +30,7 @@ func Directory(directory string) (string, error) {
 		}
 		return resolved, nil
 	}
-	return appdir.DownloadsDir() // omatunes
+	return appdir.DownloadsDir() // ddmus
 }
 
 // SaveTo downloads or copies a track to the configured directory.

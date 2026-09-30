@@ -1,4 +1,4 @@
--- omatunes catalog schema v2: full-text search. One FTS5 table per kind,
+-- ddmus catalog schema v2: full-text search. One FTS5 table per kind,
 -- keyed by the entity's catalog ID (rowid = id), kept in step with the
 -- entity tables by triggers. Never edit a migration once merged.
 --

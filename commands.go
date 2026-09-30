@@ -76,7 +76,7 @@ func buildApp() *cli.Command {
 			historyCommand(),
 			radioCommand(),
 			setupCommand(),
-			youtubeCommand(), // omatunes: YouTube Music sign-in (commands_omatunes.go)
+			youtubeCommand(), // ddmus: YouTube Music sign-in (commands_ddmus.go)
 			spotifyCommand(),
 			qobuzCommand(),
 			tidalCommand(),

@@ -1,4 +1,4 @@
-// omatunes: whole-collection fetchers for the catalog sync in OAuth mode,
+// ddmus: whole-collection fetchers for the catalog sync in OAuth mode,
 // through the YouTube Data API. Like the cookie fetchers, each returns
 // catalog records carrying YouTube IDs or an error, never a partial
 // collection. Kept in its own file so upstream merges stay conflict-free.

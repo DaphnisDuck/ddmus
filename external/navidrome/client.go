@@ -204,7 +204,7 @@ func (c *NavidromeClient) buildURL(endpoint string, params url.Values) string {
 	params.Set("t", token)
 	params.Set("s", salt)
 	params.Set("v", "1.0.0")
-	params.Set("c", appmeta.ClientName()) // omatunes: distinct client from cliamp
+	params.Set("c", appmeta.ClientName()) // ddmus: distinct client from cliamp
 	params.Set("f", "json")
 
 	return fmt.Sprintf("%s/rest/%s?%s", c.url, endpoint, params.Encode())

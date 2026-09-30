@@ -107,7 +107,7 @@ func (p *SpotifyProvider) ensureSession() error {
 	}
 	sess, err := NewSessionSilent(context.Background(), clientID)
 	if err != nil {
-		return silentSessionError(err) // omatunes: only credential failures need sign-in
+		return silentSessionError(err) // ddmus: only credential failures need sign-in
 	}
 	p.mu.Lock()
 	p.session = sess
@@ -803,7 +803,7 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 			reqBody = bytes.NewReader(bodyBytes)
 		}
 
-		// omatunes: read the session under the lock; the catalog sync calls
+		// ddmus: read the session under the lock; the catalog sync calls
 		// this from a background goroutine while Close may clear it.
 		p.mu.Lock()
 		sess := p.session
@@ -841,7 +841,7 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 		if !ok {
 			respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
 			resp.Body.Close()
-			return nil, statusError(resp.StatusCode, resp.Status, respBody, readErr) // omatunes: typed, same message
+			return nil, statusError(resp.StatusCode, resp.Status, respBody, readErr) // ddmus: typed, same message
 		}
 		return resp, nil
 	}

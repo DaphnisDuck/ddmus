@@ -1,6 +1,6 @@
 package main
 
-// omatunes: the catalog runtime. It opens the SQLite catalog, runs the
+// ddmus: the catalog runtime. It opens the SQLite catalog, runs the
 // background Spotify sync and album-track fill and the local folder index,
 // and reports them to the library UI. Kept out of main.go so upstream merges
 // there stay conflict-free.

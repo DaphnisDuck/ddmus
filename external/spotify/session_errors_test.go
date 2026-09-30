@@ -1,4 +1,4 @@
-// omatunes: tests for sign-in error classification and Web API token restore.
+// ddmus: tests for sign-in error classification and Web API token restore.
 
 package spotify
 

@@ -1,6 +1,6 @@
 //go:build !windows
 
-// omatunes: tests for the whole-collection catalog fetchers.
+// ddmus: tests for the whole-collection catalog fetchers.
 
 package spotify
 

@@ -1,6 +1,6 @@
 package model
 
-// omatunes: library navigation stack behavior, driven through Update so the
+// ddmus: library navigation stack behavior, driven through Update so the
 // handleKey/Update hooks are exercised too.
 
 import (

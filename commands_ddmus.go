@@ -1,6 +1,6 @@
 package main
 
-// omatunes: subcommands of its own. Kept out of commands.go so upstream
+// ddmus: subcommands of its own. Kept out of commands.go so upstream
 // merges there stay conflict-free; commands.go registers them with one
 // tagged line.
 
@@ -20,7 +20,7 @@ import (
 // youtubeSignInTimeout bounds waiting for the browser sign-in.
 const youtubeSignInTimeout = 5 * time.Minute
 
-// youtubeCommand is "omatunes youtube": YouTube Music account commands.
+// youtubeCommand is "ddmus youtube": YouTube Music account commands.
 func youtubeCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "youtube",
@@ -39,7 +39,7 @@ func youtubeCommand() *cli.Command {
 				}
 				id, secret := strings.TrimSpace(cfg.YouTubeMusic.ClientID), strings.TrimSpace(cfg.YouTubeMusic.ClientSecret)
 				if id == "" || secret == "" {
-					return errors.New("set client_id and client_secret under [ytmusic] in config.toml first (see docs/omatunes/youtube.md)")
+					return errors.New("set client_id and client_secret under [ytmusic] in config.toml first (see docs/ddmus/youtube.md)")
 				}
 				fmt.Println("Signing in to Google. If your browser opens, approve read-only access there.")
 				ctx, cancel := context.WithTimeout(ctx, youtubeSignInTimeout)

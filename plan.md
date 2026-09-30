@@ -1,10 +1,10 @@
-# omatunes plan
+# ddmus plan (DaphnisDuck's Music Player)
 
-This is the working anchor for the omatunes fork of cliamp. Read it before starting any task. Update **Status** and **Decisions** as work lands.
+This is the working anchor for the ddmus fork of cliamp. Read it before starting any task. Update **Status** and **Decisions** as work lands.
 
 ## Vision
 
-You shouldn't have to remember where your music lives. omatunes turns cliamp's provider-oriented TUI into a library-oriented player:
+You shouldn't have to remember where your music lives. ddmus turns cliamp's provider-oriented TUI into a library-oriented player:
 
 - The application owns navigation.
 - Providers own capabilities and content.
@@ -97,12 +97,12 @@ Done when:
 5. Secrets (tokens, credentials) never go into the catalog database.
 
 ## Upstream policy
-- The `upstream` remote is `https://github.com/bjarneo/cliamp.git`. `origin` is `DaphnisDuck/omatunes`.
+- The `upstream` remote is `https://github.com/bjarneo/cliamp.git`. `origin` is `DaphnisDuck/ddmus` (renamed from omatunes in M6).
 - To sync, create a branch `sync/upstream-YYYYMMDD`, run `git fetch upstream && git merge upstream/main`, then `make check`, then open a PR. Merge; don't rebase public history.
-- Keep the Go module path `github.com/bjarneo/cliamp`. omatunes has its own config, data, downloads and MPRIS name so it runs beside cliamp (see `docs/omatunes/files.md`).
+- Keep the Go module path `github.com/bjarneo/cliamp`. ddmus has its own config, data, downloads and MPRIS name so it runs beside cliamp (see `docs/ddmus/files.md`).
 - Put new code in new files and packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`).
-- Keep each unavoidable edit to an upstream file small, and tag it with a `// omatunes:` comment.
-- omatunes docs live in `docs/omatunes/`. Upstream's `docs/` and `site/` are left untouched to avoid conflicts, so the CLAUDE.md rule "keep site in sync" applies to upstream-style changes only.
+- Keep each unavoidable edit to an upstream file small, and tag it with a `// ddmus:` comment.
+- ddmus docs live in `docs/ddmus/`. Upstream's `docs/` and `site/` are left untouched to avoid conflicts, so the CLAUDE.md rule "keep site in sync" applies to upstream-style changes only.
 
 ## M2 implementation plan
 
@@ -475,7 +475,7 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
 
 ### Decisions (confirmed 2026-09-29)
 - **Key help:** each view's bottom bar lists every key that works there, wrapping to more lines when needed. The `?`/`Ctrl+K` overlay goes away while the library is enabled, and `Ctrl+G` still hides the bar. It is upstream's overlay, so it stays for cliamp's own screens.
-- **Favorite (`n`):** removed. Liking on the source, or omatunes' own playlists, may bring it back later.
+- **Favorite (`n`):** removed. Liking on the source, or ddmus' own playlists, may bring it back later.
 - **Queue keys back:**
   - `z` shuffle and `r` repeat (cycle off/all/one);
   - `a` play next and `A` queued list;
@@ -496,7 +496,7 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
   - The bottom bar renders it for Library, Search Results, Library Search, and Queue, wrapping within the width. The layout budget accounts for the extra lines.
   - `?`/`Ctrl+K` come out of the passthrough and the bar while the library is enabled.
   - Tests: the bar lists exactly the live keys, and it fits at 80 and 120 columns.
-- M7.4 Docs (`docs/omatunes/navigation.md` key tables, README), review agents, live check, tag `v0.7.0`.
+- M7.4 Docs (`docs/ddmus/navigation.md` key tables, README), review agents, live check, tag `v0.7.0`.
 
 ## Status
 - [x] M0: add the `upstream` remote, create `plan.md`, add the CLAUDE.md fork note, write `docs/omatunes/upstream.md`, make the Makefile build `omatunes`, rebrand the UI title and terminal title.
@@ -589,7 +589,13 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
 - [x] M6.2 Config section:
   - `[ddmus]` (`config/ddmus.go`, `DdmusConfig`, `cfg.Ddmus`).
   - First built with an automatic first-start move of the omatunes folders (`appdir.MigrateLegacy`) and an `[omatunes]` alias, verified on copies of the real folders. Both were removed at the user's request: `~/.config/omatunes` may belong to the other omatunes player, and a move would take its folder. There are no other users, so the move is done by hand in M6.4.
-  - Found on the way: tmux and the shell export `XDG_CONFIG_HOME`, so a scratch HOME alone let an M6.1 live check and a new test (missing `t.Setenv("HOME", …)`) create a stray real `~/.config/ddmus`. It was removed and the test fixed. Live checks now unset `XDG_CONFIG_HOME`. Next: M6.3.
+  - Found on the way: tmux and the shell export `XDG_CONFIG_HOME`, so a scratch HOME alone let an M6.1 live check and a new test (missing `t.Setenv("HOME", …)`) create a stray real `~/.config/ddmus`. It was removed and the test fixed. Live checks now unset `XDG_CONFIG_HOME`.
+- [x] M6.3 Code and docs:
+  - Fork files renamed: `commands_ddmus.go`, `main_ddmus.go`, `ddmus_upgrade_test.go`, `internal/appdir/ddmus.go`, `external/ytmusic/signin_ddmus.go`.
+  - Every Go mention (64 `// ddmus:` tags and comments) and the migration header comments are updated. The migrations are not checksummed, so editing their comments is safe.
+  - `docs/omatunes/` → `docs/ddmus/`. `files.md` gains the full name and "Moving from omatunes (before v0.6)", with the manual `mv` commands and the section rename.
+  - README is titled "DaphnisDuck's Music Player", with `ddmus` throughout and a pointer for omatunes users. CLAUDE.md and the forward-looking parts of plan.md (title, vision, upstream policy, M7) are updated.
+  - Grep gate: "omatunes" remains only in those deliberate pointers, plan.md's history and M6 plan, and prompt.txt. Next: M6.4.
 - [ ] M7 (the queue view, v0.7): planned 2026-09-29, see the M7 implementation plan. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists; liking on the source (`n`).
 
 ## Decisions log

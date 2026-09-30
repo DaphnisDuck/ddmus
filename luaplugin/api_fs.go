@@ -29,7 +29,7 @@ func writeAllowDirs() []string {
 		if configDir, err := appdir.Dir(); err == nil {
 			raw = append(raw, configDir)
 		}
-		// omatunes: the fork's data and downloads dirs, from one source.
+		// ddmus: the fork's data and downloads dirs, from one source.
 		if dataDir, err := appdir.DataDir(); err == nil {
 			raw = append(raw, dataDir)
 		}

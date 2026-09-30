@@ -1,6 +1,6 @@
 package main
 
-// omatunes: tests for the catalog runtime's sync retries.
+// ddmus: tests for the catalog runtime's sync retries.
 
 import (
 	"context"

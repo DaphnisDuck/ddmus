@@ -1,4 +1,4 @@
-// omatunes: the self-updater must refuse, since it would install cliamp.
+// ddmus: the self-updater must refuse, since it would install cliamp.
 
 package main
 

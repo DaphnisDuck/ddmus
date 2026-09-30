@@ -1,6 +1,6 @@
 package model
 
-// omatunes: the library's search screen. It is a frame on the library stack
+// ddmus: the library's search screen. It is a frame on the library stack
 // whose level is a library.SearchLevel: typing swaps in the level for the
 // new query and reloads it after a short pause, so the usual load machinery
 // supersedes stale results. Results open like any library row.

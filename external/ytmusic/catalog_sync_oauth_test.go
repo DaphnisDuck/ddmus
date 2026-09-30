@@ -1,4 +1,4 @@
-// omatunes: tests for the OAuth-mode catalog fetchers against a fake Data API.
+// ddmus: tests for the OAuth-mode catalog fetchers against a fake Data API.
 
 package ytmusic
 

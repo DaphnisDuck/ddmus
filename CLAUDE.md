@@ -1,16 +1,16 @@
-# CLAUDE.md — omatunes (fork of cliamp)
+# CLAUDE.md — ddmus, DaphnisDuck's Music Player (fork of cliamp)
 
 > A retro terminal music player (Go + Bubbletea). This file tells AI agents where things live, what conventions the codebase uses, and which skills to lean on.
 
-## omatunes fork — read first
+## ddmus fork — read first
 
-This repo is **omatunes**, a fork of cliamp that turns the provider-oriented UI into a library-oriented one (Music → Spotify/Local/Radio/Search). **Read `plan.md` before any task** — it holds the milestones, architecture invariants, status checklist, and decisions log. Update its Status/Decisions sections as work lands.
+This repo is **DaphnisDuck's Music Player** (`ddmus`; called omatunes until v0.6), a fork of cliamp that turns the provider-oriented UI into a library-oriented one (Music → Spotify/Local/Radio/Search). **Read `plan.md` before any task** — it holds the milestones, architecture invariants, status checklist, and decisions log. Update its Status/Decisions sections as work lands.
 
 Fork rules (keep upstream merges cheap):
 - `upstream` = `https://github.com/bjarneo/cliamp.git`; sync by merging `upstream/main` on a `sync/upstream-YYYYMMDD` branch.
-- Module path stays `github.com/bjarneo/cliamp`. The binary, UI branding, and on-disk/runtime identity are omatunes: config `~/.config/omatunes` (`OMATUNES_CONFIG_DIR` overrides; `CLIAMP_CONFIG_DIR` is checked first for upstream test isolation), data `~/.local/share/omatunes`, downloads `~/Music/omatunes`, MPRIS `org.mpris.MediaPlayer2.omatunes`, all derived from `internal/appdir.Name` and `internal/appmeta`. See `docs/omatunes/files.md`.
-- New code goes in new files/packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`). Unavoidable edits to upstream files stay small and are tagged `// omatunes:`.
-- omatunes docs live in `docs/omatunes/`. Don't edit upstream `docs/` or `site/` for omatunes-only changes — the "keep docs/ and site/ in sync" rule below applies to upstream-style changes only.
+- Module path stays `github.com/bjarneo/cliamp`. The binary, UI branding, and on-disk/runtime identity are ddmus: config `~/.config/ddmus` (`DDMUS_CONFIG_DIR` overrides; `CLIAMP_CONFIG_DIR` is checked first for upstream test isolation), data `~/.local/share/ddmus`, downloads `~/Music/ddmus`, MPRIS `org.mpris.MediaPlayer2.ddmus`, all derived from `internal/appdir.Name` and `internal/appmeta`. See `docs/ddmus/files.md`.
+- New code goes in new files/packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`). Unavoidable edits to upstream files stay small and are tagged `// ddmus:`.
+- ddmus docs live in `docs/ddmus/`. Don't edit upstream `docs/` or `site/` for ddmus-only changes — the "keep docs/ and site/ in sync" rule below applies to upstream-style changes only.
 
 ## Extended context
 
@@ -86,7 +86,7 @@ Lua plugins run in isolated `gopher-lua` VMs. Crashes are sandboxed. Hooks fire 
 ## Build, test, and local workflow
 
 ```sh
-make build        # go build -trimpath with version ldflags → ./omatunes (BINARY=cliamp for the upstream name)
+make build        # go build -trimpath with version ldflags → ./ddmus (BINARY=cliamp for the upstream name)
 make test         # go test ./...
 make vet          # go vet ./...
 make lint         # vet + staticcheck (if installed)
@@ -132,12 +132,12 @@ Installed plugins: `ecc` (marketplace `affaan-m/ECC`), `gopls-lsp`, `context7`.
 - **gopls LSP** — Prefer LSP go-to-definition / find-references over grep when tracing symbols across `ui/model/`.
 
 Golden path for a non-trivial change:
-1. Read `plan.md`, relevant `docs/*.md` / `docs/omatunes/*.md`, and skim the target package.
+1. Read `plan.md`, relevant `docs/*.md` / `docs/ddmus/*.md`, and skim the target package.
 2. Plan (optionally via `ecc:plan`).
 3. Implement the narrowest change that works. Add/extend table-driven tests.
 4. Run `make check`.
 5. Invoke `/simplify` on the diff.
-6. If user-visible: upstream-style changes update both `docs/` and `site/index.html`; omatunes-only changes update `docs/omatunes/`.
+6. If user-visible: upstream-style changes update both `docs/` and `site/index.html`; ddmus-only changes update `docs/ddmus/`.
 
 ---
 

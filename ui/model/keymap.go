@@ -44,7 +44,7 @@ func (m Model) buildKeymapEntries() []keymapEntry {
 	}
 
 	mode, label := m.keymapContext()
-	if mode == commandModeMain && m.libraryEnabled() { // omatunes: only keys the library gate lets through
+	if mode == commandModeMain && m.libraryEnabled() { // ddmus: only keys the library gate lets through
 		return m.libraryKeymapEntries()
 	}
 	if mode != commandModeMain {

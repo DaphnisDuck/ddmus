@@ -1,6 +1,6 @@
 package main
 
-// omatunes: wiring for the library navigation. Kept out of main.go so
+// ddmus: wiring for the library navigation. Kept out of main.go so
 // upstream merges there stay conflict-free.
 
 import (

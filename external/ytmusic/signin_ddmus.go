@@ -1,6 +1,6 @@
 package ytmusic
 
-// omatunes: a forced sign-in, to switch Google accounts.
+// ddmus: a forced sign-in, to switch Google accounts.
 
 import (
 	"context"

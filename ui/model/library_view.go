@@ -1,6 +1,6 @@
 package model
 
-// omatunes: rendering for the library navigation stack.
+// ddmus: rendering for the library navigation stack.
 
 import (
 	"errors"

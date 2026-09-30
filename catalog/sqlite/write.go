@@ -408,12 +408,16 @@ func (w *snapWriter) writeTrack(t catalog.TrackRecord, albumID sql.NullInt64) (i
 	if err != nil {
 		return 0, err
 	}
-	id, err := w.queryID(`INSERT INTO tracks (provider, provider_id, title, artist_credit, album_id, album_title,
+	// An enriched track keeps the title and credits its enrichment found;
+	// a sync knows only the video's.
+	var id int64
+	var enriched bool
+	err = w.tx.QueryRowContext(w.ctx, `INSERT INTO tracks (provider, provider_id, title, artist_credit, album_id, album_title,
 			disc, track_no, duration_ms, playable_uri, genre, year, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (provider, provider_id) DO UPDATE SET
-			title = excluded.title,
-			artist_credit = `+w.merge("artist_credit", "''")+`,
+			title = CASE WHEN enriched_at IS NULL THEN excluded.title ELSE title END,
+			artist_credit = CASE WHEN enriched_at IS NULL THEN `+w.merge("artist_credit", "''")+` ELSE artist_credit END,
 			album_id = COALESCE(excluded.album_id, album_id),
 			album_title = `+w.merge("album_title", "''")+`,
 			disc = `+w.merge("disc", "0")+`,
@@ -423,12 +427,12 @@ func (w *snapWriter) writeTrack(t catalog.TrackRecord, albumID sql.NullInt64) (i
 			genre = `+w.merge("genre", "''")+`,
 			year = `+w.merge("year", "0")+`,
 			updated_at = excluded.updated_at
-		RETURNING id`, ref.Provider, ref.ProviderID, t.Title, credit, albumID, t.AlbumTitle,
-		t.Disc, t.TrackNo, t.Duration.Milliseconds(), t.PlayableURI, t.Genre, t.Year, w.now)
+		RETURNING id, enriched_at IS NOT NULL`, ref.Provider, ref.ProviderID, t.Title, credit, albumID, t.AlbumTitle,
+		t.Disc, t.TrackNo, t.Duration.Milliseconds(), t.PlayableURI, t.Genre, t.Year, w.now).Scan(&id, &enriched)
 	if err != nil {
 		return 0, fmt.Errorf("upsert track %s: %w", ref.ProviderID, err)
 	}
-	if len(artistIDs) > 0 {
+	if len(artistIDs) > 0 && !enriched {
 		if err := w.replaceCredits("track_artists", "track_id", id, artistIDs); err != nil {
 			return 0, err
 		}

@@ -248,10 +248,59 @@ func playlistURL(id string) string { return "https://www.youtube.com/playlist?li
 // playback already resolves.
 func watchURL(id string) string { return "https://music.youtube.com/watch?v=" + id }
 
-// ytdlp runs yt-dlp on url with the browser's cookies.
+// ytdlp runs yt-dlp on url, with the browser's cookies when there is one.
 func (c *CookieCatalog) ytdlp(ctx context.Context, url string, args ...string) ([]byte, error) {
-	full := append([]string{"--cookies-from-browser", c.browser, "--socket-timeout", "15", "--no-warnings"}, args...)
+	full := []string{"--socket-timeout", "15", "--no-warnings"}
+	if c.browser != "" {
+		full = append(full, "--cookies-from-browser", c.browser)
+	}
+	full = append(full, args...)
 	return c.run(ctx, append(full, "--", url)...)
+}
+
+// Provider is the catalog provider the catalog's records belong to.
+func (*CookieCatalog) Provider() string { return catalog.YouTube }
+
+// TrackMetadata reads a video's music details (track, artists, album,
+// year) with a full yt-dlp read, about 4 s. A video with none, such as a
+// fan upload, gives a zero TrackMetadata. Artists and albums are keyed by
+// name, since the details carry no IDs.
+func (c *CookieCatalog) TrackMetadata(ctx context.Context, track catalog.Ref) (catalog.TrackMetadata, error) {
+	out, err := c.ytdlp(ctx, watchURL(track.ProviderID), "-j", "--skip-download")
+	if err != nil {
+		return catalog.TrackMetadata{}, fmt.Errorf("youtube: video %s: %w", track.ProviderID, err)
+	}
+	var v struct {
+		Track   string   `json:"track"`
+		Artist  string   `json:"artist"`
+		Artists []string `json:"artists"`
+		Album   string   `json:"album"`
+		Year    int      `json:"release_year"`
+	}
+	if err := json.Unmarshal(out, &v); err != nil {
+		return catalog.TrackMetadata{}, fmt.Errorf("youtube: parse video %s: %w", track.ProviderID, err)
+	}
+	names := v.Artists
+	if len(names) == 0 && v.Artist != "" {
+		names = strings.Split(v.Artist, ", ")
+	}
+	if v.Track == "" && v.Album == "" {
+		return catalog.TrackMetadata{}, nil
+	}
+	meta := catalog.TrackMetadata{Title: v.Track, Year: v.Year}
+	for _, n := range names {
+		if n = strings.TrimSpace(n); n != "" {
+			meta.Artists = append(meta.Artists, catalog.ArtistRecord{Ref: youtubeRef("artist:" + strings.ToLower(n)), Name: n})
+		}
+	}
+	if v.Album != "" {
+		key := "album:" + strings.ToLower(v.Album)
+		if len(meta.Artists) > 0 {
+			key = "album:" + strings.ToLower(meta.Artists[0].Name) + "/" + strings.ToLower(v.Album)
+		}
+		meta.Album = &catalog.AlbumRecord{Ref: youtubeRef(key), Title: v.Album, Artists: meta.Artists, Year: v.Year}
+	}
+	return meta, nil
 }
 
 // runYTDLP runs yt-dlp and returns its stdout. A failure carries yt-dlp's
@@ -284,6 +333,9 @@ func ytdlpError(stderr string, cause error) error {
 		return fmt.Errorf("yt-dlp: %w", cause)
 	}
 	lower := strings.ToLower(msg)
+	if strings.Contains(lower, "not a bot") || strings.Contains(lower, "http error 429") {
+		return fmt.Errorf("yt-dlp: %s: %w", msg, &catalog.RateLimitError{})
+	}
 	if strings.Contains(lower, "does not exist") || strings.Contains(lower, "playlist is private") ||
 		strings.Contains(lower, "not available") || strings.Contains(lower, "video unavailable") {
 		return fmt.Errorf("yt-dlp: %s: %w", msg, catalog.ErrForbidden)

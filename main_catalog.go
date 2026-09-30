@@ -8,6 +8,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -70,16 +72,27 @@ type source struct {
 	// refresh is how old the last successful sync may get before startup
 	// syncs again; 0 syncs at every startup.
 	refresh time.Duration
-	// fill runs the album-track filler after each sync.
-	fill bool
+	// worker runs in the background after each sync and is paused during
+	// one: the Spotify album filler, the YouTube enricher.
+	worker worker
+	// lists are menu lists the source offers beyond its sync's collections,
+	// such as albums and artists its worker derives.
+	lists []string
 	// quiet sources (radio: local files, instant) report no sync status
 	// to the UI.
 	quiet bool
 }
 
+// worker is a source's background job.
+type worker interface {
+	Hold() (release func())
+	Run(ctx context.Context) error
+}
+
 // providerSync is one provider's sync state.
 type providerSync struct {
-	fill        bool                // from source.fill
+	worker      worker              // from source.worker
+	lists       []string            // from source.lists
 	quiet       bool                // from source.quiet
 	collections []string            // what a complete sync covers
 	startup     model.CatalogStatus // stored status, read once at startup
@@ -110,12 +123,19 @@ func openCatalog(sp *spotify.SpotifyProvider, rp *radio.Provider, cfg config.Con
 	var sources []source
 	if sp != nil {
 		src := spotifysrc.New(sp)
-		sources = append(sources, source{Source: src, refresh: cfg.Omatunes.SpotifyRefresh, fill: true})
 		rt.filler = catalogsync.NewFiller(rt.store, src, catalogsync.DefaultPacing)
+		sources = append(sources, source{Source: src, refresh: cfg.Omatunes.SpotifyRefresh, worker: rt.filler})
 	}
 	if client := youtubeClient(cfg.YouTubeMusic); client != nil {
+		// Tracks are enriched with their artist, album and year through
+		// yt-dlp: with the browser's cookies when set, else anonymously.
+		meta := ytmusic.NewCookieCatalog(strings.TrimSpace(cfg.YouTubeMusic.CookiesFrom))
+		enricher := catalogsync.NewEnricher(rt.store, meta, enrichPacing, func() {
+			rt.notify(catalogsync.Event{Kind: catalogsync.CollectionDone, Provider: catalog.YouTube, Collection: catalog.CollectionDerived})
+		})
 		sources = append(sources, source{Source: youtubesrc.New(client, cfg.Omatunes.YouTubePlaylists...),
-			refresh: cfg.Omatunes.YouTubeRefresh})
+			refresh: cfg.Omatunes.YouTubeRefresh, worker: enricher,
+			lists: []string{catalog.CollectionAlbums, catalog.CollectionArtists}})
 	}
 	if dir := musicDir(cfg.InitialDirectory); dir != "" {
 		// Indexed at every startup: it rereads only changed files and
@@ -169,7 +189,7 @@ func (rt *catalogRuntime) setSources(sources ...source) {
 	}
 	rt.engine = catalogsync.New(rt.store, rt.notify, engineSources...)
 	for _, src := range sources {
-		ps := &providerSync{fill: src.fill && rt.filler != nil, quiet: src.quiet, collections: src.Collections()}
+		ps := &providerSync{worker: src.worker, lists: src.lists, quiet: src.quiet, collections: src.Collections()}
 		var complete bool
 		ps.startup, complete = rt.status(src.Provider(), len(ps.collections))
 		ps.stale = !complete || time.Since(ps.startup.LastSuccess) > src.refresh
@@ -181,7 +201,7 @@ func (rt *catalogRuntime) setSources(sources ...source) {
 // synced, so its library menu offers matching lists.
 func (rt *catalogRuntime) collections(provider string) []string {
 	if ps := rt.providers[provider]; ps != nil && rt.catalog() != nil {
-		return ps.collections
+		return append(slices.Clone(ps.collections), ps.lists...)
 	}
 	return nil
 }
@@ -207,6 +227,9 @@ type fillingCatalog struct {
 }
 
 func (c fillingCatalog) FetchAlbumTracks(ctx context.Context, album catalog.Album) ([]catalog.Track, error) {
+	if album.Ref.Provider != catalog.Spotify {
+		return nil, fmt.Errorf("fetch album %q: only Spotify albums can be fetched: %w", album.Title, catalog.ErrNotFound)
+	}
 	return c.filler.FetchAlbumTracks(ctx, album)
 }
 
@@ -260,8 +283,8 @@ func (rt *catalogRuntime) start(prog *tea.Program) {
 	for provider, ps := range rt.providers {
 		if ps.stale {
 			rt.sync(provider)
-		} else if ps.fill {
-			rt.fill()
+		} else if ps.worker != nil {
+			rt.runWorker(provider, ps.worker)
 		}
 	}
 }
@@ -279,8 +302,8 @@ func (rt *catalogRuntime) refresh(provider string) {
 }
 
 // sync starts a sync of provider in the background. A sync of a provider
-// with an album fill pauses the fill while it runs and fills newly saved
-// albums after. A sync already running makes it a no-op, except for a quiet
+// with a background worker pauses it while it runs and runs it after, so
+// it covers what the sync brought. A sync already running makes it a no-op, except for a quiet
 // source: its sync is instant and follows a local change (a favorite
 // toggled), so the running sync runs once more to include it.
 func (rt *catalogRuntime) sync(provider string) {
@@ -295,8 +318,8 @@ func (rt *catalogRuntime) sync(provider string) {
 	go func() {
 		defer rt.wg.Done()
 		release := func() {}
-		if ps.fill {
-			release = rt.filler.Hold()
+		if ps.worker != nil {
+			release = ps.worker.Hold()
 		}
 		var err error
 		for {
@@ -321,8 +344,8 @@ func (rt *catalogRuntime) sync(provider string) {
 			applog.Info("catalog sync: %v", err)
 		}
 		rt.scheduleRetry(provider, err != nil)
-		if ps.fill {
-			rt.fill()
+		if ps.worker != nil {
+			rt.runWorker(provider, ps.worker)
 		}
 	}()
 }
@@ -353,23 +376,28 @@ func (rt *catalogRuntime) scheduleRetry(provider string, failed bool) {
 	ps.retry = time.AfterFunc(ps.retryDelay, func() { rt.sync(provider) })
 }
 
-// fill caches uncached saved albums' tracks in the background. A fill
-// already running makes it a no-op; that run picks up new albums itself.
-func (rt *catalogRuntime) fill() {
+// runWorker runs a source's background worker. A run already going makes
+// it a no-op; that run picks up new work itself.
+func (rt *catalogRuntime) runWorker(provider string, w worker) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
-	if rt.filler == nil || rt.closed {
+	if rt.closed {
 		return
 	}
 	rt.wg.Add(1)
 	go func() {
 		defer rt.wg.Done()
-		err := rt.filler.Run(rt.ctx)
+		err := w.Run(rt.ctx)
 		if err != nil && !errors.Is(err, catalogsync.ErrRunning) && !errors.Is(err, context.Canceled) {
-			applog.Info("catalog album fill: %v", err)
+			applog.Info("catalog %s background work: %v", provider, err)
 		}
 	}()
 }
+
+// enrichPacing paces YouTube enrichment: each read is a full yt-dlp run of
+// about 4 s, and YouTube answers too many with a bot check, so a refusal
+// waits long.
+var enrichPacing = catalogsync.Pacing{Delay: time.Second, MinBackoff: time.Minute, MaxBackoff: 30 * time.Minute, MaxFailures: 3}
 
 // notify forwards engine events, in order, from the syncing goroutine.
 // start runs just before the program does, and prog.Send returns once the

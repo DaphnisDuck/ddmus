@@ -292,3 +292,44 @@ func TestSearchLiveRowPerSearchableSource(t *testing.T) {
 		t.Errorf("YouTube row = %+v", last)
 	}
 }
+
+// neverFetch fails the test when an album fetch is attempted.
+type neverFetch struct {
+	*fakeCatalog
+	t *testing.T
+}
+
+func (n neverFetch) FetchAlbumTracks(context.Context, catalog.Album) ([]catalog.Track, error) {
+	n.t.Error("a partial source's album was fetched")
+	return nil, errors.New("no")
+}
+
+// A partial source's album (YouTube's: only your tracks of it) opens and
+// plays as it is, never fetched whole.
+func TestPartialAlbums(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	album := catalog.Album{ID: 70, Ref: lref3("youtube", "album:chicago/best"), Title: "Best of Chicago", Artist: "Chicago"}
+	cat.albums = append(cat.albums, album)
+	beginnings := catalog.Track{ID: 71, Ref: lref3("youtube", "v1"), Title: "Beginnings", AlbumID: 70, PlayableURI: "https://music.youtube.com/watch?v=v1"}
+	smile := catalog.Track{ID: 72, Ref: lref3("youtube", "v2"), Title: "Make Me Smile", AlbumID: 70, PlayableURI: "https://music.youtube.com/watch?v=v2"}
+	cat.albumTracks[70] = []catalog.Track{beginnings, smile} // not "cached"
+	c := neverFetch{cat, t}
+	yt := SyncedSource{Provider: "youtube", Title: "YouTube Music", Player: &fakeProvider{name: "YouTube Music"},
+		Collections: []string{catalog.CollectionAlbums}, PartialAlbums: true}
+
+	albums := load(t, child(t, SyncedMenu(c, yt), "Albums"))
+	var row Entry
+	for _, e := range albums {
+		if e.Title == "Best of Chicago" {
+			row = e
+		}
+	}
+	if got := titles(load(t, row.Open)); !slices.Equal(got, []string{"Beginnings", "Make Me Smile"}) {
+		t.Errorf("album opens as %v", got)
+	}
+	s := newCatalogView(c, Sources{Catalog: c, Synced: []SyncedSource{yt}})
+	e, _ := s.entry(catalog.SearchResult{Kind: catalog.SearchTrack, Provider: "youtube", Track: &smile})
+	if got, i := playFrom(t, e); !slices.Equal(got, []string{"Beginnings", "Make Me Smile"}) || i != 1 {
+		t.Errorf("searched track plays %v from %d, want its known album from it", got, i)
+	}
+}

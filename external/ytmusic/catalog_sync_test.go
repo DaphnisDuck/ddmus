@@ -217,3 +217,42 @@ func TestCookiePlaylistRecord(t *testing.T) {
 		t.Errorf("missing = %v, want ErrForbidden", err)
 	}
 }
+
+func TestCookieTrackMetadata(t *testing.T) {
+	c, _ := newFakeCatalog(t)
+	reads := map[string]map[string]any{
+		"chi":  {"track": "Beginnings", "artists": []string{"Chicago"}, "album": "The Very Best of Chicago", "release_year": 1969},
+		"fan":  {"title": "The Beach Boys - Kokomo [Official Music Video]"},
+		"duet": {"track": "Duet", "artist": "A, B"},
+	}
+	c.run = func(_ context.Context, args ...string) ([]byte, error) {
+		url := args[len(args)-1]
+		switch id := url[strings.Index(url, "v=")+2:]; id {
+		case "blocked":
+			return nil, ytdlpError("ERROR: [youtube] blocked: Video unavailable", errors.New("exit 1"))
+		case "bot":
+			return nil, ytdlpError("ERROR: [youtube] bot: Sign in to confirm you're not a bot", errors.New("exit 1"))
+		default:
+			return json.Marshal(reads[id])
+		}
+	}
+	ref := func(id string) catalog.Ref { return catalog.Ref{Provider: catalog.YouTube, ProviderID: id} }
+	m, err := c.TrackMetadata(context.Background(), ref("chi"))
+	if err != nil || m.Title != "Beginnings" || m.Year != 1969 || len(m.Artists) != 1 || m.Artists[0].Name != "Chicago" ||
+		m.Album == nil || m.Album.Title != "The Very Best of Chicago" || m.Album.Ref.ProviderID != "album:chicago/the very best of chicago" {
+		t.Errorf("Chicago = %+v, %v", m, err)
+	}
+	if m, err := c.TrackMetadata(context.Background(), ref("fan")); err != nil || m.Found() {
+		t.Errorf("fan upload = %+v, %v; want nothing found", m, err)
+	}
+	if m, _ := c.TrackMetadata(context.Background(), ref("duet")); len(m.Artists) != 2 || m.Artists[1].Name != "B" || m.Album != nil {
+		t.Errorf("duet = %+v", m)
+	}
+	if _, err := c.TrackMetadata(context.Background(), ref("blocked")); !errors.Is(err, catalog.ErrForbidden) {
+		t.Errorf("blocked = %v, want ErrForbidden", err)
+	}
+	var rl *catalog.RateLimitError
+	if _, err := c.TrackMetadata(context.Background(), ref("bot")); !errors.As(err, &rl) {
+		t.Errorf("bot check = %v, want a rate limit", err)
+	}
+}

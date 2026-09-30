@@ -78,6 +78,26 @@ type IndexedFile struct {
 	Track Track
 }
 
+// TrackMetadata is what an enrichment read found about a track: its real
+// title, artists, album and year. A zero TrackMetadata means the read found
+// nothing (a fan upload with no music details), and the track is left as
+// it was but not read again.
+type TrackMetadata struct {
+	Title   string
+	Artists []ArtistRecord
+	Album   *AlbumRecord
+	Year    int
+}
+
+// Found reports whether the read found anything.
+func (m TrackMetadata) Found() bool {
+	return m.Title != "" || len(m.Artists) > 0 || m.Album != nil || m.Year != 0
+}
+
+// CollectionDerived holds a provider's albums and artists derived from its
+// enriched tracks, rather than synced from a provider list.
+const CollectionDerived = "derived"
+
 // PlaylistRecord is a playlist as a provider describes it.
 type PlaylistRecord struct {
 	Ref        Ref

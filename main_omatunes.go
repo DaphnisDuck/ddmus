@@ -43,7 +43,8 @@ func librarySources(providers []model.ProviderEntry, initialDir string, rt *cata
 	}
 	if cols := rt.collections(catalog.YouTube); len(cols) > 0 && youtube != nil {
 		src.Synced = append(src.Synced, library.SyncedSource{
-			Provider: catalog.YouTube, Title: "YouTube Music", Player: youtube, Collections: cols, LikedTitle: "Liked Music"})
+			Provider: catalog.YouTube, Title: "YouTube Music", Player: youtube, Collections: cols,
+			LikedTitle: "Liked Music", PartialAlbums: true})
 	}
 	return src
 }

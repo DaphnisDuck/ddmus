@@ -267,8 +267,10 @@ func (s *catalogView) albumFrom(t catalog.Track) func(ctx context.Context) ([]pl
 		}
 		// An uncached Spotify album holds only the tracks the catalog met
 		// elsewhere (liked, in a playlist); playing those as the album would
-		// silently skip the rest. A local album is always whole.
-		if !cached && t.Ref.Provider != catalog.Local {
+		// silently skip the rest. A local album is always whole, and a
+		// partial source's album is all there is.
+		b := s.synced[t.Ref.Provider]
+		if !cached && t.Ref.Provider != catalog.Local && (b == nil || !b.partialAlbums) {
 			tracks = s.fetchAlbum(ctx, t.AlbumID)
 		}
 		for i, at := range tracks {

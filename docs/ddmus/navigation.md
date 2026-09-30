@@ -38,7 +38,7 @@ Spotify, YouTube Music and Local browsing read from a local catalog (`~/.local/s
 
 ## Keys
 
-The bar at the bottom of each view lists every key that works there, and only those. It wraps onto more lines when the keys don't fit on one; `Ctrl+G` hides it. Keys that share a row are separated by spaces (`j k`, `[ ]`, `Esc h`); a `/` in the bar is always the `/` key, search (the filter, in the queue). A terminal too short for the whole bar keeps at least three rows for the list and shows the bar's first lines.
+The bar at the bottom of each view lists every key that works there, and only those. It wraps onto more lines when the keys don't fit on one; `Ctrl+G` hides it. Keys that share a row are separated by spaces (`j k`, `[ ]`, `Esc h`); a `/` in the bar is always the `/` key, search (the filter, in the queue). A terminal too short for the whole bar keeps at least three rows for the list and shows the bar's first lines; how the screen uses its size is in [layout.md](layout.md).
 
 ### Library
 

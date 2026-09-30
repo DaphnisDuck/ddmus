@@ -110,3 +110,34 @@ func TestLoadYouTubePlaylists(t *testing.T) {
 		t.Errorf("YouTubePlaylists = %q, want %q", cfg.Ddmus.YouTubePlaylists, want)
 	}
 }
+
+func TestLoadDdmusBorder(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		toml string
+		want bool
+	}{
+		{"on by default", "", true},
+		{"off", "[ddmus]\nborder = false\n", false},
+		{"on", "[ddmus]\nborder = true\n", true},
+		{"invalid keeps the default", "[ddmus]\nborder = \"maybe\"\n", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(tt.toml), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Ddmus.Border != tt.want {
+				t.Errorf("Border = %v, want %v", cfg.Ddmus.Border, tt.want)
+			}
+		})
+	}
+}

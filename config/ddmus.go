@@ -23,10 +23,12 @@ type DdmusConfig struct {
 	// YouTubePlaylists are other people's playlists to sync, as links or
 	// IDs: YouTube lists the playlists you save nowhere a sync can read.
 	YouTubePlaylists []string
+	// Border draws a border around the screen and rules between its parts.
+	Border bool
 }
 
 func defaultDdmusConfig() DdmusConfig {
-	return DdmusConfig{SpotifyRefresh: DefaultSpotifyRefresh, YouTubeRefresh: DefaultYouTubeRefresh}
+	return DdmusConfig{SpotifyRefresh: DefaultSpotifyRefresh, YouTubeRefresh: DefaultYouTubeRefresh, Border: true}
 }
 
 // parseKey applies one key of the [ddmus] section. Invalid values keep
@@ -39,6 +41,13 @@ func (c *DdmusConfig) parseKey(key, val string) {
 		setDuration(&c.YouTubeRefresh, val)
 	case "youtube_playlists":
 		c.YouTubePlaylists = parseStringSlice(val)
+	case "border":
+		switch parseString(val) {
+		case "true":
+			c.Border = true
+		case "false":
+			c.Border = false
+		}
 	}
 }
 

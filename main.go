@@ -583,6 +583,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	cat := openCatalog(spotifyProv, radioProv, cfg)
 	defer cat.close()
 	m.SetLibrary(library.Root(librarySources(providers, cfg.InitialDirectory, cat)))
+	m.SetFrameBorder(cfg.Ddmus.Border)
 	cat.configure(&m)
 	if cfg.EQPreset != "" && cfg.EQPreset != "Custom" {
 		m.SetEQPreset(cfg.EQPreset, nil)

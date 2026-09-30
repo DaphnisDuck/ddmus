@@ -161,6 +161,8 @@ func (m *Model) clampActiveScrollState() {
 		}
 	case screenLyrics:
 		m.lyrics.scroll = min(m.lyrics.scroll, max(0, len(m.lyrics.lines)-m.effectivePlaylistVisible()))
+	case screenLibrary: // ddmus
+		m.libAdjustScroll()
 	default:
 		if m.focus == focusProvider {
 			m.providerMaybeAdjustScroll()

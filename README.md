@@ -42,6 +42,7 @@ v0.8 is an early release for people comfortable building from source.
 - **All Music:** Music → All Music lists albums and artists from Spotify, YouTube Music and Local together, each labelled with its source. Albums sort by title; `o` sorts them by artist.
 - **Hidden for now:** cliamp's other providers (podcasts, non-music YouTube, SoundCloud, Mixcloud, Navidrome, Plex, Jellyfin, Emby, Qobuz, Tidal, and more) are still in the code but have no entry in the menu yet. They come back one per release.
 - **The queue:** `Tab` shows what's playing, with shuffle, repeat, play next, remove and reorder, track info, lyrics, EQ presets and speed. `p` and `n` skip back and forward everywhere. The settings panel's SRC shows where the playing track comes from.
+- **Layout:** ddmus fills the terminal: a taller window lists more rows on every screen, a wide one shows long titles whole with rows lined up as a table, and resizing reflows at once. See [docs/ddmus/layout.md](docs/ddmus/layout.md).
 - **Key bar:** each view lists every key that works there at the bottom, wrapping onto more lines as needed (`Ctrl+G` hides it). Most of cliamp's jump keys (provider switching, theme and visualizer pickers and similar) stay off while the new navigation settles. See [docs/ddmus/navigation.md](docs/ddmus/navigation.md).
 - **Runs alongside cliamp:** ddmus keeps its own config, data and media-key (MPRIS) name, so you can install both. See [docs/ddmus/files.md](docs/ddmus/files.md).
 

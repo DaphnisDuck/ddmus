@@ -306,6 +306,7 @@ func (m Model) renderQueueBody() string {
 	// not cloned on every frame.
 	windowStart := max(0, scroll-1)
 	tracks := m.playlist.QueueWindow(windowStart, 2*budget+2)
+	column := trackColumn(tracks, false) // ddmus: the rows in view, a short queue's all of them
 	localScroll, localCursor := scroll-windowStart, m.queue.cursor-windowStart
 	// clampedScroll counts tracks, but album headers take rows too. Advance
 	// past headers until the rows from scroll through the cursor fit.
@@ -326,7 +327,9 @@ func (m Model) renderQueueBody() string {
 			}
 			continue
 		}
+		restoreWidth := ui.WithPanelWidth(m.libUpNextRowWidth(row.Track, 3+numWidth+2, column)) // ddmus: wide rows end at their content (library_layout.go)
 		lines = append(lines, m.queueRow(row.Track, windowStart+row.Index, numWidth, stateReporters))
+		restoreWidth()
 	}
 	return strings.Join(padLines(lines, budget, len(lines)), "\n")
 }

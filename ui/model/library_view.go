@@ -77,7 +77,7 @@ func (m *Model) libAdjustScroll() {
 // libListBudget is how many rows the list gets: the body, less the search
 // input line on the search screen.
 func (m *Model) libListBudget() int {
-	budget := m.effectivePlaylistVisible()
+	_, budget := m.bodySize()
 	if _, ok := m.libSearchLevel(); ok {
 		budget--
 	}
@@ -174,7 +174,8 @@ func (m *Model) renderLibraryBody() string {
 		}
 		return m.libSearchPrompt(sl) + "\n" + body
 	}
-	return m.renderLibraryList(m.effectivePlaylistVisible())
+	_, rows := m.bodySize()
+	return m.renderLibraryList(rows)
 }
 
 // renderLibraryList renders the top frame's rows, or its loading, sign-in
@@ -201,6 +202,12 @@ func (m *Model) renderLibraryList(budget int) string {
 		return bodyMessage("Nothing here.", budget)
 	}
 
+	panel := ui.PanelWidth
+	titleCol := 0 // the title column, on a wide terminal
+	if panel > listReadWidth {
+		titleCol = f.titleCol
+	}
+	defer ui.WithPanelWidth(listRowWidth(panel, f.column, 0))() // section headings
 	rows := libraryRows(f.entries)
 	scroll := libScroll(rows, f.cursor, f.scroll, budget)
 	numbers := libTrackNumbers(f.entries)
@@ -217,8 +224,10 @@ func (m *Model) renderLibraryList(budget int) string {
 			lines = append(lines, dimStyle.Render(labeledSeparator("", library.CleanText(row.section))))
 			continue
 		}
-		lines = append(lines, cursorLine(libEntryLabel(f.entries[row.index], numbers[row.index]),
+		restore := ui.WithPanelWidth(listRowWidth(panel, f.column, f.needs[row.index]))
+		lines = append(lines, cursorLine(libEntryLabel(f.entries[row.index], numbers[row.index], titleCol),
 			showCursor && row.index == f.cursor))
+		restore()
 	}
 	return bodyLines(lines, budget)
 }
@@ -242,12 +251,14 @@ func libTrackNumbers(entries []library.Entry) []int {
 
 // libEntryLabel renders "Title      Detail ›"; tracks use the numbered track
 // row with duration. A station is a live stream with neither, so it is a
-// plain row. Browsable rows end in "›".
-func libEntryLabel(e library.Entry, number int) string {
+// plain row. Browsable rows end in "›". Up to listReadWidth the detail is
+// right-aligned; on a wider terminal (titleCol > 0) it starts after a
+// titleCol-wide title column, or after a longer title.
+func libEntryLabel(e library.Entry, number, titleCol int) string {
 	if e.Track != nil && !e.Track.Realtime {
 		return formatTrackRow(number, library.CleanText(trackViewName(*e.Track)), e.Track.DurationSecs)
 	}
-	width := ui.PanelWidth - 4 // cursor prefix
+	width := ui.PanelWidth - libCursorPrefix
 	suffix := ""
 	if e.Open != nil {
 		suffix = " ›"
@@ -261,6 +272,13 @@ func libEntryLabel(e library.Entry, number int) string {
 	titleW := avail
 	if detail != "" {
 		titleW -= lipgloss.Width(detail) + 2
+	}
+	if titleCol > 0 && detail != "" {
+		detail = library.CleanText(e.Detail)
+		title = truncate(title, max(avail-2-min(lipgloss.Width(detail), avail/2), 4))
+		gap := max(titleCol-lipgloss.Width(title), 0) + 2
+		detail = truncate(detail, max(avail-lipgloss.Width(title)-gap, 0))
+		return title + strings.Repeat(" ", gap) + detail + suffix
 	}
 	title = truncate(title, max(titleW, 4))
 	if detail == "" {

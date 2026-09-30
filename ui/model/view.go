@@ -319,11 +319,11 @@ func (m Model) mainSections(playlist string, includeTransient, contentFirst bool
 	if playlist != "" {
 		sections = append(sections, playlist)
 	}
-	if !m.layout.twoColumn && m.layout.tier != layoutCompact {
+	if (!m.layout.twoColumn || m.layout.border) && m.layout.tier != layoutCompact { // ddmus: the border's rule
 		// The two-column body needs no spacer above the hint bar: the settings
 		// pane's own blank tail already separates the footer from the columns.
 		// Compact chrome also omits it so the speed row stays on-screen.
-		sections = append(sections, "")
+		sections = append(sections, m.libSpacerRule()) // ddmus: a rule with the border (library_frame.go)
 	}
 	if !m.hideHelpBar {
 		sections = append(sections, m.renderTierHelp())
@@ -1153,6 +1153,7 @@ func (m Model) renderPlaylist() string {
 		markers += " "
 		styledMarkers += " "
 
+		restoreWidth := ui.WithPanelWidth(m.libQueueRowWidth(t, cols.width()+numWidth+2)) // ddmus: wide rows end at their content (library_layout.go)
 		name := trackViewName(t)
 		queueSuffix := ""
 		if queuePosition > 0 && ui.PanelWidth >= 64 {
@@ -1199,6 +1200,7 @@ func (m Model) renderPlaylist() string {
 			padding := max(1, ui.PanelWidth-lipgloss.Width(line)-durationLen)
 			line += strings.Repeat(" ", padding) + dimStyle.Render(duration)
 		}
+		restoreWidth()
 		lines = append(lines, line)
 	}
 

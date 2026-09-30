@@ -84,7 +84,7 @@ Done when:
 - Pay down what M1–M4 deferred: the keymap overlay, enrichment and YouTube sync robustness, catalog writer performance, sync correctness, and the live offline check. No new providers.
 
 ### M6: Rename to ddmus (DaphnisDuck's Music Player)
-- Omatunes is already another music player's name. The fork becomes **DaphnisDuck's Music Player**, `ddmus` for short: the binary and CLI, code references, config and data folders, MPRIS and IPC names, docs, and the GitHub repository. Existing omatunes data moves over on first start.
+- Omatunes is already another music player's name. The fork becomes **DaphnisDuck's Music Player**, `ddmus` for short: the binary and CLI, code references, config and data folders, MPRIS and IPC names, docs, and the GitHub repository. Existing omatunes data is moved over by hand, once.
 
 ### M7: The queue view
 - Make the queue (Now Playing) view work under the library: shuffle and repeat, play next, track info, queue editing and sound keys come back. The settings panel's SRC shows the queue's source. Every view lists all of its live keys at the bottom, replacing the `?`/`Ctrl+K` overlay.
@@ -419,7 +419,7 @@ Not taken: `ensureSession` ignoring the sync context (upstream code); a same-tot
 
 ## M6 implementation plan (rename to ddmus, v0.6)
 
-Goal: nothing a user sees, types or finds on disk says omatunes. The full name is **DaphnisDuck's Music Player**; everything else says `ddmus`. Your library, settings and sign-ins carry over untouched. Branch `m6-rename`.
+Goal: nothing a user sees, types or finds on disk says omatunes. The full name is **DaphnisDuck's Music Player**; everything else says `ddmus`. Your library, settings and sign-ins carry over through a one-time manual move. Branch `m6-rename`.
 
 ### What carries the name today (surveyed 2026-09-29)
 - **Identity:** `internal/appdir.Name` ("omatunes") drives most of it:
@@ -441,14 +441,14 @@ Goal: nothing a user sees, types or finds on disk says omatunes. The full name i
 - **Display:**
   - `appmeta.DisplayName()` = "DaphnisDuck's Music Player", used for the MPRIS Identity (media widgets show it).
   - The UI header reads "DaphnisDuck's Music Player", and the terminal title is `ddmus`.
-- **Config section:** `[ddmus]` (`config/ddmus.go`, `DdmusConfig`, `cfg.Ddmus`). `[omatunes]` is still read, as a deprecated alias with a log note; `[ddmus]` wins when both are present.
-- **Moving your data:** on first start, when a ddmus folder is missing and its omatunes folder exists, it is renamed into place (config, data, downloads). If that fails, the app says so and does not start on empty folders. A running omatunes is not detected: quit it first.
+- **Config section:** `[ddmus]` (`config/ddmus.go`, `DdmusConfig`, `cfg.Ddmus`). No `[omatunes]` alias.
+- **Moving your data (revised in M6.2):** by hand, once, not by the app. An automatic move of `~/.config/omatunes` could take the other omatunes player's folder. With no other users, the code is not worth that risk. `docs/ddmus/files.md` gives the commands.
 - **Code:** tags become `// ddmus:`, and fork files `*_omatunes.go` become `*_ddmus.go`. `docs/omatunes/` becomes `docs/ddmus/`.
 - **Local folder and memory:** `~/Documents/projects/omatunes` is renamed last, by you, after M6. Claude's project memory is tied to that path and is copied over at that point.
 
 ### Delivery
 - M6.1 Identity: `appdir.Name`, `DDMUS_CONFIG_DIR`, `appmeta.DisplayName`, MPRIS Identity, UI header and terminal title, Makefile `BINARY ?= ddmus`, user-facing strings (upgrade message, `ErrSchemaTooNew`, CLI usage). Tests follow.
-- M6.2 Data move: `appdir.MigrateLegacy` run first thing at startup (config, data, downloads; rename only when the target is missing), with tests for each case (fresh install, moved, both present, failure). The `[ddmus]` section plus the `[omatunes]` alias. Verified by moving a copy of your real folders under a scratch HOME.
+- M6.2 Config section: `[ddmus]`. (An automatic folder move and an `[omatunes]` alias were built and then removed; see the Status entry.)
 - M6.3 Code and docs:
   - `// omatunes:` → `// ddmus:`; fork files and identifiers renamed.
   - `docs/omatunes/` → `docs/ddmus/`.
@@ -457,7 +457,7 @@ Goal: nothing a user sees, types or finds on disk says omatunes. The full name i
   - A grep gate: no "omatunes" outside git history, plan.md's history, and prompt.txt.
 - M6.4 GitHub and release:
   - `gh repo rename ddmus` (confirmed with you at that step), then update the origin remote and README links.
-  - Live check with your real data moved (after a backup).
+  - Move your real folders by hand (after a backup): `~/.config/omatunes` → `~/.config/ddmus`, `~/.local/share/omatunes` → `~/.local/share/ddmus`, and `[omatunes]` → `[ddmus]` in config.toml. Then a live check.
   - Review, then tag `v0.6.0`, merge, push.
   - Afterwards you rename the local folder, and the Claude memory is carried over.
 
@@ -585,7 +585,11 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
   - Terminal title `ddmus`, Makefile `BINARY ?= ddmus`, `.gitignore` `/ddmus`, the upgrade and schema messages.
   - About 80 test path and name expectations follow.
   - Live (empty scratch HOME): the header reads "DaphnisDuck's Music Player", MPRIS is `org.mpris.MediaPlayer2.ddmus` with that Identity, and data goes to `~/.local/share/ddmus`.
-  - Left for M6.2/M6.3: the `[omatunes]` section, `// omatunes:` tags, fork file names, docs. Next: M6.2.
+  - Left for M6.2/M6.3: the `[omatunes]` section, `// omatunes:` tags, fork file names, docs.
+- [x] M6.2 Config section:
+  - `[ddmus]` (`config/ddmus.go`, `DdmusConfig`, `cfg.Ddmus`).
+  - First built with an automatic first-start move of the omatunes folders (`appdir.MigrateLegacy`) and an `[omatunes]` alias, verified on copies of the real folders. Both were removed at the user's request: `~/.config/omatunes` may belong to the other omatunes player, and a move would take its folder. There are no other users, so the move is done by hand in M6.4.
+  - Found on the way: tmux and the shell export `XDG_CONFIG_HOME`, so a scratch HOME alone let an M6.1 live check and a new test (missing `t.Setenv("HOME", …)`) create a stray real `~/.config/ddmus`. It was removed and the test fixed. Live checks now unset `XDG_CONFIG_HOME`. Next: M6.3.
 - [ ] M7 (the queue view, v0.7): planned 2026-09-29, see the M7 implementation plan. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists; liking on the source (`n`).
 
 ## Decisions log
@@ -632,7 +636,7 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
 
 - 2026-09-29: M5 is deferred cleanup (v0.5), not a new provider: no Plex/Jellyfin/Navidrome server is in use to test against.
 
-- 2026-09-29: The fork is renamed: DaphnisDuck's Music Player, `ddmus` for short (omatunes is another player's name). M6 does the rename before the queue work; the Go module path stays cliamp's.
+- 2026-09-29: The fork is renamed: DaphnisDuck's Music Player, `ddmus` for short (omatunes is another player's name). M6 does the rename before the queue work; the Go module path stays cliamp's. omatunes folders are moved by hand, never by the app, since `~/.config/omatunes` may be the other player's.
 
 - 2026-09-29: M7 is the queue view (planned as M6, renumbered when the rename came first): every view lists all its live keys at the bottom instead of the `?`/`Ctrl+K` overlay; `n` Favorite is removed; SRC shows the queue's source; the settings panel is display-only, driven by direct keys (Tab stays the library/queue toggle).
 

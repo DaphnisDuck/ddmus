@@ -124,7 +124,7 @@ func openCatalog(sp *spotify.SpotifyProvider, rp *radio.Provider, cfg config.Con
 	if sp != nil {
 		src := spotifysrc.New(sp)
 		rt.filler = catalogsync.NewFiller(rt.store, src, catalogsync.DefaultPacing)
-		sources = append(sources, source{Source: src, refresh: cfg.Omatunes.SpotifyRefresh, worker: rt.filler})
+		sources = append(sources, source{Source: src, refresh: cfg.Ddmus.SpotifyRefresh, worker: rt.filler})
 	}
 	if client := youtubeClient(cfg.YouTubeMusic); client != nil {
 		// Tracks are enriched with their artist, album and year through
@@ -134,8 +134,8 @@ func openCatalog(sp *spotify.SpotifyProvider, rp *radio.Provider, cfg config.Con
 		enricher := catalogsync.NewEnricher(rt.store, meta, enrichPacing, func() {
 			rt.notify(catalogsync.Event{Kind: catalogsync.CollectionDone, Provider: catalog.YouTube, Collection: catalog.CollectionDerived})
 		})
-		sources = append(sources, source{Source: youtubesrc.New(client, cfg.Omatunes.YouTubePlaylists...),
-			refresh: cfg.Omatunes.YouTubeRefresh, worker: enricher,
+		sources = append(sources, source{Source: youtubesrc.New(client, cfg.Ddmus.YouTubePlaylists...),
+			refresh: cfg.Ddmus.YouTubeRefresh, worker: enricher,
 			lists: []string{catalog.CollectionAlbums, catalog.CollectionArtists}})
 	}
 	if dir := musicDir(cfg.InitialDirectory); dir != "" {

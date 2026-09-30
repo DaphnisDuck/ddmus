@@ -23,13 +23,16 @@ All of these come from `internal/appdir/ddmus.go` (`Name`, `ConfigDirEnv`, `Down
 Until v0.6 this player was called omatunes and kept its files under that name. It does not read or move them, since `~/.config/omatunes` may belong to the unrelated omatunes player. To carry over your settings, sign-ins and library, quit the old build and move them once:
 
 ```sh
-mv ~/.config/omatunes ~/.config/ddmus
-mv ~/.local/share/omatunes ~/.local/share/ddmus
-[ -d ~/Music/omatunes ] && mv ~/Music/omatunes ~/Music/ddmus
-sed -i 's/^\[omatunes\]$/[ddmus]/' ~/.config/ddmus/config.toml
+mv -T ~/.config/omatunes ~/.config/ddmus
+mv -T ~/.local/share/omatunes ~/.local/share/ddmus
+[ -d ~/Music/omatunes ] && mv -T ~/Music/omatunes ~/Music/ddmus
+sed -i 's/^\[omatunes\]/[ddmus]/' ~/.config/ddmus/config.toml
 ```
 
-Check first that those folders are this player's (they hold `config.toml`, `library.db` and `cliamp.log`). `OMATUNES_CONFIG_DIR` is now `DDMUS_CONFIG_DIR`.
+- Check first that those folders are this player's (they hold `config.toml`, `library.db` and `cliamp.log`).
+- If you already started ddmus once, it created `~/.config/ddmus` and `~/.local/share/ddmus` folders. Remove them first; `mv -T` refuses to move onto a folder that holds anything.
+- Afterwards the section header in `config.toml` should read `[ddmus]`. Any path you set there that points into an omatunes folder (a `[downloads] directory`, say) needs updating by hand.
+- `OMATUNES_CONFIG_DIR` is now `DDMUS_CONFIG_DIR`.
 
 ## Moving settings from cliamp
 

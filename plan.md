@@ -579,7 +579,7 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
     - tests for the Spotify head request path, the forced sign-in URL, and enricher cancellation, no-success and store-failure runs;
     - comment and precedence cleanups.
   - Not taken: per-context press tests for the keymap's own rows (plan wording corrected instead).
-- [ ] M6 (rename to ddmus, v0.6): planned 2026-09-29, see the M6 implementation plan.
+- [x] M6 (rename to ddmus, v0.6): planned 2026-09-29, completed 2026-09-30, see the M6 implementation plan. Tagged v0.6.0, merged to main and pushed.
 - [x] M6.1 Identity:
   - `appdir.Name = "ddmus"` (folders, MPRIS bus name, IPC socket, server client names), `DDMUS_CONFIG_DIR`, `appmeta.DisplayName()` for the header (through `brandTitle` in library_view.go, keeping view.go's edit to one line) and the MPRIS Identity.
   - Terminal title `ddmus`, Makefile `BINARY ?= ddmus`, `.gitignore` `/ddmus`, the upgrade and schema messages.
@@ -595,7 +595,12 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
   - Every Go mention (64 `// ddmus:` tags and comments) and the migration header comments are updated. The migrations are not checksummed, so editing their comments is safe.
   - `docs/omatunes/` → `docs/ddmus/`. `files.md` gains the full name and "Moving from omatunes (before v0.6)", with the manual `mv` commands and the section rename.
   - README is titled "DaphnisDuck's Music Player", with `ddmus` throughout and a pointer for omatunes users. CLAUDE.md and the forward-looking parts of plan.md (title, vision, upstream policy, M7) are updated.
-  - Grep gate: "omatunes" remains only in those deliberate pointers, plan.md's history and M6 plan, and prompt.txt. Next: M6.4.
+  - Grep gate: "omatunes" remains only in those deliberate pointers, plan.md's history and M6 plan, and prompt.txt.
+- [x] M6.4 GitHub and release:
+  - 2026-09-30: backed up the real `~/.config/omatunes` and `~/.local/share/omatunes` to `~/omatunes-backup-2026-09-30.tar.gz`, moved them to the ddmus folders by hand, and renamed `[omatunes]` → `[ddmus]` in config.toml.
+  - Live on the real setup: 2,141 Spotify albums, Spotify and YouTube syncs running, Local synced, nothing in the log, no omatunes folder recreated.
+  - GitHub repository renamed to `DaphnisDuck/ddmus` (still a fork of cliamp); origin points at it. The user updated its description. README is at v0.6.
+  - Review (one agent; build, vet and tests green): no blocking issues. Applied to `files.md`'s move steps: `mv -T` (a plain `mv` onto an existing ddmus folder nests the old one inside it), the header `sed` also matches a trailing comment, and a note to update config paths that point into omatunes folders. Verified in scratch folders.
 - [ ] M7 (the queue view, v0.7): planned 2026-09-29, see the M7 implementation plan. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists; liking on the source (`n`).
 
 ## Decisions log

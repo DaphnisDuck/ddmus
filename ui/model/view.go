@@ -423,6 +423,9 @@ func (m *Model) advanceTitleScroll(now time.Time) {
 }
 
 func (m Model) renderTierHelp() string {
+	if bar, ok := m.libKeyBar(ui.PanelWidth); ok { // ddmus: the library views' wrapped key bar
+		return bar
+	}
 	if m.layout.tier != layoutMinimal {
 		return m.renderHelp()
 	}

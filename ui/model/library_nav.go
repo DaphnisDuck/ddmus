@@ -43,6 +43,9 @@ type libraryState struct {
 	lastQuery     string
 	searchGen     uint64
 	searchPending bool // a typed query is waiting for its debounce tick
+
+	// barRows is how many rows the layout gave the key bar (0 before any).
+	barRows int
 }
 
 // libSync is one provider's catalog sync status as the library shows it.
@@ -151,39 +154,6 @@ type libraryPlayMsg struct {
 type libraryAuthDoneMsg struct {
 	gen uint64
 	err error
-}
-
-// libraryPassthroughKeys reach cliamp's own handlers. Every other key that the
-// library does not handle is swallowed, which disables the jump keys (provider
-// switching, themes, file browser, …) until they are deliberately brought back
-// by adding them here.
-var libraryPassthroughKeys = map[string]bool{
-	// Transport and volume.
-	"s": true, "<": true, ">": true, ",": true, ".": true,
-	"+": true, "-": true, "=": true,
-	"shift+left": true, "shift+right": true,
-	// Help.
-	"?": true,
-}
-
-// queuePassthroughKeys are the cliamp keys that stay live while the queue has
-// the screen: list navigation, play, playlist filter, the transport, queue
-// editing, and the sound and track overlays. n (Favorite) and Ctrl+I
-// (Metadata, which terminals send as Tab) stay swallowed.
-var queuePassthroughKeys = map[string]bool{
-	"up": true, "down": true, "j": true, "k": true,
-	"g": true, "G": true, "home": true, "end": true,
-	"pgup": true, "pgdown": true, "ctrl+u": true, "ctrl+d": true,
-	"enter": true, "space": true, "/": true, "q": true,
-	"left": true, "right": true,
-	// Play order and the play-next queue.
-	"z": true, "r": true, "a": true, "A": true,
-	// Queue editing.
-	"x": true, "shift+up": true, "shift+down": true, "ctrl+z": true,
-	// Sound.
-	"e": true, "m": true, "[": true, "]": true,
-	// Track info, lyrics, jump to time.
-	"i": true, "y": true, "ctrl+j": true,
 }
 
 // SetLibrary makes the library the main screen, starting at root. root must

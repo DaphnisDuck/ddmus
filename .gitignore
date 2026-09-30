@@ -15,3 +15,9 @@ config.backup.toml
 .github/workflows/contextowl-changelog.yml
 /gui/
 coverage.out
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Local project brief, kept out of the repo
+/prompt.txt

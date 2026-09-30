@@ -16,7 +16,7 @@ func withHome(t *testing.T) string {
 
 func readConfig(t *testing.T, home string) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(home, ".config", "omatunes", "config.toml"))
+	data, err := os.ReadFile(filepath.Join(home, ".config", "ddmus", "config.toml"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestSaveCreatesConfigFile(t *testing.T) {
 
 func TestSaveReplacesExistingKey(t *testing.T) {
 	home := withHome(t)
-	dir := filepath.Join(home, ".config", "omatunes")
+	dir := filepath.Join(home, ".config", "ddmus")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestSaveReplacesExistingKey(t *testing.T) {
 
 func TestSaveInsertsBeforeFirstSection(t *testing.T) {
 	home := withHome(t)
-	dir := filepath.Join(home, ".config", "omatunes")
+	dir := filepath.Join(home, ".config", "ddmus")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestSaveInsertsBeforeFirstSection(t *testing.T) {
 
 func TestSaveDoesNotMatchKeyInSection(t *testing.T) {
 	home := withHome(t)
-	dir := filepath.Join(home, ".config", "omatunes")
+	dir := filepath.Join(home, ".config", "ddmus")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestSaveNavidromeSortCreatesSection(t *testing.T) {
 
 func TestSaveNavidromeSortReplacesExisting(t *testing.T) {
 	home := withHome(t)
-	dir := filepath.Join(home, ".config", "omatunes")
+	dir := filepath.Join(home, ".config", "ddmus")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestSaveNavidromeSortReplacesExisting(t *testing.T) {
 
 func TestSaveNavidromeSortAppendsKeyInExistingSection(t *testing.T) {
 	home := withHome(t)
-	dir := filepath.Join(home, ".config", "omatunes")
+	dir := filepath.Join(home, ".config", "ddmus")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestSaveFuncDelegates(t *testing.T) {
 
 func TestSaveMixcloudStylesReplacesOnlyMixcloudStyles(t *testing.T) {
 	home := withHome(t)
-	dir := filepath.Join(home, ".config", "omatunes")
+	dir := filepath.Join(home, ".config", "ddmus")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

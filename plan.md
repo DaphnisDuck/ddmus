@@ -579,7 +579,13 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
     - tests for the Spotify head request path, the forced sign-in URL, and enricher cancellation, no-success and store-failure runs;
     - comment and precedence cleanups.
   - Not taken: per-context press tests for the keymap's own rows (plan wording corrected instead).
-- [ ] M6 (rename to ddmus, v0.6): planned 2026-09-29, see the M6 implementation plan. Next: M6.1.
+- [ ] M6 (rename to ddmus, v0.6): planned 2026-09-29, see the M6 implementation plan.
+- [x] M6.1 Identity:
+  - `appdir.Name = "ddmus"` (folders, MPRIS bus name, IPC socket, server client names), `DDMUS_CONFIG_DIR`, `appmeta.DisplayName()` for the header (through `brandTitle` in library_view.go, keeping view.go's edit to one line) and the MPRIS Identity.
+  - Terminal title `ddmus`, Makefile `BINARY ?= ddmus`, `.gitignore` `/ddmus`, the upgrade and schema messages.
+  - About 80 test path and name expectations follow.
+  - Live (empty scratch HOME): the header reads "DaphnisDuck's Music Player", MPRIS is `org.mpris.MediaPlayer2.ddmus` with that Identity, and data goes to `~/.local/share/ddmus`.
+  - Left for M6.2/M6.3: the `[omatunes]` section, `// omatunes:` tags, fork file names, docs. Next: M6.2.
 - [ ] M7 (the queue view, v0.7): planned 2026-09-29, see the M7 implementation plan. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists; liking on the source (`n`).
 
 ## Decisions log

@@ -577,7 +577,7 @@ func TestSaveSection(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
-	cfg := filepath.Join(dir, ".config", "omatunes", "config.toml")
+	cfg := filepath.Join(dir, ".config", "ddmus", "config.toml")
 
 	// 1. New file.
 	if err := saveSection("plex", "url   = \"http://x\"\ntoken = \"t\""); err != nil {

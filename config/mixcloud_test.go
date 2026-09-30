@@ -10,7 +10,7 @@ import (
 func TestLoadMixcloudConfig(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("CLIAMP_TEST_MIXCLOUD_TOKEN", "secret-token")
-	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ stream_creators = 15
 
 func TestLoadExplicitEmptyMixcloudStyles(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}

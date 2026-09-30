@@ -12,10 +12,14 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/library"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/ui"
 )
+
+// brandTitle heads every screen (renderTitle in view.go).
+var brandTitle = appmeta.DisplayName()
 
 // libRow is one rendered line: an entry, or a section heading (index < 0).
 type libRow struct {

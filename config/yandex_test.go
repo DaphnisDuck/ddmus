@@ -58,7 +58,7 @@ token = "$YANDEX_TOKEN"
 			}
 
 			if tc.tomlContent != "" {
-				configDir := filepath.Join(dir, ".config", "omatunes")
+				configDir := filepath.Join(dir, ".config", "ddmus")
 				if err := os.MkdirAll(configDir, 0o755); err != nil {
 					t.Fatal(err)
 				}

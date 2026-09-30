@@ -34,7 +34,7 @@ func TestLoadOmatunesSection(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
-			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -53,7 +53,7 @@ func TestLoadOmatunesSection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
-			path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
+			path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -74,7 +74,7 @@ func TestLoadOmatunesSection(t *testing.T) {
 // A section that follows [omatunes] gets its own keys back.
 func TestOmatunesSectionDoesNotLeak(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestOmatunesSectionDoesNotLeak(t *testing.T) {
 
 func TestLoadYouTubePlaylists(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	path := filepath.Join(os.Getenv("HOME"), ".config", "omatunes", "config.toml")
+	path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}

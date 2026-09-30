@@ -65,7 +65,7 @@ func TestQueueKeysPassGate(t *testing.T) {
 	m, _ := newQueueModel(t)
 	for _, key := range []string{
 		"z", "r", "a", "A", "x", "shift+up", "shift+down", "ctrl+z",
-		"e", "m", "[", "]", "i", "y", "ctrl+j",
+		"e", "[", "]", "i", "y", "ctrl+j", "shift+left", "shift+right",
 	} {
 		if msg := queueKey(key); msg.String() != key {
 			t.Fatalf("queueKey(%q).String() = %q", key, msg.String())
@@ -74,7 +74,7 @@ func TestQueueKeysPassGate(t *testing.T) {
 			t.Errorf("queue key %q is swallowed", key)
 		}
 	}
-	for _, key := range []string{"n", "ctrl+i"} {
+	for _, key := range []string{"m", "ctrl+i", "<", ">", ",", "."} {
 		if _, handled := m.handleLibraryKey(queueKey(key)); !handled {
 			t.Errorf("queue key %q reaches cliamp, want it swallowed", key)
 		}
@@ -126,9 +126,19 @@ func TestQueueKeyEffects(t *testing.T) {
 				t.Errorf("preset index = %d, want the first preset", m.eqPresetIdx)
 			}
 		}},
-		{"m toggles mono", []string{"m"}, func(t *testing.T, _ Model, eng *soundEngine) {
-			if !eng.mono {
-				t.Error("mono is off")
+		{"m does nothing", []string{"m"}, func(t *testing.T, _ Model, eng *soundEngine) {
+			if eng.mono {
+				t.Error("m turned mono on")
+			}
+		}},
+		{"n plays the next track", []string{"n"}, func(t *testing.T, m Model, _ *soundEngine) {
+			if got := m.playlist.Index(); got != 1 {
+				t.Errorf("playing index %d, want 1", got)
+			}
+		}},
+		{"p after n plays the first again", []string{"n", "p"}, func(t *testing.T, m Model, _ *soundEngine) {
+			if got := m.playlist.Index(); got != 0 {
+				t.Errorf("playing index %d, want 0", got)
 			}
 		}},
 		{"] and [ change speed", []string{"]", "]", "["}, func(t *testing.T, _ Model, eng *soundEngine) {
@@ -190,5 +200,28 @@ func TestQueueRepeatLibrarySync(t *testing.T) {
 	m = queuePress(m, "r")
 	if m.playlist.Repeat() != playlist.RepeatAll || synced != 1 {
 		t.Errorf("library r: repeat %v, %d syncs; want repeat unchanged and one sync", m.playlist.Repeat(), synced)
+	}
+}
+
+// p and n skip from the library views too, and are text in the search input.
+func TestSkipKeysInTheLibrary(t *testing.T) {
+	m, _ := newQueueModel(t)
+	m = libPress(t, m, "tab") // back to the library
+	if !m.lib.visible {
+		t.Fatal("setup: the library is not in front")
+	}
+	m = libPress(t, m, "n")
+	if got := m.playlist.Index(); got != 1 {
+		t.Errorf("n in the library: playing %d, want 1", got)
+	}
+	m = libPress(t, m, "p")
+	if got := m.playlist.Index(); got != 0 {
+		t.Errorf("p in the library: playing %d, want 0", got)
+	}
+
+	s, _ := newSearchModel(t)
+	s = typeText(t, libPress(t, s, "/"), "pn")
+	if sl, _ := s.libSearchLevel(); sl.Query() != "pn" {
+		t.Errorf("query = %q, want p and n typed", sl.Query())
 	}
 }

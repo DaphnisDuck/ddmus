@@ -25,13 +25,18 @@ var ErrNotFound = errors.New("not in catalog")
 var ErrForbidden = errors.New("provider refused access")
 
 // RateLimitError means a provider asked the client to slow down. RetryAfter
-// is the provider's requested wait, or zero when it gave none.
+// is the provider's requested wait, or zero when it gave none. Until, when
+// set, is when a long block ends, for display.
 type RateLimitError struct {
 	RetryAfter time.Duration
+	Until      time.Time
 }
 
 func (e *RateLimitError) Error() string {
-	if e.RetryAfter > 0 {
+	switch {
+	case !e.Until.IsZero():
+		return "rate limited until " + e.Until.Local().Format("Jan 2 15:04")
+	case e.RetryAfter > 0:
 		return fmt.Sprintf("provider rate limit (retry after %v)", e.RetryAfter)
 	}
 	return "provider rate limit"

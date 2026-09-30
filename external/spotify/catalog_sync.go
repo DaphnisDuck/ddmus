@@ -271,14 +271,21 @@ func (p *SpotifyProvider) albumTrackRecords(ctx context.Context, get webGetter, 
 // webGetter is webAPI's signature: one Web API request.
 type webGetter func(ctx context.Context, method, path string, query url.Values) (*http.Response, error)
 
-// maxRetryAfterSecs caps the wait a rate limit asks for, so a bad header
-// cannot stall the catalog workers for days (or overflow the duration).
-const maxRetryAfterSecs = 3600
+// maxRetryAfterSecs caps the wait a rate limit asks for, so an absurd
+// header cannot stall the catalog workers for weeks (or overflow the
+// duration). Real blocks have run to 20h.
+const maxRetryAfterSecs = 48 * 3600
+
+// MaxRateLimit is the longest block the provider keeps (ddmus).
+const MaxRateLimit = maxRetryAfterSecs * time.Second
 
 // webAPIOnce is webAPI without the 429 retries: a rate limit returns a
 // *catalog.RateLimitError carrying Spotify's Retry-After. Other statuses
 // are a *StatusError, as webAPI's are.
 func (p *SpotifyProvider) webAPIOnce(ctx context.Context, method, path string, query url.Values) (*http.Response, error) {
+	if err := p.rateLimited(); err != nil {
+		return nil, err
+	}
 	p.mu.Lock()
 	sess := p.session
 	p.mu.Unlock()
@@ -294,11 +301,10 @@ func (p *SpotifyProvider) webAPIOnce(ctx context.Context, method, path string, q
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusTooManyRequests {
-		rl := &catalog.RateLimitError{}
 		if secs, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && secs > 0 {
-			rl.RetryAfter = time.Duration(min(secs, maxRetryAfterSecs)) * time.Second
+			return nil, p.block(time.Duration(min(secs, maxRetryAfterSecs)) * time.Second)
 		}
-		return nil, rl
+		return nil, &catalog.RateLimitError{}
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 512))
 	return nil, statusError(resp.StatusCode, resp.Status, body, err)

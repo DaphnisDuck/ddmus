@@ -6,7 +6,8 @@ package model
 // exactly the table's cliamp keys, and the key bar at the bottom and the
 // keymap overlay's entries render the table, so a cliamp key works in a view
 // if and only if it is listed. The library's own keys are handled in
-// handleLibraryKey's switch; a new one needs its row here too.
+// handleLibraryKey's switch, except q, which handleKey handles; a new one
+// needs its row here too.
 
 import (
 	"slices"
@@ -34,67 +35,69 @@ type libKeyView struct {
 
 var (
 	libMoveKeys = []libKeyHelp{
-		{[]string{"up", "k", "down", "j"}, "j/k", "Move"},
-		{[]string{"g", "home", "G", "end"}, "g/G", "Top/Bottom"},
-		{[]string{"pgup", "ctrl+u", "pgdown", "ctrl+d"}, "PgUp/PgDn", "Page"},
+		{[]string{"up", "k", "down", "j"}, "j k", "Move"},
+		{[]string{"g", "home", "G", "end"}, "g G", "Top, bottom"},
+		{[]string{"pgup", "ctrl+u", "pgdown", "ctrl+d"}, "PgUp PgDn", "Page"},
 	}
-	libOpenKey    = libKeyHelp{[]string{"enter", "l", "right"}, "Enter/l", "Open"}
-	libBackKey    = libKeyHelp{[]string{"esc", "h", "left", "backspace"}, "Esc/h", "Back"}
+	libOpenKey    = libKeyHelp{[]string{"enter", "l", "right"}, "Enter l", "Open"}
+	libBackKey    = libKeyHelp{[]string{"esc", "h", "left", "backspace"}, "Esc h", "Back"}
 	libSearchKey  = libKeyHelp{[]string{"/"}, "/", "Search"}
 	libPauseKey   = libKeyHelp{[]string{"space"}, "Space", "Pause"}
 	libQuitKey    = libKeyHelp{[]string{"q"}, "q", "Quit"}
 	libQueueKey   = libKeyHelp{[]string{"tab"}, "Tab", "Queue"}
 	libOrderKey   = libKeyHelp{[]string{"o"}, "o", "Order"}
 	libRefreshKey = libKeyHelp{[]string{"r"}, "r", "Sync"}
+	// libSkipKey is the library's previous/next track, in every view but
+	// the search input.
+	libSkipKey = libKeyHelp{[]string{"p", "n"}, "p n", "Prev, next"}
 
 	// In search results, the back keys return to the query instead.
 	libResultKeys = slices.Concat(libMoveKeys, []libKeyHelp{
 		libOpenKey,
-		{[]string{"/", "esc", "h", "left", "backspace"}, "/ Esc/h", "Query"},
-		{[]string{"q"}, "q", "Back"},
-		libPauseKey, libQueueKey,
+		{[]string{"/", "esc", "h", "left", "backspace"}, "/ Esc h", "Query"},
+		libPauseKey, libSkipKey, libQueueKey, libQuitKey,
 	})
+	// The search input takes q as text.
 	libSearchInputKeys = []libKeyHelp{
-		{[]string{"enter", "down", "tab"}, "Enter/Tab", "Results"},
+		{[]string{"enter", "down", "tab"}, "Enter Tab", "Results"},
 		{[]string{"esc"}, "Esc", "Close"},
 		{[]string{"ctrl+u"}, "Ctrl+U", "Clear"},
 	}
 	libQueueKeys = []libKeyHelp{
-		{[]string{"tab", "esc", "b"}, "Tab/Esc", "Library"},
+		{[]string{"tab", "esc", "b"}, "Tab Esc", "Library"},
+		libSkipKey,
 	}
 
 	// libPlayerKeys are cliamp's transport keys, live in every view but the
 	// search input.
 	libPlayerKeys = []libKeyHelp{
-		{[]string{"<", ",", ">", "."}, "</>", "Prev/Next"},
 		{[]string{"s"}, "s", "Stop"},
-		{[]string{"shift+left", "shift+right"}, "Shift+←/→", "Seek far"},
-		{[]string{"+", "=", "-"}, "+/-", "Volume"},
+		{[]string{"+", "=", "-"}, "+ -", "Volume"},
 		{[]string{"ctrl+g"}, "Ctrl+G", "Hide keys"},
 	}
 
 	// libQueuePassKeys are cliamp's queue keys, live while the queue has the
-	// screen. n (Favorite) and Ctrl+I (Metadata, which terminals send as Tab)
-	// stay swallowed.
+	// screen. Ctrl+I (Metadata, which terminals send as Tab) and m (Mono)
+	// stay swallowed; n and p are the library's.
 	libQueuePassKeys = slices.Concat(libMoveKeys, []libKeyHelp{
 		{[]string{"enter"}, "Enter", "Play"},
 		libPauseKey,
-		{[]string{"left", "right"}, "←/→", "Seek"},
+		{[]string{"left", "right"}, "← →", "Seek"},
+		{[]string{"shift+left", "shift+right"}, "Shift ← →", "Seek far"},
 		{[]string{"/"}, "/", "Filter"},
 		{[]string{"z"}, "z", "Shuffle"},
 		{[]string{"r"}, "r", "Repeat"},
 		{[]string{"a"}, "a", "Play next"},
 		{[]string{"A"}, "A", "Up next"},
 		{[]string{"x"}, "x", "Remove"},
-		{[]string{"shift+up", "shift+down"}, "Shift+↑/↓", "Reorder"},
+		{[]string{"shift+up", "shift+down"}, "Shift ↑ ↓", "Reorder"},
 		{[]string{"ctrl+z"}, "Ctrl+Z", "Undo"},
 		{[]string{"e"}, "e", "EQ"},
-		{[]string{"m"}, "m", "Mono"},
-		{[]string{"[", "]"}, "[/]", "Speed"},
+		{[]string{"[", "]"}, "[ ]", "Speed"},
 		{[]string{"i"}, "i", "Info"},
 		{[]string{"y"}, "y", "Lyrics"},
 		{[]string{"ctrl+j"}, "Ctrl+J", "Jump"},
-		libQuitKey,
+		libQuitKey, // for the bar: handleKey quits on q before the gate
 	})
 
 	// The gate's sets, read from the tables.
@@ -125,20 +128,18 @@ func (m Model) libraryKeyView() libKeyView {
 		return libKeyView{title: "Search Results", own: libResultKeys, pass: libPlayerKeys}
 	}
 	own := slices.Concat(libMoveKeys, []libKeyHelp{libOpenKey})
-	quit := libQuitKey
 	if len(m.lib.stack) > 1 {
 		own = append(own, libBackKey)
-		quit.label = "Back"
 	}
 	own = append(own, libSearchKey)
 	if _, ok := m.libTop().level.(library.OrderedLevel); ok {
 		own = append(own, libOrderKey)
 	}
-	own = append(own, libPauseKey, libQueueKey)
+	own = append(own, libPauseKey, libSkipKey, libQueueKey)
 	if m.lib.refresh != nil {
 		own = append(own, libRefreshKey)
 	}
-	own = append(own, quit)
+	own = append(own, libQuitKey)
 	return libKeyView{title: "Library", own: own, pass: libPlayerKeys}
 }
 
@@ -157,6 +158,25 @@ func (m Model) libraryOnScreen() bool {
 	}
 	s := m.activeScreen()
 	return s == screenLibrary || s == screenMain
+}
+
+// libraryQuitsOnQ reports whether q quits at once: the library is enabled
+// and no text input, nor a cliamp screen the library does not open, has the
+// keyboard. Over the library's own overlays (Up next, track info, lyrics,
+// the keymap Ctrl+K opens over them) it quits too. The cliamp screens are
+// listed defensively: the library swallows the keys that open them.
+func (m Model) libraryQuitsOnQ() bool {
+	if !m.libraryEnabled() {
+		return false
+	}
+	switch {
+	case m.keymap.searching, m.jumping, m.urlInputting, m.search.active, m.netSearch.active, m.provSearch.active,
+		m.devicePicker.visible, m.plPicker.visible, m.fileBrowser.visible, m.spotSearch.visible,
+		m.navBrowser.visible, m.themePicker.visible, m.visPicker.visible, m.plManager.visible, m.subs.visible:
+		return false
+	}
+	_, searching := m.libSearchLevel()
+	return !(m.lib.visible && searching && m.lib.searchInput)
 }
 
 // libraryDropsGlobalKey reports whether key, one cliamp handles before the

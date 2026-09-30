@@ -225,34 +225,101 @@ func TestAlbumTrackRecordsPagesSimplifiedTracks(t *testing.T) {
 	}
 }
 
-// The background fetch reports a rate limit at once, with Spotify's
-// requested wait, instead of retrying it.
-func TestAlbumTrackRecordsOnceReportsRateLimits(t *testing.T) {
+// rateLimitedAPI answers every request with status and Retry-After, and
+// counts the requests that reach it.
+func rateLimitedAPI(t *testing.T, status *int, retryAfter *string) (*SpotifyProvider, *int) {
 	calls := 0
-	status, retryAfter := http.StatusTooManyRequests, "7"
 	originalTransport := http.DefaultTransport
 	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		calls++
 		h := make(http.Header)
-		h.Set("Retry-After", retryAfter)
-		return &http.Response{StatusCode: status, Status: fmt.Sprintf("%d %s", status, http.StatusText(status)),
+		h.Set("Retry-After", *retryAfter)
+		return &http.Response{StatusCode: *status, Status: fmt.Sprintf("%d %s", *status, http.StatusText(*status)),
 			Header: h, Body: io.NopCloser(strings.NewReader(`{}`)), Request: req}, nil
 	})
 	t.Cleanup(func() { http.DefaultTransport = originalTransport })
-	p := New(&Session{tokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "token"})}, "client", 320)
+	return New(&Session{tokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "token"})}, "client", 320), &calls
+}
+
+// The background fetch reports a rate limit at once, with Spotify's
+// requested wait, instead of retrying it, and later requests wait out the
+// block without asking.
+func TestAlbumTrackRecordsOnceReportsRateLimits(t *testing.T) {
+	status, retryAfter := http.StatusTooManyRequests, "7"
+	p, calls := rateLimitedAPI(t, &status, &retryAfter)
+	now := time.Unix(1_790_000_000, 0)
+	p.rate.now = func() time.Time { return now }
+	var recorded []time.Time
+	p.OnRateLimited(func(until time.Time) { recorded = append(recorded, until) })
 
 	_, err := p.AlbumTrackRecordsOnce(context.Background(), "al1")
 	var rl *catalog.RateLimitError
-	if !errors.As(err, &rl) || rl.RetryAfter != 7*time.Second || calls != 1 {
-		t.Errorf("err = %v, calls %d; want one call and a 7s RateLimitError", err, calls)
+	if !errors.As(err, &rl) || rl.RetryAfter != 7*time.Second || *calls != 1 {
+		t.Errorf("err = %v, calls %d; want one call and a 7s RateLimitError", err, *calls)
 	}
+	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "al1"); !errors.As(err, &rl) || *calls != 1 {
+		t.Errorf("during the block: %v, calls %d; want a RateLimitError and no request", err, *calls)
+	}
+	if len(recorded) != 0 {
+		t.Errorf("recorded blocks = %v, want a short one kept in memory only", recorded)
+	}
+
+	now = now.Add(8 * time.Second)
 	retryAfter = "99999999999" // an absurd wait is capped, not overflowed
-	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "al1"); !errors.As(err, &rl) || rl.RetryAfter != time.Hour {
-		t.Errorf("huge Retry-After: %v, want a 1h RateLimitError", err)
+	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "al1"); !errors.As(err, &rl) || rl.RetryAfter != 48*time.Hour || *calls != 2 {
+		t.Errorf("huge Retry-After: %v, calls %d; want a 48h RateLimitError", err, *calls)
 	}
+	if len(recorded) != 1 || !recorded[0].Equal(now.Add(48*time.Hour)) {
+		t.Errorf("recorded blocks = %v, want the 48h one", recorded)
+	}
+
+	now = now.Add(49 * time.Hour)
 	status, retryAfter = http.StatusNotFound, ""
 	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "gone"); !errors.Is(err, catalog.ErrForbidden) {
 		t.Errorf("404: %v, want ErrForbidden", err)
+	}
+}
+
+// A long Retry-After fails a retrying request at once instead of sleeping
+// in it (an album open once waited 20h), and blocks the next request too.
+func TestWebAPIFailsFastOnALongBlock(t *testing.T) {
+	status, retryAfter := http.StatusTooManyRequests, "72300"
+	p, calls := rateLimitedAPI(t, &status, &retryAfter)
+	done := make(chan error, 1)
+	go func() {
+		_, err := p.AlbumTrackRecords(context.Background(), "al1")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		var rl *catalog.RateLimitError
+		if !errors.As(err, &rl) || rl.RetryAfter < 20*time.Hour || rl.Until.IsZero() {
+			t.Errorf("err = %v, want a ~20h RateLimitError with its end", err)
+		}
+		if !strings.Contains(err.Error(), "rate limited until ") {
+			t.Errorf("message = %q", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the request slept through the block")
+	}
+	if _, err := p.webAPI(context.Background(), "GET", "/v1/me", nil); err == nil || *calls != 1 {
+		t.Errorf("next request: %v, calls %d; want it blocked without asking", err, *calls)
+	}
+}
+
+// A block recorded by an earlier run holds until its end.
+func TestRestoredBlockHoldsUntilItEnds(t *testing.T) {
+	status, retryAfter := http.StatusNotFound, ""
+	p, calls := rateLimitedAPI(t, &status, &retryAfter)
+	now := time.Unix(1_790_000_000, 0)
+	p.rate.now = func() time.Time { return now }
+	p.SetRateLimitedUntil(now.Add(time.Hour))
+	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "al1"); !errors.As(err, new(*catalog.RateLimitError)) || *calls != 0 {
+		t.Errorf("restored block: %v, calls %d; want a RateLimitError and no request", err, *calls)
+	}
+	now = now.Add(time.Hour + time.Second)
+	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "al1"); !errors.Is(err, catalog.ErrForbidden) || *calls != 1 {
+		t.Errorf("after the block: %v, calls %d; want the request made", err, *calls)
 	}
 }
 

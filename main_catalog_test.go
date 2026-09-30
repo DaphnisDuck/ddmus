@@ -99,13 +99,31 @@ func TestFailedSyncRetriesUntilItSucceeds(t *testing.T) {
 	}
 }
 
+var errDown = errors.New("down")
+
+// A sync failed by a rate limit retries when the block ends, not sooner.
+func TestRetryWaitsForTheRateLimit(t *testing.T) {
+	rt := testRuntime(t, &flakySource{done: make(chan struct{})})
+	rt.retryMin, rt.retryMax = time.Minute, 30*time.Minute
+	rl := fmt.Errorf("sync spotify/albums: %w", &catalog.RateLimitError{RetryAfter: 20 * time.Hour})
+	if got := rt.scheduleRetry(catalog.Spotify, errors.Join(errDown, rl)); got != 20*time.Hour {
+		t.Errorf("retry in %v, want 20h", got)
+	}
+	if got := rt.scheduleRetry(catalog.Spotify, &catalog.RateLimitError{RetryAfter: time.Second}); got != 2*time.Minute {
+		t.Errorf("short limit: retry in %v, want the 2m backoff", got)
+	}
+	if got := rt.scheduleRetry(catalog.Spotify, nil); got != 0 {
+		t.Errorf("after a success: retry in %v, want none", got)
+	}
+}
+
 func TestRetryBacksOffAndStopsOnClose(t *testing.T) {
 	rt := testRuntime(t, &flakySource{done: make(chan struct{})})
 	rt.retryMin, rt.retryMax = time.Hour, 4*time.Hour
 	ps := rt.providers[catalog.Spotify]
 	var delays []time.Duration
 	for range 4 {
-		rt.scheduleRetry(catalog.Spotify, true)
+		rt.scheduleRetry(catalog.Spotify, errDown)
 		delays = append(delays, ps.retryDelay)
 	}
 	want := []time.Duration{time.Hour, 2 * time.Hour, 4 * time.Hour, 4 * time.Hour}
@@ -115,7 +133,7 @@ func TestRetryBacksOffAndStopsOnClose(t *testing.T) {
 		}
 	}
 	rt.close()
-	rt.scheduleRetry(catalog.Spotify, true)
+	rt.scheduleRetry(catalog.Spotify, errDown)
 	if ps.retry == nil {
 		return
 	}

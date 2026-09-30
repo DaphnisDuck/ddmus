@@ -43,8 +43,9 @@ type Pacing struct {
 	MaxFailures int           // consecutive non-rate-limit failures before giving up (Enricher: tracks skipped in a row)
 }
 
-// DefaultPacing keeps a library fill well under Spotify's rate limit.
-var DefaultPacing = Pacing{Delay: time.Second, MinBackoff: 5 * time.Second, MaxBackoff: 10 * time.Minute, MaxFailures: 3}
+// DefaultPacing keeps a library fill well under Spotify's rate limit. A
+// development-mode client ID was blocked for hours at one album a second.
+var DefaultPacing = Pacing{Delay: 10 * time.Second, MinBackoff: 5 * time.Second, MaxBackoff: 10 * time.Minute, MaxFailures: 3}
 
 // Filler caches album track lists: on demand when the user opens an
 // uncached album (FetchAlbumTracks), and in the background for every saved

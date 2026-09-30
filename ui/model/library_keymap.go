@@ -6,8 +6,8 @@ package model
 // exactly the table's cliamp keys, and the key bar at the bottom and the
 // keymap overlay's entries render the table, so a cliamp key works in a view
 // if and only if it is listed. The library's own keys are handled in
-// handleLibraryKey's switch (q, which quits from every library screen, in
-// handleKey); a new one needs its row here too.
+// handleLibraryKey's switch, except q, which handleKey handles; a new one
+// needs its row here too.
 
 import (
 	"slices"
@@ -97,7 +97,7 @@ var (
 		{[]string{"i"}, "i", "Info"},
 		{[]string{"y"}, "y", "Lyrics"},
 		{[]string{"ctrl+j"}, "Ctrl+J", "Jump"},
-		libQuitKey,
+		libQuitKey, // for the bar: handleKey quits on q before the gate
 	})
 
 	// The gate's sets, read from the tables.
@@ -162,14 +162,15 @@ func (m Model) libraryOnScreen() bool {
 
 // libraryQuitsOnQ reports whether q quits at once: the library is enabled
 // and no text input, nor a cliamp screen the library does not open, has the
-// keyboard. Over the library's own overlays (Up next, track info, lyrics)
-// it quits too.
+// keyboard. Over the library's own overlays (Up next, track info, lyrics,
+// the keymap Ctrl+K opens over them) it quits too. The cliamp screens are
+// listed defensively: the library swallows the keys that open them.
 func (m Model) libraryQuitsOnQ() bool {
 	if !m.libraryEnabled() {
 		return false
 	}
 	switch {
-	case m.jumping, m.urlInputting, m.search.active, m.netSearch.active, m.provSearch.active,
+	case m.keymap.searching, m.jumping, m.urlInputting, m.search.active, m.netSearch.active, m.provSearch.active,
 		m.devicePicker.visible, m.plPicker.visible, m.fileBrowser.visible, m.spotSearch.visible,
 		m.navBrowser.visible, m.themePicker.visible, m.visPicker.visible, m.plManager.visible, m.subs.visible:
 		return false

@@ -22,10 +22,11 @@ func (s *Store) RateLimitedUntil(ctx context.Context, provider string) (time.Tim
 	return time.UnixMilli(ms), nil
 }
 
-// SetRateLimitedUntil records the end of provider's rate-limit block.
+// SetRateLimitedUntil records the end of provider's rate-limit block. It
+// never shortens a recorded block: callers may record out of order.
 func (s *Store) SetRateLimitedUntil(ctx context.Context, provider string, until time.Time) error {
 	_, err := s.wdb.ExecContext(ctx, `INSERT INTO rate_limits (provider, until) VALUES (?, ?)
-		ON CONFLICT (provider) DO UPDATE SET until = excluded.until`, provider, until.UnixMilli())
+		ON CONFLICT (provider) DO UPDATE SET until = MAX(until, excluded.until)`, provider, until.UnixMilli())
 	if err != nil {
 		return fmt.Errorf("record rate limit %s: %w", provider, err)
 	}

@@ -824,11 +824,6 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {
 			resp.Body.Close()
-			// On the last attempt there's no retry after the wait, so don't
-			// sleep (up to 128s) just to give up; fail now.
-			if attempt == maxRetries-1 {
-				break
-			}
 			wait := time.Duration(1<<uint(attempt)) * time.Second
 			if ra := resp.Header.Get("Retry-After"); ra != "" {
 				if secs, err := strconv.Atoi(ra); err == nil && secs > 0 {
@@ -837,6 +832,12 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 						return nil, p.block(wait)
 					}
 				}
+			}
+			// On the last attempt there's no retry after the wait, so don't
+			// sleep (up to 128s) just to give up; fail now. ddmus: after
+			// reading Retry-After, so a long block on it closes the gate.
+			if attempt == maxRetries-1 {
+				break
 			}
 			applog.UserWarn("spotify: web api rate-limited on %s, retrying in %v (attempt %d/%d)", path, wait, attempt+1, maxRetries)
 			select {

@@ -260,14 +260,17 @@ func TestAlbumTrackRecordsOnceReportsRateLimits(t *testing.T) {
 	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "al1"); !errors.As(err, &rl) || *calls != 1 {
 		t.Errorf("during the block: %v, calls %d; want a RateLimitError and no request", err, *calls)
 	}
-	if len(recorded) != 1 || !recorded[0].Equal(now.Add(7*time.Second)) {
-		t.Errorf("recorded blocks = %v, want one ending in 7s", recorded)
+	if len(recorded) != 0 {
+		t.Errorf("recorded blocks = %v, want a short one kept in memory only", recorded)
 	}
 
 	now = now.Add(8 * time.Second)
 	retryAfter = "99999999999" // an absurd wait is capped, not overflowed
 	if _, err := p.AlbumTrackRecordsOnce(context.Background(), "al1"); !errors.As(err, &rl) || rl.RetryAfter != 48*time.Hour || *calls != 2 {
 		t.Errorf("huge Retry-After: %v, calls %d; want a 48h RateLimitError", err, *calls)
+	}
+	if len(recorded) != 1 || !recorded[0].Equal(now.Add(48*time.Hour)) {
+		t.Errorf("recorded blocks = %v, want the 48h one", recorded)
 	}
 
 	now = now.Add(49 * time.Hour)

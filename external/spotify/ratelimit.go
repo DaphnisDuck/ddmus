@@ -41,8 +41,8 @@ func (p *SpotifyProvider) SetRateLimitedUntil(until time.Time) {
 }
 
 // OnRateLimited sets fn to be called with the block's end each time a 429
-// starts or extends a block, so it can be recorded. fn may run on any
-// goroutine.
+// starts or extends a block longer than maxInlineRetryWait, so it can be
+// recorded. fn may run on any goroutine, and calls may land out of order.
 func (p *SpotifyProvider) OnRateLimited(fn func(until time.Time)) {
 	p.rate.mu.Lock()
 	defer p.rate.mu.Unlock()
@@ -70,7 +70,7 @@ func (p *SpotifyProvider) block(wait time.Duration) error {
 	}
 	fn := p.rate.onBlock
 	p.rate.mu.Unlock()
-	if extended && fn != nil {
+	if extended && fn != nil && wait > maxInlineRetryWait {
 		fn(until)
 	}
 	return p.rateLimited()

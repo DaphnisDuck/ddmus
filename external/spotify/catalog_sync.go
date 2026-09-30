@@ -276,6 +276,9 @@ type webGetter func(ctx context.Context, method, path string, query url.Values) 
 // duration). Real blocks have run to 20h.
 const maxRetryAfterSecs = 48 * 3600
 
+// MaxRateLimit is the longest block the provider keeps (ddmus).
+const MaxRateLimit = maxRetryAfterSecs * time.Second
+
 // webAPIOnce is webAPI without the 429 retries: a rate limit returns a
 // *catalog.RateLimitError carrying Spotify's Retry-After. Other statuses
 // are a *StatusError, as webAPI's are.

@@ -394,11 +394,14 @@ func (rt *catalogRuntime) keepRateLimit(sp *spotify.SpotifyProvider) {
 	until, err := rt.store.RateLimitedUntil(rt.ctx, catalog.Spotify)
 	if err != nil {
 		applog.Warn("catalog: %v", err)
-	}
-	if time.Until(until) > 0 {
+	} else if time.Until(until) > 0 {
+		// A clock set wrong once must not block Spotify for good.
+		if limit := time.Now().Add(spotify.MaxRateLimit); until.After(limit) {
+			until = limit
+		}
 		applog.Info("spotify: rate limited until %s", until.Format(time.DateTime))
+		sp.SetRateLimitedUntil(until)
 	}
-	sp.SetRateLimitedUntil(until)
 	sp.OnRateLimited(func(until time.Time) {
 		applog.Warn("spotify: rate limited until %s", until.Format(time.DateTime))
 		if err := rt.store.SetRateLimitedUntil(rt.ctx, catalog.Spotify, until); err != nil {

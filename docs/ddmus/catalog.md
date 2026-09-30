@@ -27,7 +27,7 @@ A Spotify sync first asks for your saved albums' and liked songs' count and newe
 
 **Spotify album tracks:** opening an album whose tracks aren't cached yet loads it from Spotify and caches it. A background fill then caches your other saved albums one at a time, newest saved first, one every 10 seconds. It pauses while you open an album or a sync runs, and when Spotify rate-limits it, it waits as long as Spotify asks (at least 5 seconds, doubling up to 10 minutes).
 
-**Spotify rate limits:** Spotify can block a client for hours when it asks too much (seen: 20 hours on a development-mode client ID). While a block lasts, ddmus sends Spotify nothing: syncs, the fill and album opens fail at once with "rate limited until" and the time, and a failed sync retries when the block ends. Short waits (30 seconds or less) are waited out in the request. The block is kept in `library.db`, so restarting ddmus does not ask Spotify again early.
+**Spotify rate limits:** Spotify can block a client for hours when it asks too much (seen: 20 hours on a development-mode client ID). While a block lasts, ddmus sends Spotify nothing: syncs, the fill and album opens fail at once with "rate limited until" and the time, and a failed sync retries when the block ends. Short waits (30 seconds or less) are waited out, or retried by the fill, and not remembered. A longer block is kept in `library.db` (at most 48 hours), so restarting ddmus does not ask Spotify again early.
 
 ## Status
 

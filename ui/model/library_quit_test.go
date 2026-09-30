@@ -65,6 +65,15 @@ func TestQIsTextInInputs(t *testing.T) {
 		t.Error("q in the library search input quit")
 	}
 
+	// The keymap's filter, opened with Ctrl+K over track info.
+	k, _ := newQueueModel(t)
+	k = queuePress(k, "i")
+	k.openKeymap()
+	k.keymap.searching = true
+	if quitsOn(k, "q") {
+		t.Error("q in the keymap filter quit")
+	}
+
 	for _, open := range []string{"/", "ctrl+j"} { // queue filter, jump to time
 		m, _ := newQueueModel(t)
 		m = queuePress(m, open)

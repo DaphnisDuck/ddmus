@@ -27,13 +27,13 @@ The application owns navigation; providers own content and playback. The roadmap
 3. **Unified search** (v0.3): search-as-you-type across Spotify, local files and your radio stations at once, offline, plus an All Music menu that lists every source's albums and artists together.
 4. **More providers**, one per release: **YouTube Music** (v0.4) syncs your playlists and Liked Music, with albums and artists read in the background; Plex, Jellyfin, Navidrome and cliamp's other providers can follow.
 
-v0.7 makes the queue view work under the library: shuffle, repeat, play next, track info, queue editing, lyrics and the sound keys are back, the settings panel's SRC names the playing track's source, and every view lists its keys in a bar at the bottom. v0.6 renamed the player: omatunes is now DaphnisDuck's Music Player, `ddmus` for short (omatunes is another player's name); to keep your settings and library, move your folders once as shown in [docs/ddmus/files.md](docs/ddmus/files.md#moving-from-omatunes-before-v06). v0.5 was a cleanup release: faster, quieter syncs, sturdier YouTube enrichment, and a keymap that shows only the keys that work.
+v0.8 cleans up the keys: `q` quits from any screen, `Esc` only ever goes back, `p` and `n` skip tracks everywhere, and the key bar no longer uses `/` except for search; it also stops Spotify's long rate-limit blocks from hanging album opens, and waits them out across restarts. v0.7 makes the queue view work under the library: shuffle, repeat, play next, track info, queue editing, lyrics and the sound keys are back, the settings panel's SRC names the playing track's source, and every view lists its keys in a bar at the bottom. v0.6 renamed the player: omatunes is now DaphnisDuck's Music Player, `ddmus` for short (omatunes is another player's name); to keep your settings and library, move your folders once as shown in [docs/ddmus/files.md](docs/ddmus/files.md#moving-from-omatunes-before-v06). v0.5 was a cleanup release: faster, quieter syncs, sturdier YouTube enrichment, and a keymap that shows only the keys that work.
 
 The full plan lives in [plan.md](plan.md).
 
 ## Status
 
-v0.7 is an early release for people comfortable building from source.
+v0.8 is an early release for people comfortable building from source.
 
 - **In the Music hierarchy:** Spotify, YouTube Music, local files and internet radio.
 - **YouTube Music:** your music playlists and Liked Music sync into the catalog (browser cookies or your own Google OAuth client, as in cliamp), and each track's artist, album and year is read in the background, giving YouTube Albums and Artists too. See [docs/ddmus/youtube.md](docs/ddmus/youtube.md).

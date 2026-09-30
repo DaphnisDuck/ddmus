@@ -87,7 +87,7 @@ In search results, `/`, `Esc` and `h` return to the query; while typing, Enter o
 | `e` | Next EQ preset |
 | `v` | Next visualizer (saved as `visualizer` in config.toml) |
 | `[` `]` | Speed down / up |
-| `i` | Track info |
+| `i` | Track info, with the album's artwork where the terminal can draw it ([artwork.md](artwork.md)) |
 | `y` | Lyrics |
 | `Ctrl+J` | Jump to a time |
 | `q` | Quit |

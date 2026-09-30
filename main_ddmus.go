@@ -4,14 +4,22 @@ package main
 // upstream merges there stay conflict-free.
 
 import (
+	"context"
+	"image"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/bjarneo/cliamp/artwork"
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/external/local"
+	"github.com/bjarneo/cliamp/internal/appdir"
+	"github.com/bjarneo/cliamp/internal/httpclient"
 	"github.com/bjarneo/cliamp/library"
 	"github.com/bjarneo/cliamp/playlist"
+	"github.com/bjarneo/cliamp/ui/kittyimg"
 	"github.com/bjarneo/cliamp/ui/model"
 )
 
@@ -63,3 +71,23 @@ func musicDir(initialDir string) string {
 	}
 	return ""
 }
+
+// artworkLoader loads album artwork for the track info view, or is nil when
+// artwork is off or the terminal cannot draw images (ui/kittyimg).
+func artworkLoader(enabled bool) func(context.Context, artwork.Ref) (image.Image, error) {
+	if !enabled || !kittyimg.Supported(os.Getenv) {
+		return nil
+	}
+	dir, err := appdir.CacheDir()
+	if err != nil {
+		return nil
+	}
+	l := &artwork.Loader{
+		Dir:    filepath.Join(dir, "artwork"),
+		Client: &http.Client{Timeout: artworkFetchTimeout, Transport: httpclient.Streaming.Transport, CheckRedirect: artwork.NoDowngrade},
+	}
+	return l.Load
+}
+
+// artworkFetchTimeout bounds one artwork download.
+const artworkFetchTimeout = 20 * time.Second

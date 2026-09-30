@@ -25,10 +25,13 @@ type DdmusConfig struct {
 	YouTubePlaylists []string
 	// Border draws a border around the screen and rules between its parts.
 	Border bool
+	// Artwork shows album artwork in the track info view, in terminals
+	// that can draw images.
+	Artwork bool
 }
 
 func defaultDdmusConfig() DdmusConfig {
-	return DdmusConfig{SpotifyRefresh: DefaultSpotifyRefresh, YouTubeRefresh: DefaultYouTubeRefresh, Border: true}
+	return DdmusConfig{SpotifyRefresh: DefaultSpotifyRefresh, YouTubeRefresh: DefaultYouTubeRefresh, Border: true, Artwork: true}
 }
 
 // parseKey applies one key of the [ddmus] section. Invalid values keep
@@ -42,12 +45,9 @@ func (c *DdmusConfig) parseKey(key, val string) {
 	case "youtube_playlists":
 		c.YouTubePlaylists = parseStringSlice(val)
 	case "border":
-		switch parseString(val) {
-		case "true":
-			c.Border = true
-		case "false":
-			c.Border = false
-		}
+		setBool(&c.Border, val)
+	case "artwork":
+		setBool(&c.Artwork, val)
 	}
 }
 
@@ -56,5 +56,15 @@ func (c *DdmusConfig) parseKey(key, val string) {
 func setDuration(d *time.Duration, val string) {
 	if v, err := time.ParseDuration(parseString(val)); err == nil && v >= 0 {
 		*d = v
+	}
+}
+
+// setBool sets b from a true or false value, keeping b otherwise.
+func setBool(b *bool, val string) {
+	switch parseString(val) {
+	case "true":
+		*b = true
+	case "false":
+		*b = false
 	}
 }

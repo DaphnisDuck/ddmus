@@ -584,6 +584,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	defer cat.close()
 	m.SetLibrary(library.Root(librarySources(providers, cfg.InitialDirectory, cat)))
 	m.SetFrameBorder(cfg.Ddmus.Border)
+	m.SetArtwork(artworkLoader(cfg.Ddmus.Artwork)) // ddmus: main_ddmus.go
 	cat.configure(&m)
 	if cfg.EQPreset != "" && cfg.EQPreset != "Custom" {
 		m.SetEQPreset(cfg.EQPreset, nil)
@@ -718,6 +719,9 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 
 	cat.start(prog) // ddmus: background catalog sync, once the program is about to run
 	finalModel, err := mediactl.Run(prog, svc)
+	if seq := m.ArtworkCleanup(); seq != "" { // ddmus: an image a signal left behind
+		_, _ = os.Stdout.WriteString(seq)
+	}
 	if err != nil {
 		return err
 	}

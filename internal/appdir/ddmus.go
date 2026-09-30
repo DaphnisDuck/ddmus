@@ -46,3 +46,16 @@ func DownloadsDir() (string, error) {
 	}
 	return filepath.Join(home, "Music", Name), nil
 }
+
+// CacheDir is the directory for files ddmus can fetch again, such as album
+// artwork: $XDG_CACHE_HOME/ddmus, else ~/.cache/ddmus.
+func CacheDir() (string, error) {
+	if dir := os.Getenv("XDG_CACHE_HOME"); filepath.IsAbs(dir) {
+		return filepath.Join(dir, Name), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".cache", Name), nil
+}

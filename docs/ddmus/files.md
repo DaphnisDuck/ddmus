@@ -5,7 +5,8 @@ DaphnisDuck's Music Player (`ddmus`) keeps its own files and runtime names, so i
 | What | ddmus | cliamp |
 |---|---|---|
 | Config (config.toml, playlists, plugins, history, resume, radio favorites, credentials, log, IPC socket) | `~/.config/ddmus` | `~/.config/cliamp` |
-| Data (music catalog `library.db`, album-art cache, plugin stores) | `~/.local/share/ddmus` | `~/.local/share/cliamp` |
+| Data (music catalog `library.db`, embedded album art extracted for MPRIS, plugin stores) | `~/.local/share/ddmus` | `~/.local/share/cliamp` |
+| Downloaded album artwork for the info view (`artwork/`, trimmed past 100 MB; safe to delete) | `$XDG_CACHE_HOME/ddmus`, else `~/.cache/ddmus` | — |
 | Default downloads (`Ctrl+S`) | `~/Music/ddmus` | `~/Music/cliamp` |
 | MPRIS (media keys) | `org.mpris.MediaPlayer2.ddmus` | `org.mpris.MediaPlayer2.cliamp` |
 | Client name and device ID reported to Plex, Navidrome, Emby, Jellyfin and podcast servers | `ddmus` | `cliamp` |

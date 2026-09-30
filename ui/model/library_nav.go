@@ -162,13 +162,23 @@ var libraryPassthroughKeys = map[string]bool{
 }
 
 // queuePassthroughKeys are the cliamp keys that stay live while the queue has
-// the screen: list navigation, play, playlist filter, and the transport.
+// the screen: list navigation, play, playlist filter, the transport, queue
+// editing, and the sound and track overlays. n (Favorite) and Ctrl+I
+// (Metadata, which terminals send as Tab) stay swallowed.
 var queuePassthroughKeys = map[string]bool{
 	"up": true, "down": true, "j": true, "k": true,
 	"g": true, "G": true, "home": true, "end": true,
 	"pgup": true, "pgdown": true, "ctrl+u": true, "ctrl+d": true,
 	"enter": true, "space": true, "/": true, "q": true,
 	"left": true, "right": true,
+	// Play order and the play-next queue.
+	"z": true, "r": true, "a": true, "A": true,
+	// Queue editing.
+	"x": true, "shift+up": true, "shift+down": true, "ctrl+z": true,
+	// Sound.
+	"e": true, "m": true, "[": true, "]": true,
+	// Track info, lyrics, jump to time.
+	"i": true, "y": true, "ctrl+j": true,
 }
 
 // SetLibrary makes the library the main screen, starting at root. root must

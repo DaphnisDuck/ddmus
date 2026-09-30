@@ -85,6 +85,7 @@ In search results, `/`, `Esc` and `h` return to the query; while typing, Enter o
 | `x` | Remove the selected track; `Ctrl+Z` undoes it |
 | `Shift+↑` `Shift+↓` | Move the selected track up / down |
 | `e` | Next EQ preset |
+| `v` | Next visualizer (saved as `visualizer` in config.toml) |
 | `[` `]` | Speed down / up |
 | `i` | Track info |
 | `y` | Lyrics |
@@ -102,6 +103,6 @@ The settings panel shows the queue's settings: **SRC** is the playing track's so
 
 ## Disabled cliamp keys
 
-Keys that jump to other parts of cliamp are disabled, including provider switching (`S`, `R`, `L`, `N`, …), the pickers (`t`, `v`, `d`), `u`, `w`, the playlist manager and Favorite (their `p` and `n` are previous and next here), Mono (`m`), Metadata (`Ctrl+I`, which terminals send as Tab) and the keymap overlay (`?`, `Ctrl+K`). The key bar replaces the overlay; `Ctrl+K` still opens it over cliamp's own screens.
+Keys that jump to other parts of cliamp are disabled, including provider switching (`S`, `R`, `L`, `N`, …), the pickers (`t`, `Ctrl+V`, `d`), the full-screen visualizer (`V`), `u`, `w`, the playlist manager and Favorite (their `p` and `n` are previous and next here), Mono (`m`), Metadata (`Ctrl+I`, which terminals send as Tab) and the keymap overlay (`?`, `Ctrl+K`). The key bar replaces the overlay; `Ctrl+K` still opens it over cliamp's own screens.
 
 Each view's keys come from one table in `ui/model/library_keymap.go`: the library's own keys, then the cliamp keys it passes through. The gate passes exactly the cliamp keys the table lists, and the key bar shows the same table, so a cliamp key works in a view if and only if its bar lists it. The library's own keys are handled in `handleLibraryKey` (`ui/model/library_nav.go`); a new one needs a row in the table too. To bring a cliamp key back, add a row to the view's table.

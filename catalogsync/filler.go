@@ -55,7 +55,13 @@ type Filler struct {
 	src   AlbumSource
 	pace  Pacing
 	sleep func(ctx context.Context, d time.Duration) error // replaced in tests
+	pauser
+}
 
+// pauser is a background worker's pause and single-run control: Hold
+// pauses it, waitIdle blocks while held, and begin/end keep one run at a
+// time.
+type pauser struct {
 	mu      sync.Mutex
 	holds   int
 	idle    chan struct{} // closed when holds drops to zero
@@ -69,9 +75,9 @@ func NewFiller(store AlbumStore, src AlbumSource, pace Pacing) *Filler {
 	return &Filler{store: store, src: src, pace: pace, sleep: sleepCtx}
 }
 
-// Hold pauses background filling until release is called, for example
-// while a sync or a foreground load uses the provider. Holds nest.
-func (f *Filler) Hold() (release func()) {
+// Hold pauses the worker's background run until release is called, for
+// example while a sync or a foreground load uses the provider. Holds nest.
+func (f *pauser) Hold() (release func()) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.holds == 0 {
@@ -92,7 +98,7 @@ func (f *Filler) Hold() (release func()) {
 }
 
 // waitIdle blocks while any Hold is active.
-func (f *Filler) waitIdle(ctx context.Context) error {
+func (f *pauser) waitIdle(ctx context.Context) error {
 	f.mu.Lock()
 	if f.holds == 0 {
 		f.mu.Unlock()
@@ -213,7 +219,7 @@ func (f *Filler) fill(ctx context.Context, a catalog.Album, st *fillState) error
 	}
 }
 
-func (f *Filler) begin() bool {
+func (f *pauser) begin() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.running {
@@ -223,7 +229,7 @@ func (f *Filler) begin() bool {
 	return true
 }
 
-func (f *Filler) end() {
+func (f *pauser) end() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.running = false

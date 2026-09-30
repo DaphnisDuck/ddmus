@@ -4,19 +4,21 @@ omatunes opens on **Music**, a library hierarchy that sits above cliamp's playba
 
 ```
 Music
-├── Library   Albums · Artists (every source together)
-├── Spotify   Albums · Artists · Playlists · Liked Songs
-├── Local     Albums · Artists · Genres · Folders · Playlists
-├── Radio     Favorites · Browse Stations (cliamp radio · Countries · Genres & Tags)
+├── All Music      Albums · Artists (every source together)
+├── Spotify        Albums · Artists · Playlists · Liked Songs
+├── YouTube Music  Albums · Artists · Playlists · Liked Music
+├── Local          Albums · Artists · Genres · Folders · Playlists
+├── Radio          Favorites · Browse Stations (cliamp radio · Countries · Genres & Tags)
 └── Search
 ```
 
-- **Library:** Albums and Artists from Spotify and Local in one list each, every row labelled with its source. The same album or artist in both stays two rows, side by side. Opening a row goes to that source's own album or artist.
+- **All Music:** Albums and Artists from Spotify, YouTube Music and Local in one list each, every row labelled with its source. The same album or artist in both stays two rows, side by side. Opening a row goes to that source's own album or artist.
 - **Spotify:**
   - **Albums** are your saved albums.
   - **Artists** are the artists you follow; each one opens their albums and singles.
   - **Playlists** are the ones you own or follow.
   - **Liked Songs** is your saved tracks.
+- **YouTube Music:** your music playlists, Liked Music, and the albums and artists read from those tracks in the background. See [youtube.md](youtube.md).
 - **Local:**
   - **Albums**, **Artists** and **Genres** come from an index of your music directory: `initial_directory` from config, else `$XDG_MUSIC_DIR`, else `~/Music`. Files are grouped into albums by album tag within a folder (per-disc folders like `CD1` stay one album); an album with several track artists is credited to Various Artists and listed under each of them.
   - **Folders** opens the file browser.

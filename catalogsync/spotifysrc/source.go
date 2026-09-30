@@ -14,10 +14,10 @@ import (
 
 // Collection names, as recorded in the catalog's sync state.
 const (
-	Albums    = "albums"
-	Artists   = "artists"
-	Liked     = "liked"
-	Playlists = "playlists"
+	Albums    = catalog.CollectionAlbums
+	Artists   = catalog.CollectionArtists
+	Liked     = catalog.CollectionLiked
+	Playlists = catalog.CollectionPlaylists
 )
 
 // Client is the part of the Spotify provider the source uses. Each method

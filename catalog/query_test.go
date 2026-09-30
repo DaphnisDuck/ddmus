@@ -19,6 +19,7 @@ func TestParseQuery(t *testing.T) {
 		{`Album:"the planets"`, Query{Terms: []Term{{Field: FieldAlbum, Text: "the planets", Phrase: true}}}},
 		{"title:x genre:jazz", Query{Terms: []Term{{Field: FieldTitle, Text: "x"}, {Field: FieldGenre, Text: "jazz"}}}},
 		{"source:local provider:Spotify holst", Query{Terms: []Term{word("holst")}, Providers: []string{Local, Spotify}}},
+		{"source:youtube x", Query{Terms: []Term{word("x")}, Providers: []string{YouTube}}},
 		{"type:albums type:station x", Query{Terms: []Term{word("x")}, Kinds: []SearchKind{SearchAlbum, SearchStation}}},
 		// Mid-typing operators and unknown values.
 		{"artist:", Query{}},

@@ -59,7 +59,7 @@ func newSearchFixture(t *testing.T) (*fakeCatalog, *searchable, Level) {
 	}
 	sp := &searchable{liveSpotify{fakeProvider: fakeProvider{name: "Spotify"}}}
 	root := Root(Sources{Spotify: sp, Local: &fakeProvider{name: "Local"}, Radio: &directoryRadio{fakeProvider{name: "Radio"}},
-		MusicDir: "/m", Catalog: cat})
+		MusicDir: "/m", Catalog: cat, Synced: spotifySynced(sp)})
 	return cat, sp, child(t, root, "Search")
 }
 
@@ -89,7 +89,7 @@ func TestSearchResultsBySection(t *testing.T) {
 		{"Albums", "Cached", "Spotify · Ozawa"},
 		{"Albums", "The Planets", "Local · Holst · 1990"},
 		{"Tracks", "Venus", ""},
-		{"Playlists", "Mine", "1 tracks"},
+		{"Playlists", "Mine", "Spotify · 1 tracks"},
 		{"Stations", "WBGO", ""},
 		{beyondSection, "Search Spotify for “holst”", ""},
 		{beyondSection, "Search the radio directory for “holst”", ""},
@@ -255,5 +255,81 @@ func TestSearchTrackNeverPlaysAPartialAlbum(t *testing.T) {
 	e, _ := s.entry(catalog.SearchResult{Kind: catalog.SearchTrack, Provider: catalog.Spotify, Track: &liked})
 	if got, i := playFrom(t, e); !slices.Equal(got, []string{"One", "Two"}) || i != 1 {
 		t.Errorf("online: plays %v from %d, want the fetched album", got, i)
+	}
+}
+
+// A playlist of any synced source opens from search, labelled with it.
+func TestSearchPlaylistOfAnySyncedSource(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	mix := catalog.Playlist{ID: 90, Ref: lref3("youtube", "PLmix"), Name: "Road Trip", TrackCount: 1}
+	cat.plTracks[90] = []catalog.Track{{ID: 91, Title: "Song", PlayableURI: "https://music.youtube.com/watch?v=x"}}
+	cat.found = catalog.SearchResults{catalog.SearchPlaylist: {{Kind: catalog.SearchPlaylist, Provider: "youtube", Playlist: &mix}}}
+	yt := SyncedSource{Provider: "youtube", Title: "YouTube Music", Player: &fakeProvider{name: "YouTube Music"},
+		Collections: []string{catalog.CollectionPlaylists}}
+	search := child(t, Root(Sources{Catalog: cat, Synced: []SyncedSource{yt}}), "Search")
+	rows := searchFor(t, search, "road")
+	if len(rows) == 0 || rows[0].Title != "Road Trip" || rows[0].Detail != "YouTube · 1 tracks" {
+		t.Fatalf("rows = %+v", rows)
+	}
+	if got := load(t, rows[0].Open); len(got) != 1 || got[0].Track.Path != "https://music.youtube.com/watch?v=x" {
+		t.Errorf("playlist tracks = %+v", got)
+	}
+}
+
+// Each synced source that can search live gets its own row.
+func TestSearchLiveRowPerSearchableSource(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	cat.found = nil
+	yt := SyncedSource{Provider: "youtube", Title: "YouTube Music", Player: &searchable{liveSpotify{fakeProvider: fakeProvider{name: "YouTube Music"}}},
+		Collections: []string{catalog.CollectionPlaylists}}
+	quiet := SyncedSource{Provider: "other", Title: "Other", Player: &fakeProvider{name: "Other"}, Collections: []string{catalog.CollectionPlaylists}}
+	search := child(t, Root(Sources{Catalog: cat, Synced: []SyncedSource{yt, quiet}}), "Search")
+	rows := searchFor(t, search, "x")
+	if got := titles(rows); !slices.Equal(got, []string{noMatches, "Search YouTube Music for “x”"}) {
+		t.Errorf("rows = %v", got)
+	}
+	if last := rows[len(rows)-1]; last.Intent != IntentSearch || last.Provider != yt.Player || last.Query != "x" {
+		t.Errorf("YouTube row = %+v", last)
+	}
+}
+
+// neverFetch fails the test when an album fetch is attempted.
+type neverFetch struct {
+	*fakeCatalog
+	t *testing.T
+}
+
+func (n neverFetch) FetchAlbumTracks(context.Context, catalog.Album) ([]catalog.Track, error) {
+	n.t.Error("a partial source's album was fetched")
+	return nil, errors.New("no")
+}
+
+// A partial source's album (YouTube's: only your tracks of it) opens and
+// plays as it is, never fetched whole.
+func TestPartialAlbums(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	album := catalog.Album{ID: 70, Ref: lref3("youtube", "album:chicago/best"), Title: "Best of Chicago", Artist: "Chicago"}
+	cat.albums = append(cat.albums, album)
+	beginnings := catalog.Track{ID: 71, Ref: lref3("youtube", "v1"), Title: "Beginnings", AlbumID: 70, PlayableURI: "https://music.youtube.com/watch?v=v1"}
+	smile := catalog.Track{ID: 72, Ref: lref3("youtube", "v2"), Title: "Make Me Smile", AlbumID: 70, PlayableURI: "https://music.youtube.com/watch?v=v2"}
+	cat.albumTracks[70] = []catalog.Track{beginnings, smile} // not "cached"
+	c := neverFetch{cat, t}
+	yt := SyncedSource{Provider: "youtube", Title: "YouTube Music", Player: &fakeProvider{name: "YouTube Music"},
+		Collections: []string{catalog.CollectionAlbums}, PartialAlbums: true}
+
+	albums := load(t, child(t, SyncedMenu(c, yt), "Albums"))
+	var row Entry
+	for _, e := range albums {
+		if e.Title == "Best of Chicago" {
+			row = e
+		}
+	}
+	if got := titles(load(t, row.Open)); !slices.Equal(got, []string{"Beginnings", "Make Me Smile"}) {
+		t.Errorf("album opens as %v", got)
+	}
+	s := newCatalogView(c, Sources{Catalog: c, Synced: []SyncedSource{yt}})
+	e, _ := s.entry(catalog.SearchResult{Kind: catalog.SearchTrack, Provider: "youtube", Track: &smile})
+	if got, i := playFrom(t, e); !slices.Equal(got, []string{"Beginnings", "Make Me Smile"}) || i != 1 {
+		t.Errorf("searched track plays %v from %d, want its known album from it", got, i)
 	}
 }

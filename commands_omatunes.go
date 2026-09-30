@@ -1,0 +1,53 @@
+package main
+
+// omatunes: subcommands of its own. Kept out of commands.go so upstream
+// merges there stay conflict-free; commands.go registers them with one
+// tagged line.
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/urfave/cli/v3"
+
+	"github.com/bjarneo/cliamp/config"
+	"github.com/bjarneo/cliamp/external/ytmusic"
+)
+
+// youtubeSignInTimeout bounds waiting for the browser sign-in.
+const youtubeSignInTimeout = 5 * time.Minute
+
+// youtubeCommand is "omatunes youtube": YouTube Music account commands.
+func youtubeCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "youtube",
+		Usage: "YouTube Music account",
+		Commands: []*cli.Command{{
+			Name:  "signin",
+			Usage: "sign in with your own Google OAuth client (client_id and client_secret under [ytmusic])",
+			Action: func(ctx context.Context, _ *cli.Command) error {
+				cfg, err := config.Load()
+				if err != nil {
+					return fmt.Errorf("load config: %w", err)
+				}
+				id, secret := strings.TrimSpace(cfg.YouTubeMusic.ClientID), strings.TrimSpace(cfg.YouTubeMusic.ClientSecret)
+				if id == "" || secret == "" {
+					return errors.New("set client_id and client_secret under [ytmusic] in config.toml first (see docs/omatunes/youtube.md)")
+				}
+				fmt.Println("Signing in to Google. If your browser opens, approve read-only access there.")
+				ctx, cancel := context.WithTimeout(ctx, youtubeSignInTimeout)
+				defer cancel()
+				sess, err := ytmusic.NewSession(ctx, id, secret)
+				if err != nil {
+					return fmt.Errorf("sign in: %w", err)
+				}
+				sess.Close()
+				fmt.Println("Signed in.")
+				return nil
+			},
+		}},
+	}
+}

@@ -320,6 +320,66 @@ Search(ctx, q Query, limit int) (map[SearchKind][]SearchResult, error) // per-ki
 - M3.4 Library node: unified Albums and Artists with source labels.
 - M3.5 `docs/omatunes/search.md`, README, review agents, live check, tag `v0.3.0`.
 
+## M4 implementation plan (YouTube Music, v0.4)
+
+Goal: YouTube Music joins the catalog like Spotify. Your music playlists and liked music are synced in the background, browsable and searchable offline, and played through the existing yt-dlp path. Provider menus become capability-driven, so later providers (M4.x releases) show only the lists they actually have.
+
+### Decisions (confirmed 2026-09-29)
+- **Sign-in:** keep cliamp's two modes exactly: `cookies_from` (a browser session through yt-dlp, no Google setup) and `client_id` + `client_secret` (your own Google OAuth client, through the YouTube Data API). OAuth wins when both are set, and `cookies_from` alongside it still lets yt-dlp play private uploads. The config keys and files are unchanged (`ytmusic_credentials.json`).
+- **Lists:** YouTube Music shows Playlists and Liked Music (`LM`). Watch later (`WL`) and Liked videos (`LL`) are never listed. Neither mode can list library albums or artists (M4.0), so YouTube's Albums and Artists come from enrichment (below).
+- **Non-music (confirmed after M4.0):** cookie mode classifies playlists like OAuth mode: sample one video per playlist and keep the playlist if its YouTube category is Music. yt-dlp's full read gives `categories`. That costs about 4 s per new playlist, once, and is cached.
+- **Enrichment (confirmed after M4.0):** a background enricher reads each YouTube track's real track title, artists, album and year through a full yt-dlp read (about 4.4 s per track), gently, newest first, pausing for foreground work like the album filler. Enriched tracks get proper artist credits and an album. YouTube then offers Artists and Albums lists and joins Library → Albums/Artists; an album holds only the tracks you have, since album track lists are not reachable.
+- **Refresh:** every 2 hours by default (`[omatunes] youtube_refresh`), plus `r`. Only playlists whose marker changed are refetched.
+- **Scope:** YouTube Music only. The non-music "YouTube" and "YouTube (All)" providers stay hidden.
+
+### What the two modes give (from the code; M4.0 confirms live)
+| | OAuth (Data API) | Cookies (yt-dlp) |
+|---|---|---|
+| Playlists | `playlists.list mine`, with item counts | the `youtube.com/feed/playlists` page |
+| Music vs other | classified by sampling one video per playlist (cached) | not classified: every playlist counts |
+| Tracks | `playlistItems.list`, 50 per call, then `videos.list` for durations | yt-dlp, 100 per run |
+| Liked Music | spike: `LM` (Liked Music) or `LL` (liked videos) through `playlistItems` | spike: the `LM` playlist URL |
+| Change marker | item count plus the playlist etag | item count |
+| Cost | quota: about 1 unit per 50 items, 10,000 a day | time: one yt-dlp run per 100 items |
+
+Track metadata is thin in both: the title is the video title, often "Artist - Song (Official Video)", and the artist is the uploading channel ("X - Topic" becomes X). There is no album.
+
+### Catalog mapping
+- **Provider:** `catalog.YouTube = "youtube"`.
+- **Track:** `Ref{youtube, videoID}`. The title is the video title and the artist is the cleaned channel; its artist record is keyed by channel ID where the API gives one, else by name. Tracks have no album. PlayableURI is `https://music.youtube.com/watch?v=ID`, the path playback already uses. Duration and AddedAt (when it was added to the playlist) come along where known.
+- **Playlists:** a `playlists` collection with snapshot = the change marker; the tracks of an unchanged playlist are not refetched (M2.3's mechanism).
+- **Liked:** a `liked` collection of track members, if M4.0 finds it readable in the mode in use; otherwise the list is not offered.
+- **Completeness:** a read must see as many raw items as the playlist reports, counting private and deleted videos before they are skipped, or it fails with ErrIncomplete, as Spotify reads do.
+
+### Capability-driven menus (M4.1)
+- A source's menu lists come from what it syncs, not from a hard-coded Spotify menu. `SpotifyCatalog` becomes a generic catalog source menu built from the source's lists (Albums, Artists, Playlists, Liked). Spotify keeps all four; YouTube gets Playlists and Liked. Local keeps its own menu (Genres, Folders).
+- The UI sees no change: invariant 2 holds, since capability decisions stay in `library`.
+- Search: playlist results of any catalogued provider open (today only Spotify's), labelled with their source. A "Search YouTube Music for …" row appears only when the provider can search live (cookie mode's `provider.Searcher`).
+
+### Packages
+```
+external/ytmusic/catalog_sync.go   fork-owned, context-aware fetchers returning catalog records (OAuth and cookie paths)
+catalogsync/youtubesrc/            source: playlists (marker-driven), liked
+library/                           generic catalog source menu; search rows for any provider's playlists
+main_catalog.go                    YouTube source (refresh 2h), Music → YouTube Music
+config/omatunes.go                 youtube_refresh
+```
+
+### Tests
+- **Fetchers:** paging and completeness per mode against faked API and yt-dlp output; skipped private/deleted videos still counted; classification honoured; markers.
+- **Source:** only changed playlists refetched; liked present or absent by capability; failures leave the cache intact (scenarios A–C for YouTube).
+- **Library:** the generic menu shows exactly the source's lists, and Spotify's menu is unchanged; YouTube playlists and tracks in search, labelled; Enter on a YouTube track plays just the track (no album).
+- **Runtime:** youtube_refresh, `r`, retries, as for Spotify.
+
+### Delivery
+- M4.0 Spike (needs one sign-in mode set up): Liked Music readability per mode, item counts versus readable items, quota cost of a full OAuth sync, and yt-dlp time for a cookie sync of your library. Also, with cookies: can yt-dlp list the YouTube Music library's albums and artists (e.g. the library albums/artists pages), and expand a library album (an `OLAK5uy_` album playlist) into its tracks? If so, YouTube gets Albums (and perhaps Artists) through the path cookie mode already uses, without an InnerTube client; the plan's lists are revisited with the results.
+- M4.1 Capability-driven source menus, and search rows for any provider's playlists. No visible change for Spotify.
+- M4.2 Cookie path first (it is the mode set up and verified): yt-dlp fetchers for the playlists feed, playlists and Liked Music; classification by sampled category; `youtubesrc` with markers.
+- M4.3 OAuth path: Data API fetchers behind the same source, `LM` readability checked, quota measured (needs a Google OAuth client to verify live).
+- M4.4 Wiring: Music → YouTube Music, `youtube_refresh` (2h), runtime source, search label, the live-search row where available.
+- M4.5 Enrichment: background per-track metadata; a sync must not overwrite an enriched track's title and credits (an `enriched_at` marker, migration 003); YouTube Albums and Artists lists and Library membership from enriched tracks.
+- M4.6 `docs/omatunes/youtube.md` (both sign-in modes, the `+gnomekeyring` note, quota, what syncs, enrichment), README, review agents, live check, tag `v0.4.0`.
+
 ## Status
 - [x] M0: add the `upstream` remote, create `plan.md`, add the CLAUDE.md fork note, write `docs/omatunes/upstream.md`, make the Makefile build `omatunes`, rebrand the UI title and terminal title.
 - [x] M1.1: `library/` Level/Entry model and root menu, with tests.
@@ -348,6 +408,19 @@ Search(ctx, q Query, limit int) (map[SearchKind][]SearchResult, error) // per-ki
 - [x] Sorting pass (inserted before M3.4, 2026-09-29): sort keys are literal apart from case, accents and leading punctuation (`catalog.SortKeyVersion` 2; stored keys recomputed once at open, tracked by `PRAGMA user_version`); Albums lists sort by title by default, `o` switches to artist order (`library.OrderedLevel`, header shows the order); Radio → Favorites sorts A–Z, directory lists keep most-voted-first; station rows carry no number (live streams have no track number or duration).
 - [x] M3.4 Library node: Music → Library (first in Music) → Albums and Artists across sources (`Catalog.Albums`/`Artists` with an empty provider mean every provider), built with the search's row builders (`searcher.albumRow`/`artistRow`, source label first so a long credit cannot hide it); duplicates stay two rows side by side; rows open their source's own levels; Albums reorders with `o`; the lists are catalog levels of every source (CatalogProvider ""), reloaded after any sync, and `r` there syncs all. Verified live: 4,808 albums (2,667 Local, 2,141 Spotify) and 2,526 artists.
 - [x] M3.5 Docs, review, tag v0.3.0 (tagged 2026-09-29). Done: `docs/omatunes/search.md`; README, navigation.md and catalog.md updated for v0.3. Review of M3 applied: a searched track of an uncached album that cannot be fetched plays alone, never the album's known fragment; a radio sync requested mid-run runs once more (request counter), so a favorite toggled during a sync is not lost; leaving the search input runs a pending query at once, so no late tick reloads under the cursor; returning to search keeps the refresh command it popped past; one-letter words count only letters and digits ("a!" is whole-word). Cleanups: `searcher` → `catalogView`; one `library.SourceLabel`; `catalogView.rows`/`trackRow`; fetch size derived from the section limits; exact-title text moved into sqlite; search scans reuse `scanAlbumWith`/`scanTrackWith`, tracks and stations split; sort-key rewrite with prepared statements. Not taken: partial results when one kind errors (not triggerable; would hide failures), paging the 4,800-row Library list (opens instantly), shrinking the opt-in benchmark. The live offline check was not run before tagging.
+- [x] M4.0 Spike (cookie mode, 2026-09-29; OAuth untested, no client configured). Brave on Linux needs `cookies_from = "brave+gnomekeyring"` and the system `python-secretstorage` package (plain "brave": "cannot decrypt v11 cookies"). Results with yt-dlp 2026.08.19:
+  - Playlists feed (`youtube.com/feed/playlists`): 1.2 s, 9 playlists including Watch later (WL) and Liked videos (LL); mostly non-music (game shows, lessons), which cookie mode does not filter.
+  - A playlist (31 tracks): 1.4 s flat; entries match `playlist_count`; each has ID, title, channel, duration.
+  - Liked Music (`list=LM`): readable, 1.2 s (4 tracks). Liked videos (`list=LL`): 2.2 s (154).
+  - Library albums/artists/songs/playlists (`music.youtube.com/library/...`, `browse/FEmusic_*`): not readable. yt-dlp: "YouTube Music is not directly supported", redirects to youtube.com and gets 404.
+  - Album playlists (`OLAK5uy_`): untested; no album ID reachable (the Topic channel tried has no releases or playlists tab).
+  - Per-video full extraction (not flat) returns track, artist(s), album and release year, even for an official non-Topic upload (Libertango: Astor Piazzolla, "The Soul of Tango, Greatest Hits", 2000), but costs about 4.4 s per video.
+- [x] M4.1 Capability-driven source menus: `library.SyncedSource` (title, player, the collections its sync covers, liked title) and `SyncedMenu`, which offers Albums/Artists/Playlists/liked only for synced collections (`catalog.Collection*`, now also spotifysrc's names); `library/spotify_catalog.go` → `synced_catalog.go`; Root lists each synced source, Spotify browses live only when it is not synced; the runtime reports each source's collections and `librarySources` builds Spotify's `SyncedSource` from them. Search routes albums, artists and playlists to any synced source's browser; playlist rows now carry their source label; `SourceLabel` spells YouTube. No visible change for Spotify (verified live).
+- [x] M4.2 YouTube cookie path: `external/ytmusic/catalog_sync.go` (`CookieCatalog`: yt-dlp with `--cookies-from-browser`, through a replaceable runner; playlists feed minus Watch later, Liked videos and Liked Music; classification by the category of the first readable video of five, cached in cliamp's `ytmusic_classification.json` under scope `cookies:<browser>`, a playlist that cannot be classified yet is left out uncached; playlist reads count every entry for completeness (ErrIncomplete) and skip private/deleted videos; channel as artist keyed `channel:<id>`, "X - Topic" → X; missing, private and region-blocked content maps to ErrForbidden) and `catalogsync/youtubesrc` (liked, playlists; a refused playlist keeps its tracks). `catalog.YouTube`; `source:youtube` in queries. The feed gives no per-playlist counts, so cookie playlists carry no marker and are re-read each sync (about 1.4 s each). Live on the real account (into a scratch catalog): first sync 49 s (classifying 7 playlists; a region-blocked sample fell through to the next video), then 4 s; 1 music playlist (31 tracks) and 4 Liked Music tracks.
+- [x] M4.3 YouTube OAuth path. Built: `external/ytmusic/catalog_sync_oauth.go` (`OAuthCatalog`: silent session only, else ErrNeedsAuth; `playlists.list mine` minus WL/LL/LM, classified with cliamp's classifier, marker = item count + etag; `playlistItems` paged with a total check, private/deleted skipped, owner channel as artist, AddedAt; durations via cliamp's `fetchDurations`; 404/403 → ErrForbidden), tested against a fake Data API. Live on the real account (2026-09-29, after adding the account as a test user): sign-in works; Liked Music (`LM`) readable, 4 tracks, cleaner artists than cookies; Liked videos (`LL`) readable (147). But `playlists.list mine` reports 18 playlists and returns none (no further pages), and the API has no endpoint for playlists saved from other channels (the cookie feed lists them). A sync costs about 3 quota units plus 2 per newly classified playlist. With both modes configured, `youtubesrc.Mixed` reads Liked Music through OAuth (falling back to cookies when OAuth needs signing in, as a Testing-status Google app does about weekly) and playlists through cookies; with one mode, that mode does everything. Verified live with both: 1 music playlist (31 tracks) through cookies, 4 Liked Music tracks through OAuth.
+- [x] M4.4 Wiring: `[omatunes] youtube_refresh` (default 2h); `youtubeClient` picks the sync client from the sign-in (cookies, OAuth, or both → `Mixed`) when YouTube is enabled and yt-dlp is installed; Music → YouTube Music (Playlists, Liked Music) with cliamp's `ytmusic` provider as player; search offers "Search <source> for …" for every synced source whose provider searches live (so none for OAuth-mode YouTube). Verified live (2026-09-29): 4 music playlists including a 305-track one (four yt-dlp pages), a saved one, and "Bubba's Essentials" alongside Spotify's playlist of the same name (two rows labelled Spotify · 34 and YouTube · 3, each with its own tracks); 14 Liked Music tracks newest first; a YouTube track played; YouTube tracks in search beside Spotify and Local; a forced sync with 3 new playlists to classify took about 21 s. Saved playlists: a playlist saved from someone else in YouTube Music (library or bookmark) appears in no list a sync can read (not the youtube.com feed, not the API), though it reads fine by ID. So `[omatunes] youtube_playlists = ["<link or ID>", …]` (one line) lists them: they sync as followed playlists without classification, deduplicated against the feed; a gone one is skipped, other failures keep the cache (`Client.PlaylistRecord`, `youtubesrc.New(client, extra...)`, `youtubesrc.PlaylistID`). Verified live: "Good soup" (14 tracks) synced beside the account's four. Automatic discovery through YouTube Music's private API (InnerTube) is deferred. Cosmetic: the cookie feed does not reliably tell own playlists from saved ones, so saved ones in the feed show under "Your playlists".
+- [x] M4.5 Enrichment: migration 003 (`tracks.enriched_at`); a sync keeps an enriched track's title and credits; `catalog.TrackMetadata`; store `UnenrichedTracks` (library tracks: liked or in library playlists, newest first), `EnrichTrack` (writes title, artists, album, year, or only marks a read that found nothing), `RefreshDerived` (the `derived` collection: albums and credited artists of enriched library tracks). `catalogsync.Enricher` (shares the Filler's pause control, now `pauser`; batches of 10 with a derived refresh and a UI reload after each; rate limits back off from 1 min to 30 min; unreadable tracks are marked read; 3 consecutive other failures end a run). `CookieCatalog.TrackMetadata` (full yt-dlp read; artists keyed `artist:<name>`, albums `album:<artist>/<title>`; bot checks and 429 → RateLimitError; cookies optional, so OAuth-only setups enrich anonymously). The runtime's per-source background `worker` (Spotify's filler, YouTube's enricher) is held during that source's sync and run after it; a source's `lists` add menu lists (YouTube: Albums, Artists). `SyncedSource.PartialAlbums`: YouTube albums open and play as the catalog has them, never fetched; the Spotify album fetch refuses other providers' albums. Verified live: within 90 s YouTube Music had Albums (10), Artists and search results, each album holding your tracks of it. A full first enrichment of about 360 tracks takes about 30 min in the background, resuming where it stopped.
+- [x] M4.6 Docs, review, tag v0.4.0: `docs/omatunes/youtube.md`, README v0.4, `omatunes youtube signin` (OAuth sign-in outside the TUI). Review fixes: playlist classification never caches a failure or an empty playlist as non-music, and a failed classification (bot check, network, quota) fails the playlists collection so the sync keeps what it has, in both modes (OAuth sync now uses its own `classifyForSync`; cliamp's `classifyPlaylists` is untouched); more permanent yt-dlp refusals (age-gated, members-only, not in your country, private video) map to ErrForbidden so the Enricher marks them read; `Mixed` also falls back to cookies for Liked Music when OAuth refuses (quota); a batch that found nothing skips the derived refresh. Verified live (2026-09-29): a forced sync kept all five playlists, Albums intact, a Liked Music track played, `youtube signin` succeeded silently with the stored token. Known, deferred: an unrecognised permanent yt-dlp error still stops each enrichment run at the same track; the cookie playlists feed has no count to check a short read against.
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.
@@ -374,6 +447,18 @@ Search(ctx, q Query, limit int) (map[SearchKind][]SearchResult, error) // per-ki
 - 2026-09-29: Enter on a searched track plays its album from that track (just the track when offline or album-less).
 
 - 2026-09-29: Albums sort by title by default, with `o` for artist order; names sort literally ("The Planets" under T). Radio favorites A–Z; directory stations stay ranked by votes; station rows are unnumbered.
+
+- 2026-09-29: M4 is YouTube Music. Sign-in keeps cliamp's two modes (cookies_from, or an own OAuth client, which wins when both are set). The menu shows Playlists and Liked Music; YouTube syncs every 2 hours by default (youtube_refresh). Provider menus become capability-driven.
+
+- 2026-09-29: YouTube's album/artist gap is the official Data API's (it models YouTube videos and playlists, not the YouTube Music library). The private InnerTube API has the library but is unofficial and cookie-authenticated; M4.0 first checks whether yt-dlp reaches library albums/artists with cookies before any InnerTube client is considered.
+
+- 2026-09-29: After the M4.0 spike: cookie mode classifies playlists by sampled video category (like OAuth); Watch later and Liked videos are never listed; YouTube tracks are enriched in the background with artist/album/year, giving YouTube Albums and Artists. The cookie path is built first.
+
+- 2026-09-29: With both YouTube sign-ins, the sync reads Liked Music through OAuth and playlists through cookies (the API lists none of this account's playlists and never saved ones); this departs from cliamp's "OAuth wins" for the sync only. cliamp keeps one classification scope in its cache file, so switching modes reclassifies once.
+
+- 2026-09-29: Playlists saved from others in YouTube Music are configured by link (`youtube_playlists`), since no readable list includes them; InnerTube discovery may come later as its own slice.
+
+- 2026-09-29: The unified Library node is renamed "All Music", so it does not read as a second Local.
 
 ## Open questions
 - Whether `music_dir` should split from `initial_directory` (the Local scan folder vs the file browser's start folder). Default: keep reusing `initial_directory` until someone needs them apart.

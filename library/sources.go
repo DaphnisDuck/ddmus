@@ -30,6 +30,9 @@ type Sources struct {
 	// Genres with its index of MusicDir. Without it Local has only Folders
 	// and Playlists.
 	Catalog catalog.Catalog
+	// Synced are the providers the catalog syncs, each with its own menu
+	// built from what its sync provides. They need Catalog.
+	Synced []SyncedSource
 }
 
 // Root returns the top of the hierarchy: Music.
@@ -38,14 +41,18 @@ func Root(src Sources) Level {
 	var search *catalogView
 	if src.Catalog != nil {
 		search = newCatalogView(src.Catalog, src)
-		entries = append(entries, Entry{Title: "Library", Open: search.libraryMenu()})
+		entries = append(entries, Entry{Title: "All Music", Open: search.libraryMenu()})
 	}
-	if src.Spotify != nil {
-		spotify := Spotify(src.Spotify)
-		if src.Catalog != nil {
-			spotify = SpotifyCatalog(src.Catalog, src.Spotify)
+	synced := map[string]bool{}
+	if src.Catalog != nil {
+		for _, s := range src.Synced {
+			entries = append(entries, Entry{Title: s.Title, Open: SyncedMenu(src.Catalog, s)})
+			synced[s.Provider] = true
 		}
-		entries = append(entries, Entry{Title: "Spotify", Open: spotify})
+	}
+	// Without a catalog sync, Spotify browses live.
+	if src.Spotify != nil && !synced[catalog.Spotify] {
+		entries = append(entries, Entry{Title: "Spotify", Open: Spotify(src.Spotify)})
 	}
 	if src.Catalog != nil && src.MusicDir != "" {
 		entries = append(entries, Entry{Title: "Local", Open: LocalCatalog(src.Catalog, src.Local, src.MusicDir)})

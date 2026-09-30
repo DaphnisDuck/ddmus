@@ -7,7 +7,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +17,8 @@ import (
 	"github.com/bjarneo/cliamp/catalog"
 	"github.com/bjarneo/cliamp/catalog/sqlite"
 	"github.com/bjarneo/cliamp/catalogsync"
+	"github.com/bjarneo/cliamp/config"
+	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/ui/model"
 )
 
@@ -59,7 +63,7 @@ func testRuntime(t *testing.T, src *flakySource) *catalogRuntime {
 		retryMin: 5 * time.Millisecond, retryMax: 10 * time.Millisecond}
 	rt.ctx, rt.cancel = context.WithCancel(context.Background())
 	rt.filler = catalogsync.NewFiller(store, src, catalogsync.DefaultPacing)
-	rt.setSources(source{Source: src, refresh: time.Hour, fill: true})
+	rt.setSources(source{Source: src, refresh: time.Hour, worker: rt.filler})
 	t.Cleanup(rt.close)
 	return rt
 }
@@ -137,13 +141,14 @@ func TestSourcesStartupPolicy(t *testing.T) {
 	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
 	rt.ctx, rt.cancel = context.WithCancel(context.Background())
 	defer rt.cancel()
-	rt.setSources(source{Source: &namedSource{catalog.Spotify}, refresh: time.Hour, fill: true},
-		source{Source: &namedSource{catalog.Local}})
+	rt.setSources(source{Source: &namedSource{catalog.Spotify}, refresh: time.Hour},
+		source{Source: &namedSource{catalog.Local}, lists: []string{catalog.CollectionAlbums}})
 	if sp := rt.providers[catalog.Spotify]; sp == nil || sp.stale || sp.startup.LastSuccess.IsZero() {
 		t.Errorf("fresh Spotify = %+v, want not stale", sp)
 	}
-	if sp := rt.providers[catalog.Spotify]; sp.fill {
-		t.Error("fill set without a filler")
+	// A source's menu offers its sync's collections and the lists it adds.
+	if got := rt.collections(catalog.Local); !slices.Equal(got, []string{"albums", "albums"}) {
+		t.Errorf("local collections = %v, want its sync's and its extra list", got)
 	}
 	if lp := rt.providers[catalog.Local]; lp == nil || !lp.stale {
 		t.Errorf("local = %+v, want indexed at every startup", lp)
@@ -230,5 +235,68 @@ func TestQuietSyncRequestedMidRunRunsAgain(t *testing.T) {
 	defer src.mu.Unlock()
 	if src.runs != 2 {
 		t.Errorf("runs = %d, want 2", src.runs)
+	}
+}
+
+// fakePlayer is a minimal provider for wiring tests.
+type fakePlayer struct{ name string }
+
+func (p fakePlayer) Name() string                              { return p.name }
+func (fakePlayer) Playlists() ([]playlist.PlaylistInfo, error) { return nil, nil }
+func (fakePlayer) Tracks(string) ([]playlist.Track, error)     { return nil, nil }
+
+// Spotify's menu is built from what its sync covers; without a catalog it
+// browses live.
+func TestLibrarySourcesSyncedMenus(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
+	defer rt.cancel()
+	rt.setSources(source{Source: &namedSource{catalog.Spotify}})
+	providers := []model.ProviderEntry{{Key: "spotify", Provider: fakePlayer{"Spotify"}}}
+
+	src := librarySources(providers, "", rt)
+	if len(src.Synced) != 1 || src.Synced[0].Provider != catalog.Spotify || !slices.Equal(src.Synced[0].Collections, []string{"albums"}) {
+		t.Errorf("synced = %+v, want Spotify with its sync's collections", src.Synced)
+	}
+	if src := librarySources(providers, "", &catalogRuntime{providers: map[string]*providerSync{}}); len(src.Synced) != 0 || src.Catalog != nil {
+		t.Errorf("without a catalog: synced %+v, catalog %v", src.Synced, src.Catalog)
+	}
+}
+
+// The YouTube sync reads the account the way it is signed in.
+func TestYouTubeClientFollowsSignIn(t *testing.T) {
+	orig := ytdlpAvailable
+	t.Cleanup(func() { ytdlpAvailable = orig })
+	ytdlpAvailable = func() bool { return true }
+	cookies := config.YouTubeMusicConfig{CookiesFrom: "brave+gnomekeyring"}
+	oauth := config.YouTubeMusicConfig{ClientID: "id", ClientSecret: "secret"}
+	both := config.YouTubeMusicConfig{CookiesFrom: "brave", ClientID: "id", ClientSecret: "secret"}
+	disabled := both
+	disabled.Disabled = true
+	tests := []struct {
+		name string
+		yt   config.YouTubeMusicConfig
+		want string
+	}{
+		{"cookies", cookies, "*ytmusic.CookieCatalog"},
+		{"oauth", oauth, "*ytmusic.OAuthCatalog"},
+		{"both", both, "youtubesrc.Mixed"},
+		{"disabled", disabled, "<nil>"},
+		{"not signed in", config.YouTubeMusicConfig{}, "<nil>"},
+		{"half an oauth client", config.YouTubeMusicConfig{ClientID: "id"}, "<nil>"},
+	}
+	for _, tt := range tests {
+		if got := fmt.Sprintf("%T", youtubeClient(tt.yt)); got != tt.want {
+			t.Errorf("%s: client = %s, want %s", tt.name, got, tt.want)
+		}
+	}
+	ytdlpAvailable = func() bool { return false }
+	if c := youtubeClient(both); c != nil {
+		t.Errorf("without yt-dlp: client = %T, want none", c)
 	}
 }

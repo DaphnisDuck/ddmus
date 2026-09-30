@@ -41,6 +41,16 @@ func (e *RateLimitError) Error() string {
 const (
 	Spotify = "spotify"
 	Local   = "local"
+	YouTube = "youtube"
+)
+
+// Collections a provider's sync can offer. The library menu of a synced
+// source offers a list for each one its sync provides.
+const (
+	CollectionAlbums    = "albums"
+	CollectionArtists   = "artists"
+	CollectionPlaylists = "playlists"
+	CollectionLiked     = "liked"
 )
 
 // Kind is what a library membership row refers to.

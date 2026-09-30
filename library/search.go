@@ -60,22 +60,40 @@ type stationSearcher interface {
 // menu, and builds rows with each source's own builders, so a row opens
 // exactly as it does while browsing that source.
 type catalogView struct {
-	cat     catalog.Catalog
-	spotify *catalogBrowser // nil without Spotify
-	local   *catalogBrowser
-	// Beyond the catalog: live Spotify search and the radio directory.
-	spotifyProv playlist.Provider
-	radioProv   playlist.Provider
+	cat    catalog.Catalog
+	synced map[string]*catalogBrowser // by catalog provider name
+	local  *catalogBrowser
+	// Beyond the catalog: the providers with their own live search, by
+	// name, and the radio directory.
+	liveSearch []liveSearcher
+	radioProv  playlist.Provider
 	// albumOrder is the Library Albums list's order, a catalog.AlbumOrder.
 	albumOrder atomic.Int32
 }
 
 func newCatalogView(cat catalog.Catalog, src Sources) *catalogView {
-	s := &catalogView{cat: cat, local: localBrowser(cat, src.Local, src.MusicDir), radioProv: src.Radio}
-	if src.Spotify != nil {
-		s.spotify, s.spotifyProv = spotifyBrowser(cat, src.Spotify), src.Spotify
+	s := &catalogView{cat: cat, synced: map[string]*catalogBrowser{},
+		local: localBrowser(cat, src.Local, src.MusicDir), radioProv: src.Radio}
+	for _, ss := range src.Synced {
+		s.synced[ss.Provider] = syncedBrowser(cat, ss)
+		s.addLiveSearch(ss.Title, ss.Player)
+	}
+	if s.synced[catalog.Spotify] == nil {
+		s.addLiveSearch("Spotify", src.Spotify) // browsed live, searched live
 	}
 	return s
+}
+
+// liveSearcher is a provider that searches its own service live.
+type liveSearcher struct {
+	name string
+	prov playlist.Provider
+}
+
+func (s *catalogView) addLiveSearch(name string, prov playlist.Provider) {
+	if _, ok := prov.(provider.Searcher); ok {
+		s.liveSearch = append(s.liveSearch, liveSearcher{name, prov})
+	}
 }
 
 func (s *catalogView) level(query string) SearchLevel { return &searchLevel{s: s, query: query} }
@@ -146,17 +164,18 @@ func (s *catalogView) rows(results []catalog.SearchResult) []Entry {
 	return entries
 }
 
-// beyond is the rows that search outside the catalog: live Spotify search
-// and the radio directory, run only when chosen.
+// beyond is the rows that search outside the catalog: each provider's own
+// live search (Spotify, YouTube Music in cookie mode) and the radio
+// directory, run only when chosen.
 func (s *catalogView) beyond(q catalog.Query) []Entry {
 	text := q.Text()
 	if text == "" {
 		return nil
 	}
 	var entries []Entry
-	if _, ok := s.spotifyProv.(provider.Searcher); ok {
-		entries = append(entries, Entry{Section: beyondSection, Title: "Search Spotify for “" + text + "”",
-			Intent: IntentSearch, Provider: s.spotifyProv, Query: text})
+	for _, ls := range s.liveSearch {
+		entries = append(entries, Entry{Section: beyondSection, Title: "Search " + ls.name + " for “" + text + "”",
+			Intent: IntentSearch, Provider: ls.prov, Query: text})
 	}
 	if st, ok := s.radioProv.(stationSearcher); ok {
 		entries = append(entries, Entry{Section: beyondSection, Title: "Search the radio directory for “" + text + "”",
@@ -175,8 +194,9 @@ func (s *catalogView) entry(r catalog.SearchResult) (e Entry, ok bool) {
 		e, ok = s.artistRow(*r.Artist)
 	case r.Album != nil:
 		e, ok = s.albumRow(*r.Album)
-	case r.Playlist != nil && r.Provider == catalog.Spotify && s.spotify != nil:
-		e, ok = s.spotify.playlistEntry(*r.Playlist), true
+	case r.Playlist != nil && s.synced[r.Playlist.Ref.Provider] != nil:
+		e, ok = s.synced[r.Playlist.Ref.Provider].playlistEntry(*r.Playlist), true
+		e.Detail = joinDetail(SourceLabel(r.Playlist.Ref.Provider), e.Detail)
 	case r.Track != nil:
 		e, ok = s.trackRow(*r.Track, r.Kind == catalog.SearchStation), true
 	}
@@ -203,9 +223,9 @@ func (s *catalogView) trackRow(t catalog.Track, station bool) Entry {
 // ok is false when the source is not configured.
 func (s *catalogView) artistRow(a catalog.Artist) (Entry, bool) {
 	var e Entry
-	switch {
-	case a.Ref.Provider == catalog.Spotify && s.spotify != nil:
-		e = s.spotify.artistEntry(a)
+	switch b := s.synced[a.Ref.Provider]; {
+	case b != nil:
+		e = b.artistEntry(a)
 	case a.Ref.Provider == catalog.Local:
 		e = s.local.localArtistEntry(a)
 	default:
@@ -219,9 +239,9 @@ func (s *catalogView) artistRow(a catalog.Artist) (Entry, bool) {
 // ok is false when the source is not configured.
 func (s *catalogView) albumRow(a catalog.Album) (Entry, bool) {
 	var e Entry
-	switch {
-	case a.Ref.Provider == catalog.Spotify && s.spotify != nil:
-		e = s.spotify.albumEntry(a, a.Artist)
+	switch b := s.synced[a.Ref.Provider]; {
+	case b != nil:
+		e = b.albumEntry(a, a.Artist)
 	case a.Ref.Provider == catalog.Local:
 		e = s.local.localAlbumEntry(a)
 	default:
@@ -247,8 +267,10 @@ func (s *catalogView) albumFrom(t catalog.Track) func(ctx context.Context) ([]pl
 		}
 		// An uncached Spotify album holds only the tracks the catalog met
 		// elsewhere (liked, in a playlist); playing those as the album would
-		// silently skip the rest. A local album is always whole.
-		if !cached && t.Ref.Provider != catalog.Local {
+		// silently skip the rest. A local album is always whole, and a
+		// partial source's album is all there is.
+		b := s.synced[t.Ref.Provider]
+		if !cached && t.Ref.Provider != catalog.Local && (b == nil || !b.partialAlbums) {
 			tracks = s.fetchAlbum(ctx, t.AlbumID)
 		}
 		for i, at := range tracks {
@@ -282,8 +304,15 @@ func (s *catalogView) fetchAlbum(ctx context.Context, albumID int64) []catalog.T
 	return tracks
 }
 
-// SourceLabel names a catalog provider for display: "spotify" → "Spotify".
+// sourceLabels spells the providers whose names do not simply capitalize.
+var sourceLabels = map[string]string{"youtube": "YouTube"}
+
+// SourceLabel names a catalog provider for display: "spotify" → "Spotify",
+// "youtube" → "YouTube".
 func SourceLabel(provider string) string {
+	if label, ok := sourceLabels[provider]; ok {
+		return label
+	}
 	if provider == "" {
 		return ""
 	}

@@ -83,6 +83,12 @@ Done when:
 ### M5: Deferred cleanup
 - Pay down what M1–M4 deferred: the keymap overlay, enrichment and YouTube sync robustness, catalog writer performance, sync correctness, and the live offline check. No new providers.
 
+### M6: Rename to ddmus (DaphnisDuck's Music Player)
+- Omatunes is already another music player's name. The fork becomes **DaphnisDuck's Music Player**, `ddmus` for short: the binary and CLI, code references, config and data folders, MPRIS and IPC names, docs, and the GitHub repository. Existing omatunes data moves over on first start.
+
+### M7: The queue view
+- Make the queue (Now Playing) view work under the library: shuffle and repeat, play next, track info, queue editing and sound keys come back. The settings panel's SRC shows the queue's source. Every view lists all of its live keys at the bottom, replacing the `?`/`Ctrl+K` overlay.
+
 ## Architecture invariants
 1. `library/` defines the navigation Node model and has no Bubbletea dependency. `ui/model` only talks to Nodes (and, from M2, the Catalog). The exception is playback, which uses the existing cliamp paths.
 2. Capability detection (type assertions on `provider/interfaces.go`) lives in the `library/` adapters, never in the view layer.
@@ -411,6 +417,87 @@ Not taken: `ensureSession` ignoring the sync context (upstream code); a same-tot
   - `localsrc` stores an indexer version, and a bump regroups every file once, from stored tags without rereading them.
 - M5.5 Live offline check (scratch HOME, network off: start, browse Spotify/YouTube/Local, search, play Local, `r` fails gracefully with the cached badge), docs (`docs/omatunes/` for anything user-visible), review agents, tag `v0.5.0`.
 
+## M6 implementation plan (rename to ddmus, v0.6)
+
+Goal: nothing a user sees, types or finds on disk says omatunes. The full name is **DaphnisDuck's Music Player**; everything else says `ddmus`. Your library, settings and sign-ins carry over untouched. Branch `m6-rename`.
+
+### What carries the name today (surveyed 2026-09-29)
+- **Identity:** `internal/appdir.Name` ("omatunes") drives most of it:
+  - the config, data and download folders;
+  - the MPRIS bus name and Identity;
+  - the IPC socket (`$TMPDIR/omatunes.sock`);
+  - the client name sent to Plex, Jellyfin/Emby and Navidrome, and the podcast User-Agent;
+  - the PipeWire stream match.
+- **Separate from it:** `OMATUNES_CONFIG_DIR`, `appdir/omatunes.go`, the Makefile's `BINARY`, the UI header "O M A T U N E S" and the terminal title, and the `[omatunes]` config section (`config/omatunes.go`, `OmatunesConfig`).
+- **Fork-owned files and messages:** `commands_omatunes.go`, `ytmusic/signin_omatunes.go`, the disabled-upgrade message, and `ErrSchemaTooNew`'s text.
+- **Tags and docs:** 73 `// omatunes:` tags on upstream edits; `docs/omatunes/` (6 files), README, CLAUDE.md, plan.md.
+- **Your data:** `~/.config/omatunes` (config.toml with an `[omatunes]` section, Spotify and YouTube credentials, radio favorites, classification cache, plugins, themes) and `~/.local/share/omatunes` (library.db). No `~/Music/omatunes`, and no installed binary.
+- **Unchanged:** the Go module path (`github.com/bjarneo/cliamp`, for cheap upstream merges), the catalog schema, past git tags and history, and past entries in this plan's Status and Decisions sections (they record what was true then).
+
+### Decisions (2026-09-29; Go names and display text chosen during planning, open to change)
+- **Names:**
+  - `appdir.Name = "ddmus"`: `~/.config/ddmus`, `~/.local/share/ddmus`, `~/Music/ddmus`, `org.mpris.MediaPlayer2.ddmus`, `ddmus.sock`, binary `ddmus`.
+  - `DDMUS_CONFIG_DIR` replaces `OMATUNES_CONFIG_DIR`; `CLIAMP_CONFIG_DIR` still comes first, for upstream tests.
+- **Display:**
+  - `appmeta.DisplayName()` = "DaphnisDuck's Music Player", used for the MPRIS Identity (media widgets show it).
+  - The UI header reads "DaphnisDuck's Music Player", and the terminal title is `ddmus`.
+- **Config section:** `[ddmus]` (`config/ddmus.go`, `DdmusConfig`, `cfg.Ddmus`). `[omatunes]` is still read, as a deprecated alias with a log note; `[ddmus]` wins when both are present.
+- **Moving your data:** on first start, when a ddmus folder is missing and its omatunes folder exists, it is renamed into place (config, data, downloads). If that fails, the app says so and does not start on empty folders. A running omatunes is not detected: quit it first.
+- **Code:** tags become `// ddmus:`, and fork files `*_omatunes.go` become `*_ddmus.go`. `docs/omatunes/` becomes `docs/ddmus/`.
+- **Local folder and memory:** `~/Documents/projects/omatunes` is renamed last, by you, after M6. Claude's project memory is tied to that path and is copied over at that point.
+
+### Delivery
+- M6.1 Identity: `appdir.Name`, `DDMUS_CONFIG_DIR`, `appmeta.DisplayName`, MPRIS Identity, UI header and terminal title, Makefile `BINARY ?= ddmus`, user-facing strings (upgrade message, `ErrSchemaTooNew`, CLI usage). Tests follow.
+- M6.2 Data move: `appdir.MigrateLegacy` run first thing at startup (config, data, downloads; rename only when the target is missing), with tests for each case (fresh install, moved, both present, failure). The `[ddmus]` section plus the `[omatunes]` alias. Verified by moving a copy of your real folders under a scratch HOME.
+- M6.3 Code and docs:
+  - `// omatunes:` → `// ddmus:`; fork files and identifiers renamed.
+  - `docs/omatunes/` → `docs/ddmus/`.
+  - README as "DaphnisDuck's Music Player (ddmus)", keeping the credit to cliamp.
+  - CLAUDE.md and the live, forward-looking parts of plan.md.
+  - A grep gate: no "omatunes" outside git history, plan.md's history, and prompt.txt.
+- M6.4 GitHub and release:
+  - `gh repo rename ddmus` (confirmed with you at that step), then update the origin remote and README links.
+  - Live check with your real data moved (after a backup).
+  - Review, then tag `v0.6.0`, merge, push.
+  - Afterwards you rename the local folder, and the Claude memory is carried over.
+
+## M7 implementation plan (the queue view, v0.7)
+
+Goal: the queue view is fully usable without cliamp's provider screens. Every key a view lists works, and every key that works is listed. Branch `m7-queue`.
+
+### Findings (2026-09-29, from the code and a live look)
+- `n`, `a`, `i`, `Ctrl+I`, `z`, `r` (and `x`, `e`, `m`, `[ ]`, `y`, …) do nothing in the queue view because the M1 gate (`queuePassthroughKeys`) swallows them. Their cliamp handlers are intact.
+- The bottom bar is cliamp's main-screen `commandHelp`, unaware of the gate. It advertises swallowed keys and "Esc Back to provider", though Esc returns to the Library.
+- The settings panel (VOL, EQ, SRC, SHF, RPT, SPD) is reached in cliamp by Tab/Shift+Tab focus, but Tab is the library/queue toggle.
+- `SRC [cliamp radio] 1/8` is cliamp's provider pill (the provider index), which the library replaced.
+- `?`/`Ctrl+K` opens the keymap in the queue's place (visualizer, queue and settings hidden).
+- Terminals send `Ctrl+I` as Tab, so it cannot be a separate key.
+
+### Decisions (confirmed 2026-09-29)
+- **Key help:** each view's bottom bar lists every key that works there, wrapping to more lines when needed. The `?`/`Ctrl+K` overlay goes away while the library is enabled, and `Ctrl+G` still hides the bar. It is upstream's overlay, so it stays for cliamp's own screens.
+- **Favorite (`n`):** removed. Liking on the source, or omatunes' own playlists, may bring it back later.
+- **Queue keys back:**
+  - `z` shuffle and `r` repeat (cycle off/all/one);
+  - `a` play next and `A` queued list;
+  - `i` track info; `Ctrl+I` is dropped;
+  - `x` remove, `Shift+↑/↓` move, `Ctrl+Z` undo;
+  - `e` EQ preset, `m` mono, `[ ]` speed, `y` lyrics, `Ctrl+J` jump to time.
+- **SRC:** shows the queue's source ([Local], [Spotify], [YouTube], [Radio]), display only.
+- **Settings panel:** display-only, changed through the keys above. Per-band EQ editing needs panel focus and is out of M6 (presets through `e`).
+
+### Delivery
+- M7.1 Queue keys: widen `queuePassthroughKeys` to the confirmed set.
+  - Check each works from the library's queue: overlays it opens (`A`, `i`, `y`, `Ctrl+J`) open over the queue and close back to it; `x` and `Ctrl+Z` on the playing track; `a` on a library-played album; `r` means repeat in the queue while it syncs in the library.
+  - `n` and `Ctrl+I` stay swallowed.
+  - Tests per key: passes the gate, and has its effect.
+- M7.2 SRC: the library records the source of what it plays (the level's catalog provider, or Radio). SRC shows it, and the provider-pill index goes. A queue built by cliamp's own paths (a URL or file argument) shows what cliamp knows, or nothing. Tagged edit in the settings render only.
+- M7.3 Key bars:
+  - One table per view describes its keys: the library's own rows plus the cliamp commands it passes (M5.1's `libraryKeymapSections` grows into this). The gate, the bottom bar and the tests all read it, so none can drift. The M5 review asked for this.
+  - The bottom bar renders it for Library, Search Results, Library Search, and Queue, wrapping within the width. The layout budget accounts for the extra lines.
+  - `?`/`Ctrl+K` come out of the passthrough and the bar while the library is enabled.
+  - Tests: the bar lists exactly the live keys, and it fits at 80 and 120 columns.
+- M7.4 Docs (`docs/omatunes/navigation.md` key tables, README), review agents, live check, tag `v0.7.0`.
+
 ## Status
 - [x] M0: add the `upstream` remote, create `plan.md`, add the CLAUDE.md fork note, write `docs/omatunes/upstream.md`, make the Makefile build `omatunes`, rebrand the UI title and terminal title.
 - [x] M1.1: `library/` Level/Entry model and root menu, with tests.
@@ -492,7 +579,8 @@ Not taken: `ensureSession` ignoring the sync context (upstream code); a same-tot
     - tests for the Spotify head request path, the forced sign-in URL, and enricher cancellation, no-success and store-failure runs;
     - comment and precedence cleanups.
   - Not taken: per-context press tests for the keymap's own rows (plan wording corrected instead).
-- Next: no M6 planned yet. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists.
+- [ ] M6 (rename to ddmus, v0.6): planned 2026-09-29, see the M6 implementation plan. Next: M6.1.
+- [ ] M7 (the queue view, v0.7): planned 2026-09-29, see the M7 implementation plan. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists; liking on the source (`n`).
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.
@@ -537,6 +625,10 @@ Not taken: `ensureSession` ignoring the sync context (upstream code); a same-tot
 - 2026-09-29: OAuth sign-in happens outside the TUI with `omatunes youtube signin`; the sync itself never signs in interactively.
 
 - 2026-09-29: M5 is deferred cleanup (v0.5), not a new provider: no Plex/Jellyfin/Navidrome server is in use to test against.
+
+- 2026-09-29: The fork is renamed: DaphnisDuck's Music Player, `ddmus` for short (omatunes is another player's name). M6 does the rename before the queue work; the Go module path stays cliamp's.
+
+- 2026-09-29: M7 is the queue view (planned as M6, renumbered when the rename came first): every view lists all its live keys at the bottom instead of the `?`/`Ctrl+K` overlay; `n` Favorite is removed; SRC shows the queue's source; the settings panel is display-only, driven by direct keys (Tab stays the library/queue toggle).
 
 - 2026-09-29: A snapshot stays one transaction per collection. After M5.3 the largest measured one (6,000 playlist tracks) takes 0.39 s, so per-playlist transactions (M2.2 deferral) are dropped.
 

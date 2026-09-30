@@ -140,15 +140,15 @@ func TestLibraryKeyBarListsTable(t *testing.T) {
 		view      string
 		want, not []string
 	}{
-		{"Library", []string{"Move", "Open", "Search", "Queue", "Sync", "Quit", "Stop", "Prev/Next", "Volume", "Hide keys"},
+		{"Library", []string{"Move", "Open", "Search", "Queue", "Sync", "Quit", "Stop", "Prev, next", "Volume", "Hide keys"},
 			[]string{"Back", "Order", "Help", "Info", "Shuffle", "Seek far"}},
 		{"Library below the root", []string{"Back", "Quit"}, nil},
 		{"ordered list", []string{"Order"}, []string{"Sync"}},
 		{"Queue", []string{"Library", "Play", "Filter", "Seek", "Shuffle", "Repeat", "Play next", "Up next", "Remove",
-			"Reorder", "Undo", "EQ", "Speed", "Info", "Lyrics", "Jump", "Quit", "Stop", "Volume", "Hide keys", "Prev/Next", "Seek far"},
+			"Reorder", "Undo", "EQ", "Speed", "Info", "Lyrics", "Jump", "Quit", "Stop", "Volume", "Hide keys", "Prev, next", "Seek far"},
 			[]string{"Help", "Favorite", "Open", "Sync", "Mono"}},
 		{"Library Search", []string{"Results", "Close", "Clear"}, []string{"Stop", "Volume", "Move", "Hide keys"}},
-		{"Search Results", []string{"Query", "Move", "Open", "Stop", "Quit", "Prev/Next"}, []string{"Search", "Sync", "Seek far"}},
+		{"Search Results", []string{"Query", "Move", "Open", "Stop", "Quit", "Prev, next"}, []string{"Search", "Sync", "Seek far"}},
 	}
 	views := libViews(t)
 	for _, tt := range tests {
@@ -184,6 +184,27 @@ func TestLibraryKeyBarListsTable(t *testing.T) {
 				t.Errorf("keymap entries %q, want %q", got, want)
 			}
 		})
+	}
+}
+
+// No label joins keys or words with "/": it reads as the search key. "/"
+// appears only as a key of its own (search, or the queue's filter).
+func TestLibraryLabelsKeepSlashForSearch(t *testing.T) {
+	for name, m := range libViews(t) {
+		v := m.libraryKeyView()
+		for _, r := range slices.Concat(v.own, v.pass) {
+			if strings.Contains(r.label, "/") {
+				t.Errorf("%s: label %q contains /", name, r.label)
+			}
+			for _, tok := range strings.Fields(r.keyLabel) {
+				if strings.Contains(tok, "/") && tok != "/" {
+					t.Errorf("%s: key label %q joins keys with /", name, r.keyLabel)
+				}
+			}
+			if slices.Contains(strings.Fields(r.keyLabel), "/") && !slices.Contains(r.keys, "/") {
+				t.Errorf("%s: %q shows / but / is not its key", name, r.keyLabel)
+			}
+		}
 	}
 }
 

@@ -35,12 +35,12 @@ type libKeyView struct {
 
 var (
 	libMoveKeys = []libKeyHelp{
-		{[]string{"up", "k", "down", "j"}, "j/k", "Move"},
-		{[]string{"g", "home", "G", "end"}, "g/G", "Top/Bottom"},
-		{[]string{"pgup", "ctrl+u", "pgdown", "ctrl+d"}, "PgUp/PgDn", "Page"},
+		{[]string{"up", "k", "down", "j"}, "j k", "Move"},
+		{[]string{"g", "home", "G", "end"}, "g G", "Top, bottom"},
+		{[]string{"pgup", "ctrl+u", "pgdown", "ctrl+d"}, "PgUp PgDn", "Page"},
 	}
-	libOpenKey    = libKeyHelp{[]string{"enter", "l", "right"}, "Enter/l", "Open"}
-	libBackKey    = libKeyHelp{[]string{"esc", "h", "left", "backspace"}, "Esc/h", "Back"}
+	libOpenKey    = libKeyHelp{[]string{"enter", "l", "right"}, "Enter l", "Open"}
+	libBackKey    = libKeyHelp{[]string{"esc", "h", "left", "backspace"}, "Esc h", "Back"}
 	libSearchKey  = libKeyHelp{[]string{"/"}, "/", "Search"}
 	libPauseKey   = libKeyHelp{[]string{"space"}, "Space", "Pause"}
 	libQuitKey    = libKeyHelp{[]string{"q"}, "q", "Quit"}
@@ -49,22 +49,22 @@ var (
 	libRefreshKey = libKeyHelp{[]string{"r"}, "r", "Sync"}
 	// libSkipKey is the library's previous/next track, in every view but
 	// the search input.
-	libSkipKey = libKeyHelp{[]string{"p", "n"}, "p n", "Prev/Next"}
+	libSkipKey = libKeyHelp{[]string{"p", "n"}, "p n", "Prev, next"}
 
 	// In search results, the back keys return to the query instead.
 	libResultKeys = slices.Concat(libMoveKeys, []libKeyHelp{
 		libOpenKey,
-		{[]string{"/", "esc", "h", "left", "backspace"}, "/ Esc/h", "Query"},
+		{[]string{"/", "esc", "h", "left", "backspace"}, "/ Esc h", "Query"},
 		libPauseKey, libSkipKey, libQueueKey, libQuitKey,
 	})
 	// The search input takes q as text.
 	libSearchInputKeys = []libKeyHelp{
-		{[]string{"enter", "down", "tab"}, "Enter/Tab", "Results"},
+		{[]string{"enter", "down", "tab"}, "Enter Tab", "Results"},
 		{[]string{"esc"}, "Esc", "Close"},
 		{[]string{"ctrl+u"}, "Ctrl+U", "Clear"},
 	}
 	libQueueKeys = []libKeyHelp{
-		{[]string{"tab", "esc", "b"}, "Tab/Esc", "Library"},
+		{[]string{"tab", "esc", "b"}, "Tab Esc", "Library"},
 		libSkipKey,
 	}
 
@@ -72,7 +72,7 @@ var (
 	// search input.
 	libPlayerKeys = []libKeyHelp{
 		{[]string{"s"}, "s", "Stop"},
-		{[]string{"+", "=", "-"}, "+/-", "Volume"},
+		{[]string{"+", "=", "-"}, "+ -", "Volume"},
 		{[]string{"ctrl+g"}, "Ctrl+G", "Hide keys"},
 	}
 
@@ -82,18 +82,18 @@ var (
 	libQueuePassKeys = slices.Concat(libMoveKeys, []libKeyHelp{
 		{[]string{"enter"}, "Enter", "Play"},
 		libPauseKey,
-		{[]string{"left", "right"}, "←/→", "Seek"},
-		{[]string{"shift+left", "shift+right"}, "Shift+←/→", "Seek far"},
+		{[]string{"left", "right"}, "← →", "Seek"},
+		{[]string{"shift+left", "shift+right"}, "Shift ← →", "Seek far"},
 		{[]string{"/"}, "/", "Filter"},
 		{[]string{"z"}, "z", "Shuffle"},
 		{[]string{"r"}, "r", "Repeat"},
 		{[]string{"a"}, "a", "Play next"},
 		{[]string{"A"}, "A", "Up next"},
 		{[]string{"x"}, "x", "Remove"},
-		{[]string{"shift+up", "shift+down"}, "Shift+↑/↓", "Reorder"},
+		{[]string{"shift+up", "shift+down"}, "Shift ↑ ↓", "Reorder"},
 		{[]string{"ctrl+z"}, "Ctrl+Z", "Undo"},
 		{[]string{"e"}, "e", "EQ"},
-		{[]string{"[", "]"}, "[/]", "Speed"},
+		{[]string{"[", "]"}, "[ ]", "Speed"},
 		{[]string{"i"}, "i", "Info"},
 		{[]string{"y"}, "y", "Lyrics"},
 		{[]string{"ctrl+j"}, "Ctrl+J", "Jump"},

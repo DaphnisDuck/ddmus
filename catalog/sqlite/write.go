@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -128,12 +129,15 @@ type snapWriter struct {
 	// reuse the ID. An album seen only through a track is not cached here:
 	// a later, fuller record of it must still land.
 	listedAlbums map[catalog.Ref]int64
+	// Statements prepared in this transaction, by query text: parsing an
+	// upsert (with its search-index triggers) costs more than running it.
+	stmts map[string]*sql.Stmt
 }
 
 func newWriter(ctx context.Context, tx *sql.Tx, provider string) *snapWriter {
 	return &snapWriter{
 		ctx: ctx, tx: tx, provider: provider, now: time.Now().UnixMilli(),
-		artistIDs: map[catalog.Ref]int64{}, listedAlbums: map[catalog.Ref]int64{},
+		artistIDs: map[catalog.Ref]int64{}, listedAlbums: map[catalog.Ref]int64{}, stmts: map[string]*sql.Stmt{},
 	}
 }
 
@@ -147,15 +151,68 @@ func (w *snapWriter) merge(col, zero string) string {
 	return "COALESCE(NULLIF(excluded." + col + ", " + zero + "), " + col + ")"
 }
 
+// prepare returns query prepared once in the writer's transaction, which
+// closes it.
+func (w *snapWriter) prepare(query string) (*sql.Stmt, error) {
+	if st, ok := w.stmts[query]; ok {
+		return st, nil
+	}
+	st, err := w.tx.PrepareContext(w.ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	w.stmts[query] = st
+	return st, nil
+}
+
 func (w *snapWriter) exec(query string, args ...any) error {
-	_, err := w.tx.ExecContext(w.ctx, query, args...)
+	st, err := w.prepare(query)
+	if err != nil {
+		return err
+	}
+	_, err = st.ExecContext(w.ctx, args...)
 	return err
+}
+
+// queryRow scans the one row query returns into dest.
+func (w *snapWriter) queryRow(query string, args []any, dest ...any) error {
+	st, err := w.prepare(query)
+	if err != nil {
+		return err
+	}
+	return st.QueryRowContext(w.ctx, args...).Scan(dest...)
 }
 
 func (w *snapWriter) queryID(query string, args ...any) (int64, error) {
 	var id int64
-	err := w.tx.QueryRowContext(w.ctx, query, args...).Scan(&id)
+	err := w.queryRow(query, args, &id)
 	return id, err
+}
+
+// doUpdate renders an upsert's DO UPDATE clause from column/value pairs:
+// the row is rewritten, and its updated_at set, only when a value
+// differs, so a sync that changed nothing writes nothing. Columns and
+// values are constants from this file.
+func doUpdate(pairs ...string) string {
+	var set, differs []string
+	for i := 0; i < len(pairs); i += 2 {
+		set = append(set, pairs[i]+" = "+pairs[i+1])
+		differs = append(differs, pairs[i]+" IS NOT "+pairs[i+1])
+	}
+	return "DO UPDATE SET " + strings.Join(set, ", ") + ", updated_at = excluded.updated_at\n\t\tWHERE " +
+		strings.Join(differs, " OR ")
+}
+
+// upsert runs an upsert of ref ending in "RETURNING returning" and scans
+// the returned row into dest. An upsert that changed nothing returns no
+// row, so the stored one is read instead.
+func (w *snapWriter) upsert(table string, ref catalog.Ref, query string, args []any, returning string, dest ...any) error {
+	err := w.queryRow(query+"\n\t\tRETURNING "+returning, args, dest...)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = w.queryRow(`SELECT `+returning+` FROM `+table+` WHERE provider = ? AND provider_id = ?`,
+			[]any{ref.Provider, ref.ProviderID}, dest...)
+	}
+	return err
 }
 
 // ref fills in the writer's provider when a record leaves it empty, and
@@ -259,13 +316,13 @@ func (w *snapWriter) artist(a catalog.ArtistRecord) (int64, error) {
 	if id, ok := w.artistIDs[ref]; ok {
 		return id, nil
 	}
-	id, err := w.queryID(`INSERT INTO artists (provider, provider_id, name, sort_name, image_url, updated_at)
+	var id int64
+	err = w.upsert("artists", ref, `INSERT INTO artists (provider, provider_id, name, sort_name, image_url, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT (provider, provider_id) DO UPDATE SET
-			name = excluded.name, sort_name = excluded.sort_name,
-			image_url = COALESCE(NULLIF(excluded.image_url, ''), image_url),
-			updated_at = excluded.updated_at
-		RETURNING id`, ref.Provider, ref.ProviderID, a.Name, catalog.SortKey(a.Name), a.ImageURL, w.now)
+		ON CONFLICT (provider, provider_id) `+doUpdate(
+		"name", "excluded.name", "sort_name", "excluded.sort_name",
+		"image_url", "COALESCE(NULLIF(excluded.image_url, ''), image_url)"),
+		[]any{ref.Provider, ref.ProviderID, a.Name, catalog.SortKey(a.Name), a.ImageURL, w.now}, "id", &id)
 	if err != nil {
 		return 0, fmt.Errorf("upsert artist %s: %w", ref.ProviderID, err)
 	}
@@ -305,19 +362,19 @@ func (w *snapWriter) album(a catalog.AlbumRecord) (int64, error) {
 	}
 	// Zero values are unknown unless writing exactly (see merge), here and
 	// in the track upsert.
-	id, err := w.queryID(`INSERT INTO albums (provider, provider_id, title, sort_title, artist_credit, sort_artist,
+	var id int64
+	err = w.upsert("albums", ref, `INSERT INTO albums (provider, provider_id, title, sort_title, artist_credit, sort_artist,
 			year, track_count, artwork_url, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (provider, provider_id) DO UPDATE SET
-			title = excluded.title, sort_title = excluded.sort_title,
-			artist_credit = `+w.merge("artist_credit", "''")+`,
-			sort_artist = `+w.merge("sort_artist", "''")+`,
-			year = `+w.merge("year", "0")+`,
-			track_count = `+w.merge("track_count", "0")+`,
-			artwork_url = `+w.merge("artwork_url", "''")+`,
-			updated_at = excluded.updated_at
-		RETURNING id`, ref.Provider, ref.ProviderID, a.Title, catalog.SortKey(a.Title), credit, sortArtist,
-		a.Year, a.TrackCount, a.ArtworkURL, w.now)
+		ON CONFLICT (provider, provider_id) `+doUpdate(
+		"title", "excluded.title", "sort_title", "excluded.sort_title",
+		"artist_credit", w.merge("artist_credit", "''"),
+		"sort_artist", w.merge("sort_artist", "''"),
+		"year", w.merge("year", "0"),
+		"track_count", w.merge("track_count", "0"),
+		"artwork_url", w.merge("artwork_url", "''")),
+		[]any{ref.Provider, ref.ProviderID, a.Title, catalog.SortKey(a.Title), credit, sortArtist,
+			a.Year, a.TrackCount, a.ArtworkURL, w.now}, "id", &id)
 	if err != nil {
 		return 0, fmt.Errorf("upsert album %s: %w", ref.ProviderID, err)
 	}
@@ -345,7 +402,8 @@ func (w *snapWriter) track(t catalog.TrackRecord) (int64, error) {
 	f := t.File
 	if err := w.exec(`INSERT INTO local_files (path, size, mtime_ns, track_id) VALUES (?, ?, ?, ?)
 		ON CONFLICT (path) DO UPDATE SET
-			size = excluded.size, mtime_ns = excluded.mtime_ns, track_id = excluded.track_id`,
+			size = excluded.size, mtime_ns = excluded.mtime_ns, track_id = excluded.track_id
+		WHERE size IS NOT excluded.size OR mtime_ns IS NOT excluded.mtime_ns OR track_id IS NOT excluded.track_id`,
 		f.Path, f.Size, f.MTimeNS, id); err != nil {
 		return 0, fmt.Errorf("index file %s: %w", f.Path, err)
 	}
@@ -412,23 +470,23 @@ func (w *snapWriter) writeTrack(t catalog.TrackRecord, albumID sql.NullInt64) (i
 	// a sync knows only the video's.
 	var id int64
 	var enriched bool
-	err = w.tx.QueryRowContext(w.ctx, `INSERT INTO tracks (provider, provider_id, title, artist_credit, album_id, album_title,
+	err = w.upsert("tracks", ref, `INSERT INTO tracks (provider, provider_id, title, artist_credit, album_id, album_title,
 			disc, track_no, duration_ms, playable_uri, genre, year, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (provider, provider_id) DO UPDATE SET
-			title = CASE WHEN enriched_at IS NULL THEN excluded.title ELSE title END,
-			artist_credit = CASE WHEN enriched_at IS NULL THEN `+w.merge("artist_credit", "''")+` ELSE artist_credit END,
-			album_id = COALESCE(excluded.album_id, album_id),
-			album_title = `+w.merge("album_title", "''")+`,
-			disc = `+w.merge("disc", "0")+`,
-			track_no = `+w.merge("track_no", "0")+`,
-			duration_ms = `+w.merge("duration_ms", "0")+`,
-			playable_uri = `+w.merge("playable_uri", "''")+`,
-			genre = `+w.merge("genre", "''")+`,
-			year = `+w.merge("year", "0")+`,
-			updated_at = excluded.updated_at
-		RETURNING id, enriched_at IS NOT NULL`, ref.Provider, ref.ProviderID, t.Title, credit, albumID, t.AlbumTitle,
-		t.Disc, t.TrackNo, t.Duration.Milliseconds(), t.PlayableURI, t.Genre, t.Year, w.now).Scan(&id, &enriched)
+		ON CONFLICT (provider, provider_id) `+doUpdate(
+		"title", "CASE WHEN enriched_at IS NULL THEN excluded.title ELSE title END",
+		"artist_credit", "CASE WHEN enriched_at IS NULL THEN "+w.merge("artist_credit", "''")+" ELSE artist_credit END",
+		"album_id", "COALESCE(excluded.album_id, album_id)",
+		"album_title", w.merge("album_title", "''"),
+		"disc", w.merge("disc", "0"),
+		"track_no", w.merge("track_no", "0"),
+		"duration_ms", w.merge("duration_ms", "0"),
+		"playable_uri", w.merge("playable_uri", "''"),
+		"genre", w.merge("genre", "''"),
+		"year", w.merge("year", "0")),
+		[]any{ref.Provider, ref.ProviderID, t.Title, credit, albumID, t.AlbumTitle,
+			t.Disc, t.TrackNo, t.Duration.Milliseconds(), t.PlayableURI, t.Genre, t.Year, w.now},
+		"id, enriched_at IS NOT NULL", &id, &enriched)
 	if err != nil {
 		return 0, fmt.Errorf("upsert track %s: %w", ref.ProviderID, err)
 	}
@@ -471,9 +529,20 @@ func (w *snapWriter) albumTracks(album catalog.Ref, tracks []catalog.TrackRecord
 		WHERE id = ?`, w.now, len(tracks), id)
 }
 
-// replaceCredits rewrites an album's or track's artist credits in order.
-// table and column are constants from this file, never user input.
+// replaceCredits rewrites an album's or track's artist credits in order,
+// unless they are already those. table and column are constants from this
+// file, never user input.
 func (w *snapWriter) replaceCredits(table, column string, id int64, artistIDs []int64) error {
+	// A repeated artist keeps its first position.
+	want := make([]int64, 0, len(artistIDs))
+	for _, a := range artistIDs {
+		if !slices.Contains(want, a) {
+			want = append(want, a)
+		}
+	}
+	if same, err := w.storedIDs(`SELECT artist_id FROM `+table+` WHERE `+column+` = ? ORDER BY position`, id, want); err != nil || same {
+		return err
+	}
 	if err := w.exec(`DELETE FROM `+table+` WHERE `+column+` = ?`, id); err != nil {
 		return fmt.Errorf("clear %s: %w", table, err)
 	}
@@ -498,33 +567,64 @@ func (w *snapWriter) playlist(p catalog.PlaylistRecord) (int64, error) {
 	if p.TracksFetched {
 		snapshot = p.Snapshot
 	}
-	id, err := w.queryID(`INSERT INTO playlists (provider, provider_id, name, own, snapshot, track_count, updated_at)
+	// An empty marker keeps the stored one: either the tracks were not
+	// fetched, or the source has no marker and refetches every time anyway.
+	var id int64
+	err = w.upsert("playlists", ref, `INSERT INTO playlists (provider, provider_id, name, own, snapshot, track_count, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (provider, provider_id) DO UPDATE SET
-			name = excluded.name, own = excluded.own,
-			snapshot = CASE WHEN ? THEN excluded.snapshot ELSE snapshot END,
-			track_count = excluded.track_count, updated_at = excluded.updated_at
-		RETURNING id`, ref.Provider, ref.ProviderID, p.Name, p.Own, snapshot, p.TrackCount, w.now, p.TracksFetched)
+		ON CONFLICT (provider, provider_id) `+doUpdate(
+		"name", "excluded.name", "own", "excluded.own",
+		"snapshot", "COALESCE(NULLIF(excluded.snapshot, ''), snapshot)",
+		"track_count", "excluded.track_count"),
+		[]any{ref.Provider, ref.ProviderID, p.Name, p.Own, snapshot, p.TrackCount, w.now}, "id", &id)
 	if err != nil {
 		return 0, fmt.Errorf("upsert playlist %s: %w", ref.ProviderID, err)
 	}
 	if !p.TracksFetched {
 		return id, nil
 	}
+	trackIDs := make([]int64, len(p.Tracks))
+	for i, t := range p.Tracks {
+		if trackIDs[i], err = w.track(t); err != nil {
+			return 0, err
+		}
+	}
+	const stored = `SELECT track_id FROM playlist_tracks WHERE playlist_id = ? ORDER BY position`
+	if same, err := w.storedIDs(stored, id, trackIDs); err != nil || same {
+		return id, err
+	}
 	if err := w.exec(`DELETE FROM playlist_tracks WHERE playlist_id = ?`, id); err != nil {
 		return 0, fmt.Errorf("clear playlist tracks: %w", err)
 	}
-	for pos, t := range p.Tracks {
-		trackID, err := w.track(t)
-		if err != nil {
-			return 0, err
-		}
+	for pos, trackID := range trackIDs {
 		if err := w.exec(`INSERT INTO playlist_tracks (playlist_id, position, track_id) VALUES (?, ?, ?)`,
 			id, pos, trackID); err != nil {
 			return 0, fmt.Errorf("write playlist track: %w", err)
 		}
 	}
 	return id, nil
+}
+
+// storedIDs reports whether query, run for id, lists exactly want.
+func (w *snapWriter) storedIDs(query string, id int64, want []int64) (bool, error) {
+	st, err := w.prepare(query)
+	if err != nil {
+		return false, err
+	}
+	rows, err := st.QueryContext(w.ctx, id)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	var got []int64
+	for rows.Next() {
+		var v int64
+		if err := rows.Scan(&v); err != nil {
+			return false, err
+		}
+		got = append(got, v)
+	}
+	return slices.Equal(got, want), rows.Err()
 }
 
 // Sweep implements catalog.Writer. First, albums that left the library

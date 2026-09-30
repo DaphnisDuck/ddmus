@@ -461,7 +461,15 @@ Not taken: `ensureSession` ignoring the sync context (upstream code); a same-tot
   - `PlaylistRecords(ctx, synced)` in both YouTube modes lists a synced playlist that cannot be classified right now (empty, or every sample refused), uncached, so it keeps its tracks instead of being reconciled away.
   - `omatunes youtube signin --force` (`ytmusic.NewSessionForced`, `prompt=select_account consent` through tagged variadic options on upstream's `doOAuth`/`newInteractiveSession`) switches Google accounts; the stored token is replaced only on success.
   - `docs/omatunes/youtube.md` updated. Live: migration 004 applied to a copy of the real catalog. The forced sign-in was not run live (it needs the browser).
-  - Next: M5.3. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists.
+- [x] M5.3 Writer performance:
+  - The snapshot writer prepares each statement once per transaction (`snapWriter.prepare`). Parsing, including the FTS triggers compiled into every upsert, was about 65% of write time.
+  - Upserts rewrite a row, and bump its `updated_at` (never read; it now means last changed), only when a value differs (`doUpdate` renders the `DO UPDATE … WHERE … IS NOT …` guard). An unchanged upsert reads its id back.
+  - Credits and playlist track lists are rewritten only when they differ, and local file rows only when size, mtime or track differ.
+  - `BenchmarkSyncWrites` (Spotify-shaped: 2,000 albums, 1,000 liked, 20×300 playlist tracks): first sync 2.35 s → 0.63 s; unchanged resync 2.19 s → 0.41 s and 387 → 70 WAL pages (what is left is the generation marks the reconcile needs).
+  - Real first local index (opt-in `TestIndexRealLibrary`, `OMATUNES_BENCH_MUSIC`, 26,406 files, warm cache): write 8.2 s → 4.7 s, total 10.9 s → 7.4 s, just over the 7 s target. What is left is inserts and FTS index building; a 64 MB page cache gained only 0.1 s and was not kept.
+  - Per-playlist transactions were not built: the 6,000-track playlists collection now holds the writer 0.39 s (was 1.67 s), and UI reads never wait on it.
+  - Test: `TestUnchangedSyncRewritesNothing` (temp triggers record every update and delete; mutation-checked). Verified live on a scratch catalog: a forced sync of YouTube, Local and Radio kept every count, with nothing in the log.
+  - Next: M5.4. Later candidates: InnerTube discovery of saved YouTube Music playlists; the next provider (none in use yet); omatunes-owned cross-source playlists.
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.
@@ -506,6 +514,8 @@ Not taken: `ensureSession` ignoring the sync context (upstream code); a same-tot
 - 2026-09-29: OAuth sign-in happens outside the TUI with `omatunes youtube signin`; the sync itself never signs in interactively.
 
 - 2026-09-29: M5 is deferred cleanup (v0.5), not a new provider: no Plex/Jellyfin/Navidrome server is in use to test against.
+
+- 2026-09-29: A snapshot stays one transaction per collection. After M5.3 the largest measured one (6,000 playlist tracks) takes 0.39 s, so per-playlist transactions (M2.2 deferral) are dropped.
 
 ## Open questions
 - Whether `music_dir` should split from `initial_directory` (the Local scan folder vs the file browser's start folder). Default: keep reusing `initial_directory` until someone needs them apart.

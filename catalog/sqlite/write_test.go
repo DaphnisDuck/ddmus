@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -268,5 +269,83 @@ func TestRecordSyncFailureTruncates(t *testing.T) {
 	st, _ := s.SyncStatus(context.Background(), catalog.Spotify)
 	if n := len(st[0].LastError); n > maxErrorLen+len("…") {
 		t.Errorf("stored error length = %d, want at most %d", n, maxErrorLen)
+	}
+}
+
+// watchWrites records every update and delete of the entity tables on the
+// write connection, and returns a func listing them since the last call.
+func watchWrites(t *testing.T, s *Store) func() []string {
+	t.Helper()
+	if _, err := s.wdb.Exec(`CREATE TEMP TABLE writes (what TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"artists", "albums", "tracks", "playlists", "album_artists", "track_artists", "playlist_tracks", "local_files"} {
+		for _, op := range []string{"UPDATE", "DELETE"} {
+			if _, err := s.wdb.Exec(`CREATE TEMP TRIGGER watch_` + table + `_` + op + ` AFTER ` + op + ` ON main.` + table +
+				` BEGIN INSERT INTO writes VALUES ('` + op + ` ` + table + `'); END`); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	return func() []string {
+		var out []string
+		rows, err := s.wdb.Query(`SELECT what FROM writes`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var w string
+			rows.Scan(&w)
+			out = append(out, w)
+		}
+		rows.Close()
+		if _, err := s.wdb.Exec(`DELETE FROM writes`); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+}
+
+// Syncing what is already stored rewrites no row; a changed value
+// rewrites only its row.
+func TestUnchangedSyncRewritesNothing(t *testing.T) {
+	s := openTemp(t)
+	artists := []catalog.ArtistRecord{artistRec("ar1", "Ozawa"), artistRec("ar2", "BSO"), artistRec("ar1", "Ozawa")}
+	album := catalog.AlbumRecord{Ref: sref("al1"), Title: "Mahler 5", Year: 1990, Artists: artists}
+	track := func(id, title string) catalog.TrackRecord {
+		return catalog.TrackRecord{Ref: sref(id), Title: title, Artists: artists, Album: &album, PlayableURI: "spotify:track:" + id}
+	}
+	snaps := func(title string) []catalog.Snapshot {
+		return []catalog.Snapshot{
+			{Collection: "albums", Albums: []catalog.AlbumRecord{album}},
+			{Collection: "liked", Tracks: []catalog.TrackRecord{track("t1", title)}},
+			{Collection: "playlists", Playlists: []catalog.PlaylistRecord{{Ref: sref("pl1"), Name: "Mix", Snapshot: "s1",
+				TracksFetched: true, TrackCount: 2, Tracks: []catalog.TrackRecord{track("t2", "II."), track("t1", title)}}}},
+		}
+	}
+	for _, snap := range snaps("I.") {
+		apply(t, s, snap)
+	}
+	local := catalog.Snapshot{Provider: catalog.Local, Collection: "files", Files: true, Tracks: []catalog.TrackRecord{{
+		Ref: catalog.Ref{Provider: catalog.Local, ProviderID: "/m/a.flac"}, Title: "A", PlayableURI: "/m/a.flac",
+		File: &catalog.FileStat{Path: "/m/a.flac", Size: 10, MTimeNS: 1}}}}
+	apply(t, s, local)
+
+	writes := watchWrites(t, s)
+	for _, snap := range append(snaps("I."), local) {
+		apply(t, s, snap)
+	}
+	if got := writes(); len(got) != 0 {
+		t.Errorf("unchanged sync wrote %q", got)
+	}
+	for _, snap := range snaps("I. Trauermarsch") {
+		apply(t, s, snap)
+	}
+	if got := writes(); !slices.Equal(got, []string{"UPDATE tracks"}) {
+		t.Errorf("a retitled track wrote %q, want its row once", got)
+	}
+	tracks, _ := s.PlaylistTracks(context.Background(), 1)
+	if len(tracks) != 2 || tracks[1].Title != "I. Trauermarsch" || tracks[1].Artist != "Ozawa, BSO, Ozawa" {
+		t.Errorf("playlist tracks = %+v", tracks)
 	}
 }

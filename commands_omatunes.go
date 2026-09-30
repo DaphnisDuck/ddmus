@@ -28,7 +28,11 @@ func youtubeCommand() *cli.Command {
 		Commands: []*cli.Command{{
 			Name:  "signin",
 			Usage: "sign in with your own Google OAuth client (client_id and client_secret under [ytmusic])",
-			Action: func(ctx context.Context, _ *cli.Command) error {
+			Flags: []cli.Flag{&cli.BoolFlag{
+				Name:  "force",
+				Usage: "sign in through the browser even if already signed in, e.g. to switch Google accounts",
+			}},
+			Action: func(ctx context.Context, cmd *cli.Command) error {
 				cfg, err := config.Load()
 				if err != nil {
 					return fmt.Errorf("load config: %w", err)
@@ -40,7 +44,11 @@ func youtubeCommand() *cli.Command {
 				fmt.Println("Signing in to Google. If your browser opens, approve read-only access there.")
 				ctx, cancel := context.WithTimeout(ctx, youtubeSignInTimeout)
 				defer cancel()
-				sess, err := ytmusic.NewSession(ctx, id, secret)
+				signIn := ytmusic.NewSession
+				if cmd.Bool("force") {
+					signIn = ytmusic.NewSessionForced
+				}
+				sess, err := signIn(ctx, id, secret)
 				if err != nil {
 					return fmt.Errorf("sign in: %w", err)
 				}

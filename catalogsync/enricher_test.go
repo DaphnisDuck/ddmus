@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -106,11 +107,58 @@ func TestEnricherSkipsEmptyRefresh(t *testing.T) {
 	}
 }
 
-func TestEnricherGivesUp(t *testing.T) {
-	_, src, e, _, _ := enricherSetup(t, "v1")
+// A track that keeps failing is skipped, so the tracks after it are still
+// enriched, and after enrichGiveUpRuns failed runs it is marked read.
+func TestEnricherSkipsABadTrack(t *testing.T) {
+	store, src, e, _, _ := enricherSetup(t, "v1", "v2", "v3")
+	bad := errors.New("yt-dlp: some new refusal")
+	for range enrichGiveUpRuns * enrichAttempts {
+		src.errs["v2"] = append(src.errs["v2"], bad)
+	}
+	ctx := context.Background()
+	for run := 1; run <= enrichGiveUpRuns; run++ {
+		if err := e.Run(ctx); !errors.Is(err, bad) {
+			t.Fatalf("run %d: %v, want the skipped track's error", run, err)
+		}
+		left, _ := store.UnenrichedTracks(ctx, catalog.YouTube, 10)
+		want := []string{"v2"}
+		if run == enrichGiveUpRuns {
+			want = nil // marked read
+		}
+		var got []string
+		for _, tr := range left {
+			got = append(got, tr.Ref.ProviderID)
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("run %d: unenriched %v, want %v", run, got, want)
+		}
+	}
+	if err := e.Run(ctx); err != nil {
+		t.Errorf("after giving up: %v", err)
+	}
+	if !slices.Contains(src.reads, "v1") || len(src.errs["v2"]) != 0 {
+		t.Errorf("reads %v, v2 errors left %d", src.reads, len(src.errs["v2"]))
+	}
+}
+
+// MaxFailures tracks failing in a row is an outage: the run ends, and the
+// failures are not counted against the tracks.
+func TestEnricherStopsOnOutage(t *testing.T) {
+	store, src, e, _, _ := enricherSetup(t, "v1", "v2", "v3", "v4")
 	down := errors.New("dial tcp: no route to host")
-	src.errs["v1"] = []error{down, down, down}
-	if err := e.Run(context.Background()); !errors.Is(err, down) {
-		t.Errorf("Run() = %v, want the network error after %d tries", err, testPacing.MaxFailures)
+	for _, v := range []string{"v4", "v3", "v2"} { // newest first
+		for range enrichGiveUpRuns * enrichAttempts {
+			src.errs[v] = append(src.errs[v], down)
+		}
+	}
+	ctx := context.Background()
+	for run := 1; run <= enrichGiveUpRuns; run++ {
+		if err := e.Run(ctx); !errors.Is(err, down) {
+			t.Fatalf("run %d: %v, want the network error", run, err)
+		}
+	}
+	left, _ := store.UnenrichedTracks(ctx, catalog.YouTube, 10)
+	if len(left) != 4 || slices.Contains(src.reads, "v1") {
+		t.Errorf("unenriched %d, reads %v; want every track kept and v1 never reached", len(left), src.reads)
 	}
 }

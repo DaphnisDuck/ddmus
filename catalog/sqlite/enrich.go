@@ -88,6 +88,24 @@ func (w *snapWriter) enrich(track catalog.Ref, meta catalog.TrackMetadata) error
 	return w.exec(`UPDATE tracks SET enriched_at = ? WHERE id = ?`, w.now, id)
 }
 
+// RecordEnrichFailure counts a run in which the track could not be read.
+// At giveUpAfter counted runs it marks the track read, as a track that
+// cannot be read at all is, and reports that it did.
+func (s *Store) RecordEnrichFailure(ctx context.Context, track catalog.Ref, giveUpAfter int) (gaveUp bool, err error) {
+	err = s.wdb.QueryRowContext(ctx, `UPDATE tracks SET enrich_failures = enrich_failures + 1,
+			enriched_at = CASE WHEN enrich_failures + 1 >= ? THEN ? ELSE enriched_at END
+		WHERE provider = ? AND provider_id = ?
+		RETURNING enriched_at IS NOT NULL`,
+		giveUpAfter, time.Now().UnixMilli(), track.Provider, track.ProviderID).Scan(&gaveUp)
+	if err == sql.ErrNoRows {
+		err = catalog.ErrNotFound
+	}
+	if err != nil {
+		return false, fmt.Errorf("record enrich failure %s: %w", track.ProviderID, err)
+	}
+	return gaveUp, nil
+}
+
 // RefreshDerived makes provider's derived albums and artists the albums and
 // credited artists of its enriched library tracks, so its Albums and
 // Artists lists follow enrichment and the library.

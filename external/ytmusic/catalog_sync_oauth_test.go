@@ -126,7 +126,7 @@ func newOAuthFixture(t *testing.T) (*OAuthCatalog, *fakeDataAPI) {
 
 func TestOAuthPlaylistRecords(t *testing.T) {
 	c, _ := newOAuthFixture(t)
-	lists, err := c.PlaylistRecords(context.Background())
+	lists, err := c.PlaylistRecords(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestOAuthClassificationFailures(t *testing.T) {
 		map[string]any{"id": "PLbroken", "etag": "e4", "snippet": map[string]any{"title": "Broken"}},
 		map[string]any{"id": "PLempty", "etag": "e5", "snippet": map[string]any{"title": "Nothing Yet"}})
 	f.items["PLempty"] = nil
-	if _, err := c.PlaylistRecords(context.Background()); err == nil {
+	if _, err := c.PlaylistRecords(context.Background(), nil); err == nil {
 		t.Fatal("PlaylistRecords succeeded with an unreadable playlist")
 	}
 	if cached := loadClassification("oauth:test"); cached != nil {
@@ -151,13 +151,21 @@ func TestOAuthClassificationFailures(t *testing.T) {
 	}
 	f.playlists = f.playlists[:len(f.playlists)-2]
 	f.playlists = append(f.playlists, map[string]any{"id": "PLempty", "etag": "e5", "snippet": map[string]any{"title": "Nothing Yet"}})
-	lists, err := c.PlaylistRecords(context.Background())
+	lists, err := c.PlaylistRecords(context.Background(), nil)
 	if err != nil || len(lists) != 1 || lists[0].Name != "Road Trip" {
 		t.Fatalf("playlists = %+v, %v", lists, err)
 	}
 	cached := loadClassification("oauth:test")
 	if _, ok := cached["PLempty"]; ok || !cached["PLroad"] || cached["PLshows"] {
 		t.Errorf("cache = %v, want Road Trip music, Game Shows not, Nothing Yet unknown", cached)
+	}
+	// Already synced, it stays listed while it cannot be told, uncached.
+	lists, err = c.PlaylistRecords(context.Background(), map[string]string{"PLempty": "0:e5", "PLshows": ""})
+	if err != nil || len(lists) != 2 || lists[1].Name != "Nothing Yet" {
+		t.Errorf("with Nothing Yet synced: %+v, %v", lists, err)
+	}
+	if _, ok := loadClassification("oauth:test")["PLempty"]; ok {
+		t.Error("Nothing Yet cached")
 	}
 }
 
@@ -194,7 +202,7 @@ func TestOAuthReadFailures(t *testing.T) {
 	c.service = func(context.Context) (*youtube.Service, string, error) {
 		return nil, "", errors.Join(errors.New("no stored credentials"), playlist.ErrNeedsAuth)
 	}
-	if _, err := c.PlaylistRecords(context.Background()); !errors.Is(err, playlist.ErrNeedsAuth) {
+	if _, err := c.PlaylistRecords(context.Background(), nil); !errors.Is(err, playlist.ErrNeedsAuth) {
 		t.Errorf("signed out = %v, want ErrNeedsAuth", err)
 	}
 }

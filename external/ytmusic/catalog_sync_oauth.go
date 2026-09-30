@@ -50,7 +50,7 @@ func (c *OAuthCatalog) silentService(ctx context.Context) (*youtube.Service, str
 // classified as in cliamp's OAuth mode by a sampled video's category.
 // Snapshot is the item count and the
 // playlist's etag, so an unchanged playlist is not reread.
-func (c *OAuthCatalog) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error) {
+func (c *OAuthCatalog) PlaylistRecords(ctx context.Context, synced map[string]string) ([]catalog.PlaylistRecord, error) {
 	svc, scope, err := c.service(ctx)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,9 @@ func (c *OAuthCatalog) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistR
 	}
 	var records []catalog.PlaylistRecord
 	for _, l := range all {
-		if music[l.entry.ID] {
+		// A synced playlist that cannot be classified yet stays.
+		isMusic, known := music[l.entry.ID]
+		if _, ok := synced[l.entry.ID]; isMusic || !known && ok {
 			records = append(records, catalog.PlaylistRecord{
 				Ref: youtubeRef(l.entry.ID), Name: l.entry.Name, Own: true, TrackCount: l.entry.TrackCount,
 				Snapshot: fmt.Sprintf("%d:%s", l.entry.TrackCount, l.etag),

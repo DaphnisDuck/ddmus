@@ -45,6 +45,8 @@ client_secret = "…"
 
 Then sign in once with `omatunes youtube signin`, which opens your browser; approve read-only access (past "Google hasn't verified this app"). The token is kept in `~/.config/omatunes/ytmusic_credentials.json`. While the consent screen is in **Testing**, Google may expire the sign-in after about a week; publishing the app avoids that.
 
+To switch to another Google account, run `omatunes youtube signin --force`: it opens Google's account chooser even when you are signed in, and replaces the stored token only when the new sign-in succeeds. The next sync replaces the old account's playlists and Liked Music.
+
 ## What syncs, and how
 
 | | With cookies | With OAuth |
@@ -56,7 +58,7 @@ Then sign in once with `omatunes youtube signin`, which opens your browser; appr
 
 With both configured, omatunes reads Liked Music through OAuth and playlists through cookies. When OAuth needs signing in again, Liked Music falls back to cookies.
 
-- **Only music:** each playlist is sampled once and kept only if YouTube files its videos under Music. Watch later and Liked videos are never listed. The answers are cached in `ytmusic_classification.json`, so only new playlists take a few seconds on the next sync.
+- **Only music:** each playlist is sampled once and kept only if YouTube files its videos under Music. Watch later and Liked videos are never listed. The answers are cached in `ytmusic_classification.json`, so only new playlists take a few seconds on the next sync. A new playlist that cannot be sampled yet (it is empty, or every sampled video is blocked) is left out until a later sync can tell; one already synced stays, with its tracks.
 - **Playlists saved from others:** YouTube lists playlists you save or bookmark from other people nowhere a sync can read. Add them by link (one line), and they sync as followed playlists:
 
   ```toml
@@ -78,6 +80,7 @@ A playlist knows each track only as a video title and the channel that uploaded 
 - YouTube Music's **Albums** and **Artists** lists fill in, and they join **All Music** and search.
 - A YouTube album holds the tracks of it you have, not the whole album; opening it plays those.
 - A track with no music details (a fan upload, say) keeps its video title and uploader.
+- A track yt-dlp keeps failing to read is skipped, so the rest are still read; after three passes that failed on it, it is left as it is (video title and uploader). When several tracks in a row fail, omatunes takes it for an outage, stops, and tries again after the next sync, without holding it against those tracks.
 
 The first pass over a large library takes a while (about half an hour for 360 tracks); it pauses while YouTube syncs, resumes after a restart, and slows right down if YouTube asks it to (a "not a bot" check).
 

@@ -59,8 +59,10 @@ func (c *CookieCatalog) classificationScope() string { return "cookies:" + c.bro
 
 // PlaylistRecords returns the account's music playlists, without tracks.
 // A playlist is music when a sampled video's YouTube category is Music, as
-// in OAuth mode; each playlist is sampled once and the answer cached.
-func (c *CookieCatalog) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error) {
+// in OAuth mode; each playlist is sampled once and the answer cached. One
+// that cannot be classified yet is left out, unless synced (the catalog's
+// playlists, by ID) holds it: then it stays, unclassified.
+func (c *CookieCatalog) PlaylistRecords(ctx context.Context, synced map[string]string) ([]catalog.PlaylistRecord, error) {
 	out, err := c.ytdlp(ctx, "https://www.youtube.com/feed/playlists", "--flat-playlist", "-j")
 	if err != nil {
 		return nil, fmt.Errorf("youtube: playlists: %w", err)
@@ -97,9 +99,12 @@ func (c *CookieCatalog) PlaylistRecords(ctx context.Context) ([]catalog.Playlist
 		if !known {
 			isMusic, err = c.isMusic(ctx, l.id)
 			if errors.Is(err, errUnclassified) {
-				// Left out, and not cached, until a later sync can tell;
-				// one unreadable playlist must not fail the others.
+				// Not cached, so a later sync tries again; one unreadable
+				// playlist must not fail the others, nor drop a synced one.
 				applog.Info("youtube: cannot classify playlist %q yet: %v", l.title, err)
+				if _, ok := synced[l.id]; ok {
+					records = append(records, catalog.PlaylistRecord{Ref: youtubeRef(l.id), Name: l.title, Own: true})
+				}
 				continue
 			}
 			if err != nil {

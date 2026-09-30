@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 
@@ -110,5 +111,23 @@ func TestRefreshDerived(t *testing.T) {
 	}
 	if albums, _ := s.Albums(ctx, catalog.YouTube, catalog.ByTitle); len(albums) != 0 {
 		t.Errorf("albums after removal = %+v", albums)
+	}
+}
+
+func TestRecordEnrichFailureGivesUpAfterRuns(t *testing.T) {
+	s := youtubeLibrary(t)
+	ctx := context.Background()
+	for run := 1; run <= 3; run++ {
+		gaveUp, err := s.RecordEnrichFailure(ctx, yref("v3"), 3)
+		if err != nil || gaveUp != (run == 3) {
+			t.Fatalf("run %d: gaveUp %v, %v", run, gaveUp, err)
+		}
+		todo, _ := s.UnenrichedTracks(ctx, catalog.YouTube, 10)
+		if slices.Contains(titlesOf(todo), "Libertango") == (run == 3) {
+			t.Errorf("run %d: unenriched = %q", run, titlesOf(todo))
+		}
+	}
+	if _, err := s.RecordEnrichFailure(ctx, yref("gone"), 3); !errors.Is(err, catalog.ErrNotFound) {
+		t.Errorf("unknown track: %v, want ErrNotFound", err)
 	}
 }

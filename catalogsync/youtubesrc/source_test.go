@@ -30,7 +30,7 @@ type fakeClient struct {
 	fetched []string
 }
 
-func (f *fakeClient) PlaylistRecords(context.Context) ([]catalog.PlaylistRecord, error) {
+func (f *fakeClient) PlaylistRecords(context.Context, map[string]string) ([]catalog.PlaylistRecord, error) {
 	return slices.Clone(f.lists), f.listErr
 }
 func (f *fakeClient) PlaylistRecord(_ context.Context, id string) (catalog.PlaylistRecord, error) {
@@ -151,7 +151,7 @@ func TestMixedReadsEachCollectionItsBestWay(t *testing.T) {
 		liked: []catalog.TrackRecord{track("v1", "From cookies")},
 	}
 	m := Mixed{OAuth: oauth, Cookies: cookies}
-	if lists, err := m.PlaylistRecords(ctx); err != nil || len(lists) != 1 || lists[0].Name != "Saved" {
+	if lists, err := m.PlaylistRecords(ctx, nil); err != nil || len(lists) != 1 || lists[0].Name != "Saved" {
 		t.Errorf("playlists = %+v, %v; want cookies'", lists, err)
 	}
 	if tracks, err := m.PlaylistTrackRecords(ctx, "PLa"); err != nil || len(tracks) != 1 {

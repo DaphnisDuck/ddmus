@@ -375,7 +375,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		case "i":
 			m.showInfo = true
 			m.infoScroll = 0
-			return nil
+			return m.libArtworkOpen() // ddmus: the album's artwork (library_info.go)
 		}
 	}
 

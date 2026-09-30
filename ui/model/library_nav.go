@@ -31,6 +31,8 @@ type libraryState struct {
 	fits *libFits
 	// border draws the frame's border and rules (library_frame.go).
 	border bool
+	// art is the info view's artwork, nil when off (ddmus: library_info.go).
+	art *libArt
 
 	playGen   uint64
 	authGen   uint64
@@ -270,6 +272,9 @@ func (m *Model) libraryCatalogChanged(provider string) tea.Cmd {
 // handleLibraryMsg handles the library's own messages. ok reports whether msg
 // was consumed; the auth URL is also left for cliamp's handler.
 func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
+	if m.handleArtworkMsg(msg) { // the info view's artwork (library_info.go)
+		return nil, true
+	}
 	switch msg := msg.(type) {
 	case libraryLoadedMsg:
 		// The load goes to the frame that asked for it, which may no longer

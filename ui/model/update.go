@@ -35,6 +35,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if nm, ok := next.(Model); ok {
 		nm.dropStalePreload()
+		cmd = nm.libArtworkSync(msg, cmd) // ddmus: the info view's artwork (library_info.go)
 		next = nm
 	}
 	return next, cmd

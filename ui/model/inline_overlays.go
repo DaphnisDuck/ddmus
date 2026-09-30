@@ -402,6 +402,9 @@ func clampedScroll(scroll, cursor, count, budget int) int {
 // — track info —
 
 func (m Model) renderInfoBody() string {
+	if body, ok := m.libInfoBody(); ok { // ddmus: with the album's artwork (library_info.go)
+		return body
+	}
 	budget := m.effectivePlaylistVisible()
 	lines := m.infoLines()
 	start := min(m.infoScroll, max(0, len(lines)-budget))

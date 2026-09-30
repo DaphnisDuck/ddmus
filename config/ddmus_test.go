@@ -111,33 +111,41 @@ func TestLoadYouTubePlaylists(t *testing.T) {
 	}
 }
 
-func TestLoadDdmusBorder(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		toml string
-		want bool
-	}{
-		{"on by default", "", true},
-		{"off", "[ddmus]\nborder = false\n", false},
-		{"on", "[ddmus]\nborder = true\n", true},
-		{"invalid keeps the default", "[ddmus]\nborder = \"maybe\"\n", true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
-			path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(path, []byte(tt.toml), 0o644); err != nil {
-				t.Fatal(err)
-			}
-			cfg, err := Load()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if cfg.Ddmus.Border != tt.want {
-				t.Errorf("Border = %v, want %v", cfg.Ddmus.Border, tt.want)
-			}
-		})
+// border and artwork are both on by default and read the same way.
+func TestLoadDdmusBooleans(t *testing.T) {
+	for _, key := range []string{"border", "artwork"} {
+		for _, tt := range []struct {
+			name string
+			val  string // "" leaves the key out
+			want bool
+		}{
+			{"on by default", "", true},
+			{"off", "false", false},
+			{"on", "true", true},
+			{"invalid keeps the default", `"maybe"`, true},
+		} {
+			t.Run(key+"/"+tt.name, func(t *testing.T) {
+				t.Setenv("HOME", t.TempDir())
+				path := filepath.Join(os.Getenv("HOME"), ".config", "ddmus", "config.toml")
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				toml := ""
+				if tt.val != "" {
+					toml = "[ddmus]\n" + key + " = " + tt.val + "\n"
+				}
+				if err := os.WriteFile(path, []byte(toml), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				cfg, err := Load()
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := map[string]bool{"border": cfg.Ddmus.Border, "artwork": cfg.Ddmus.Artwork}[key]
+				if got != tt.want {
+					t.Errorf("%s = %v, want %v", key, got, tt.want)
+				}
+			})
+		}
 	}
 }

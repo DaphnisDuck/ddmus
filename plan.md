@@ -89,6 +89,9 @@ Done when:
 ### M7: The queue view
 - Make the queue (Now Playing) view work under the library: shuffle and repeat, play next, track info, queue editing and sound keys come back. The settings panel's SRC shows the queue's source. Every view lists all of its live keys at the bottom, replacing the `?`/`Ctrl+K` overlay.
 
+### M8: Key cleanup
+- Keys behave the same on every screen: `q` quits from anywhere, Esc goes back one step and never quits, `/` is only ever search (the queue filter in the queue), and previous/next track get their own keys (`p`/`n`). Mono and the far seek outside the queue go away. From the user's testing of v0.7.
+
 ## Architecture invariants
 1. `library/` defines the navigation Node model and has no Bubbletea dependency. `ui/model` only talks to Nodes (and, from M2, the Catalog). The exception is playback, which uses the existing cliamp paths.
 2. Capability detection (type assertions on `provider/interfaces.go`) lives in the `library/` adapters, never in the view layer.
@@ -498,6 +501,39 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
   - Tests: the bar lists exactly the live keys, and it fits at 80 and 120 columns.
 - M7.4 Docs (`docs/ddmus/navigation.md` key tables, README), review agents, live check, tag `v0.7.0`.
 
+## M8 implementation plan (key cleanup, v0.8)
+
+Goal: one set of key rules across the library, the queue and the cliamp overlays opened over them, with bar labels that can't be misread. Branch `m8-keys`.
+
+### Findings (2026-09-30, from the user's testing and the code)
+- `q` quits only at the Library root. At a nested level it goes back, in Search Results it goes back (`libResultKeys`), and in cliamp's overlays over the library it does whatever that overlay does: close, quit or nothing.
+- Esc already goes back and does nothing at the root (`libraryPop`). This milestone keeps that as a rule and tests it on every screen the library can reach.
+- `m` (mono) is passed in the queue (M7.1). The settings line shows `[M]`/`[Mono]`, and mono is also reachable from upstream's IPC (`ddmus mono`), the `--mono` flag, Lua, the daemon and its snapshot (28 non-test files).
+- `Shift+←/→` (seek far) is in `libPlayerKeys`, so every library view lists it, even with nothing on screen to seek.
+- The bar labels `</>` (Prev/Next) and `[/]` (Speed) read as the `/` key, which is search. In the queue, `/` is cliamp's playlist filter, not library search.
+- Prev/next are `<`/`,` and `>`/`.` (cliamp). `p` (cliamp's playlist manager) and `n` (Favorite, dropped in M7) are swallowed by the gate, so both are free.
+
+### Decisions (confirmed 2026-09-30)
+- **`q`:** quits at once, with no confirm, from every library view, the queue, and every cliamp overlay opened over them. It stays text in the inputs (library search, queue filter, Ctrl+J jump). Search Results loses its `q` = Back.
+- **Esc:** goes back one step everywhere: overlay → view under it, queue → Library, results → query → close search, level → parent. At the Library root it does nothing. `h`/`←`/Backspace stay back keys on levels.
+- **`/`:** search. It opens library search in the library views, and stays cliamp's queue filter in the queue, labeled `/ Filter`. No other key or label uses `/`.
+- **Prev/next:** `p` previous, `n` next, as the library's own keys in every view but the inputs. `<`/`>` and `,`/`.` are dropped from the gate and the bar, so each action has one key.
+- **Seek far:** `Shift+←/→` only in the queue, beside `←/→` seek.
+- **Labels:** no bar label uses `/` to join keys. Speed reads `[ ]`, prev/next `p n`, and the Esc and `h` back keys are written apart, e.g. `Esc h` rather than `Esc/h`. A test fails if any label other than search and the queue filter contains `/`.
+- **Mono:** ddmus only. The `m` key, its bar row and the `[M]`/`[Mono]` display go while the library is enabled, as small tagged edits. Upstream's player, IPC (`ddmus mono`), `--mono`, Lua and daemon mono stay, so upstream syncs stay cheap. Not chosen: removing it from the whole codebase (about 28 upstream files).
+
+### Delivery
+- M8.0 Spotify rate limits (found 2026-09-30: `Retry-After` of ~3h on Sep 29 and 20h05m on Sep 30, on the user's own development-mode client ID, with 1,441 of 2,141 saved albums still unfilled):
+  - One gate in the provider for every Web API request (sync, filler, album opens, cliamp's own calls): while Spotify's block lasts, requests fail at once with a `*catalog.RateLimitError` saying until when, without touching the network.
+  - A 429 with a long `Retry-After` (over 30s) sets the gate instead of sleeping in the request (an album open waited 20h), and the full wait is honored: the 1h cap from the deep review becomes 48h, a guard against absurd headers only.
+  - The block is stored in the catalog (migration 006) and restored at startup, so a restart does not hit Spotify again early.
+  - A failed sync's retry waits for the block's end instead of its 1–30 min backoff.
+  - The background filler takes 10s between albums instead of 1s.
+- M8.1 `q` and Esc: `q` quits from every library view and the overlays over them (a check before cliamp's overlay handlers while `libraryOnScreen` or an overlay sits over the library). Esc chain per the decisions. Tests: `q` quits from each view, level depth and overlay; Esc never quits, and returns step by step to the root.
+- M8.2 Keys: `p`/`n` prev/next; `<>,.` dropped; `Shift+←/→` queue-only; mono out of the gate, the bar and the settings line. Tests per key, gate and bar read from the tables as in M7.3.
+- M8.3 Labels: rewrite the key labels, add the no-`/` label test, and recheck that the bar fits at 80×24 and 120×40.
+- M8.4 Docs (`docs/ddmus/navigation.md` key tables, README at v0.8), review agents, live check, tag `v0.8.0`.
+
 ## Status
 - [x] M0: add the `upstream` remote, create `plan.md`, add the CLAUDE.md fork note, write `docs/omatunes/upstream.md`, make the Makefile build `omatunes`, rebrand the UI title and terminal title.
 - [x] M1.1: `library/` Level/Entry model and root menu, with tests.
@@ -619,6 +655,8 @@ Goal: the queue view is fully usable without cliamp's provider screens. Every ke
   - Follow-ups, first left as noted and then fixed, each with a test: the Google sign-in callback checks a random `state` and listens on 127.0.0.1 only (tagged); yt-dlp output is capped at 64 MB and video/playlist IDs are validated before they become URLs; the catalog writer waits up to 60s for another ddmus holding the lock (reads 5s); a fill or enrich requested while one runs now reruns it when it ends instead of being dropped; the enricher sweeps albums and artists an unlike left empty, so they leave search at once.
   - Left: the cookie playlist feed has no count check (deferred since M4). Rejected: renaming the IPC temp fallback to `cliamp.sock` (it would collide with cliamp in the shared temp dir).
   - Final check: `make check`, `staticcheck` and `go test -race ./...` clean.
+- [ ] M8 (key cleanup, v0.8): planned 2026-09-30, see the M8 implementation plan. Decisions confirmed. M8.0 (Spotify rate limits) added first.
+  - [x] M8.0 (2026-09-30, branch `m8-keys`): `external/spotify/ratelimit.go` is the gate: `webAPIWithBody` (tagged) and `webAPIOnce` check it before each request, and a 429 whose `Retry-After` is over 30s (capped at 48h, was 1h) closes it and fails the request with a `*catalog.RateLimitError` carrying `Until` ("rate limited until Oct 1 07:55"). Migration 006 (`rate_limits`); `main_catalog.go` restores the block at startup and records each new one (`keepRateLimit`). `scheduleRetry` takes the sync's error and waits for the block's end. `DefaultPacing.Delay` 1s → 10s. `docs/ddmus/catalog.md` gains "Spotify rate limits". Tests: store round trip; the fetch blocks without asking again, the huge header caps at 48h, a long block fails a retrying request at once, a restored block holds until its end; the retry waits for the block. Not live-checked: the real account is still blocked (until about Oct 1 07:55); that block was not recorded, so the first request after the upgrade meets one 429 and records it.
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.

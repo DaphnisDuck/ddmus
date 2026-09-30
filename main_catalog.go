@@ -123,6 +123,7 @@ func openCatalog(sp *spotify.SpotifyProvider, rp *radio.Provider, cfg config.Con
 	}
 	var sources []source
 	if sp != nil {
+		rt.keepRateLimit(sp)
 		src := spotifysrc.New(sp)
 		rt.filler = catalogsync.NewFiller(rt.store, src, catalogsync.DefaultPacing)
 		sources = append(sources, source{Source: src, refresh: cfg.Ddmus.SpotifyRefresh, worker: rt.filler})
@@ -348,37 +349,62 @@ func (rt *catalogRuntime) sync(provider string) {
 		if err != nil {
 			applog.Info("catalog sync: %v", err)
 		}
-		rt.scheduleRetry(provider, err != nil)
+		rt.scheduleRetry(provider, err)
 		if ps.worker != nil {
 			rt.runWorker(provider, ps.worker)
 		}
 	}()
 }
 
-// scheduleRetry arranges provider's next sync after one finished: after a
-// failure, a retry on a doubling delay; after a success, none, and the
-// delay resets.
-func (rt *catalogRuntime) scheduleRetry(provider string, failed bool) {
+// scheduleRetry arranges provider's next sync after one finished with err:
+// after a failure, a retry on a doubling delay, or when the provider's rate
+// limit lasts longer, at its end; after a success, none, and the delay
+// resets. It returns the retry's delay, zero when none is armed.
+func (rt *catalogRuntime) scheduleRetry(provider string, err error) time.Duration {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	ps := rt.providers[provider]
 	if ps == nil {
-		return
+		return 0
 	}
 	if ps.retry != nil {
 		ps.retry.Stop()
 		ps.retry = nil
 	}
-	if !failed {
+	if err == nil {
 		ps.retryDelay = 0
-		return
+		return 0
 	}
 	if rt.closed {
-		return
+		return 0
 	}
 	ps.retryDelay = catalogsync.NextBackoff(ps.retryDelay, rt.retryMin, rt.retryMax)
-	applog.Info("catalog sync %s: retrying in %v", provider, ps.retryDelay)
-	ps.retry = time.AfterFunc(ps.retryDelay, func() { rt.sync(provider) })
+	delay := ps.retryDelay
+	if rl, ok := errors.AsType[*catalog.RateLimitError](err); ok {
+		delay = max(delay, rl.RetryAfter)
+	}
+	applog.Info("catalog sync %s: retrying in %v", provider, delay.Round(time.Second))
+	ps.retry = time.AfterFunc(delay, func() { rt.sync(provider) })
+	return delay
+}
+
+// keepRateLimit restores Spotify's rate-limit block from the catalog and
+// records each new one there, so a restart waits it out too.
+func (rt *catalogRuntime) keepRateLimit(sp *spotify.SpotifyProvider) {
+	until, err := rt.store.RateLimitedUntil(rt.ctx, catalog.Spotify)
+	if err != nil {
+		applog.Warn("catalog: %v", err)
+	}
+	if time.Until(until) > 0 {
+		applog.Info("spotify: rate limited until %s", until.Format(time.DateTime))
+	}
+	sp.SetRateLimitedUntil(until)
+	sp.OnRateLimited(func(until time.Time) {
+		applog.Warn("spotify: rate limited until %s", until.Format(time.DateTime))
+		if err := rt.store.SetRateLimitedUntil(rt.ctx, catalog.Spotify, until); err != nil {
+			applog.Warn("catalog: %v", err)
+		}
+	})
 }
 
 // runWorker runs a source's background worker. A run already going makes

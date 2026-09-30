@@ -68,6 +68,7 @@ type SpotifyProvider struct {
 	meFetched  bool   // /v1/me has been attempted this session; suppresses retry on failure
 	mu         sync.Mutex
 	sessionMu  sync.Mutex                // ddmus: one session creation at a time (sync and playback both ensure one)
+	rate       rateGate                  // ddmus: Spotify's current rate-limit block
 	trackCache map[string]*playlistCache // playlist ID → cache entry
 	pending    map[string]*pendingTracks
 	authCancel context.CancelFunc // cancels any in-progress OAuth flow
@@ -806,6 +807,9 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 			reqBody = bytes.NewReader(bodyBytes)
 		}
 
+		if err := p.rateLimited(); err != nil { // ddmus: blocked, do not ask
+			return nil, err
+		}
 		// ddmus: read the session under the lock; the catalog sync calls
 		// this from a background goroutine while Close may clear it.
 		p.mu.Lock()
@@ -828,7 +832,10 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 			wait := time.Duration(1<<uint(attempt)) * time.Second
 			if ra := resp.Header.Get("Retry-After"); ra != "" {
 				if secs, err := strconv.Atoi(ra); err == nil && secs > 0 {
-					wait = time.Duration(secs) * time.Second
+					wait = time.Duration(min(secs, maxRetryAfterSecs)) * time.Second // ddmus: capped
+					if wait > maxInlineRetryWait {                                   // ddmus: a long block fails now
+						return nil, p.block(wait)
+					}
 				}
 			}
 			applog.UserWarn("spotify: web api rate-limited on %s, retrying in %v (attempt %d/%d)", path, wait, attempt+1, maxRetries)

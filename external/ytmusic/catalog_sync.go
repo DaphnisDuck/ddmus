@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"slices"
 	"strings"
@@ -231,7 +232,7 @@ type ytdlpEntry struct {
 
 // record maps an entry. Private and deleted videos have no track.
 func (e ytdlpEntry) record() (catalog.TrackRecord, bool) {
-	if e.ID == "" || e.Availability == "private" || e.Title == "[Private video]" || e.Title == "[Deleted video]" {
+	if !validID(e.ID) || e.Availability == "private" || e.Title == "[Private video]" || e.Title == "[Deleted video]" {
 		return catalog.TrackRecord{}, false
 	}
 	rec := catalog.TrackRecord{
@@ -256,11 +257,22 @@ func channelArtist(id, name string) (catalog.ArtistRecord, bool) {
 
 func youtubeRef(id string) catalog.Ref { return catalog.Ref{Provider: catalog.YouTube, ProviderID: id} }
 
-func playlistURL(id string) string { return "https://www.youtube.com/playlist?list=" + id }
+func playlistURL(id string) string {
+	return "https://www.youtube.com/playlist?list=" + url.QueryEscape(id)
+}
 
 // watchURL is the track's playable address: the path cliamp's YouTube
 // playback already resolves.
-func watchURL(id string) string { return "https://music.youtube.com/watch?v=" + id }
+func watchURL(id string) string { return "https://music.youtube.com/watch?v=" + url.QueryEscape(id) }
+
+// validID reports whether id has the shape of a YouTube video, playlist or
+// channel ID. An entry with any other ID is skipped rather than stored as a
+// playable address.
+func validID(id string) bool {
+	return len(id) > 0 && len(id) <= 64 && !strings.ContainsFunc(id, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-')
+	})
+}
 
 // ytdlp runs yt-dlp on url, with the browser's cookies when there is one.
 func (c *CookieCatalog) ytdlp(ctx context.Context, url string, args ...string) ([]byte, error) {
@@ -325,14 +337,38 @@ func runYTDLP(ctx context.Context, args ...string) ([]byte, error) {
 	cmd.WaitDelay = 3 * time.Second
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err == nil {
-		return out, nil
-	}
-	if ctx.Err() != nil {
+	stdout := &cappedBuffer{limit: maxYTDLPOutput}
+	cmd.Stdout = stdout
+	err := cmd.Run()
+	switch {
+	case stdout.over:
+		return nil, fmt.Errorf("yt-dlp: output over %d MB", maxYTDLPOutput>>20)
+	case err == nil:
+		return stdout.buf.Bytes(), nil
+	case ctx.Err() != nil:
 		return nil, ctx.Err()
 	}
 	return nil, ytdlpError(stderr.String(), err)
+}
+
+// maxYTDLPOutput caps what one yt-dlp run may print. The largest real
+// output, a long playlist's JSON, is a few MB.
+const maxYTDLPOutput = 64 << 20
+
+// cappedBuffer keeps writes up to limit bytes, then fails them, which ends
+// the copy from the process.
+type cappedBuffer struct {
+	buf   bytes.Buffer
+	limit int
+	over  bool
+}
+
+func (b *cappedBuffer) Write(p []byte) (int, error) {
+	if b.buf.Len()+len(p) > b.limit {
+		b.over = true
+		return 0, errors.New("output limit reached")
+	}
+	return b.buf.Write(p)
 }
 
 // refusals are yt-dlp messages, lowercased, for a playlist or video that

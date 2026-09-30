@@ -251,3 +251,57 @@ func TestOpenRefreshesSortKeys(t *testing.T) {
 		t.Errorf("user_version = %d, want %d", version, catalog.SortKeyVersion)
 	}
 }
+
+// The catalog and its WAL files are private to the user, including a
+// database created with looser permissions before this rule.
+func TestOpenMakesTheCatalogPrivate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "library.db")
+	s, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	for _, p := range []string{path, path + "-wal"} {
+		if err := os.Chmod(p, 0o644); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+	s, err = Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.RecordSyncSuccess(context.Background(), "local", "files"); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		fi, err := os.Stat(p)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mode := fi.Mode().Perm(); mode != 0o600 {
+			t.Errorf("%s mode = %o, want 600", filepath.Base(p), mode)
+		}
+	}
+}
+
+// The writer waits out another process's long write transaction; reads keep
+// the short timeout.
+func TestBusyTimeouts(t *testing.T) {
+	s := openTemp(t)
+	for _, c := range []struct {
+		db   *sql.DB
+		want int
+	}{{s.wdb, writeBusyTimeout}, {s.db, readBusyTimeout}} {
+		var got int
+		if err := c.db.QueryRow(`PRAGMA busy_timeout`).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != c.want {
+			t.Errorf("busy_timeout = %d, want %d", got, c.want)
+		}
+	}
+}

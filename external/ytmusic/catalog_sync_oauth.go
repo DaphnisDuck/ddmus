@@ -67,8 +67,8 @@ func signInError(err error) error {
 
 // PlaylistRecords returns the account's music playlists, without tracks,
 // classified as in cliamp's OAuth mode by a sampled video's category.
-// Snapshot is the item count and the
-// playlist's etag, so an unchanged playlist is not reread.
+// Snapshot is the item count and the playlist's etag, so an unchanged
+// playlist is not reread.
 func (c *OAuthCatalog) PlaylistRecords(ctx context.Context, synced map[string]string) ([]catalog.PlaylistRecord, error) {
 	svc, scope, err := c.service(ctx)
 	if err != nil {
@@ -266,6 +266,9 @@ func itemRecord(it *youtube.PlaylistItem) (catalog.TrackRecord, bool) {
 		return catalog.TrackRecord{}, false
 	}
 	id := it.ContentDetails.VideoId
+	if !validID(id) {
+		return catalog.TrackRecord{}, false
+	}
 	rec := catalog.TrackRecord{Ref: youtubeRef(id), Title: title, PlayableURI: watchURL(id)}
 	if artist, ok := channelArtist(it.Snippet.VideoOwnerChannelId, it.Snippet.VideoOwnerChannelTitle); ok {
 		rec.Artists = []catalog.ArtistRecord{artist}

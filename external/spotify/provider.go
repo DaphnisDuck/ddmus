@@ -67,6 +67,7 @@ type SpotifyProvider struct {
 	userID     string // Spotify user ID, fetched lazily on first Playlists() call
 	meFetched  bool   // /v1/me has been attempted this session; suppresses retry on failure
 	mu         sync.Mutex
+	sessionMu  sync.Mutex                // ddmus: one session creation at a time (sync and playback both ensure one)
 	trackCache map[string]*playlistCache // playlist ID → cache entry
 	pending    map[string]*pendingTracks
 	authCancel context.CancelFunc // cancels any in-progress OAuth flow
@@ -94,6 +95,8 @@ func New(session *Session, clientID string, bitrate int) *SpotifyProvider {
 // ensureSession tries to create a session using stored credentials only
 // (no browser). Returns playlist.ErrNeedsAuth if interactive sign-in is needed.
 func (p *SpotifyProvider) ensureSession() error {
+	p.sessionMu.Lock() // ddmus: a second caller waits for the first's session
+	defer p.sessionMu.Unlock()
 	p.mu.Lock()
 	if p.session != nil {
 		p.mu.Unlock()

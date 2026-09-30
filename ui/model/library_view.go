@@ -87,7 +87,7 @@ func (m *Model) libListBudget() int {
 func (m Model) libBreadcrumb() string {
 	parts := make([]string, len(m.lib.stack))
 	for i, f := range m.lib.stack {
-		parts[i] = f.level.Title()
+		parts[i] = library.CleanText(f.level.Title())
 	}
 	crumb := strings.Join(parts, " / ")
 	// Keep the tail: the current level matters more than the root.
@@ -214,7 +214,7 @@ func (m *Model) renderLibraryList(budget int) string {
 			break
 		}
 		if row.index < 0 {
-			lines = append(lines, dimStyle.Render(labeledSeparator("", row.section)))
+			lines = append(lines, dimStyle.Render(labeledSeparator("", library.CleanText(row.section))))
 			continue
 		}
 		lines = append(lines, cursorLine(libEntryLabel(f.entries[row.index], numbers[row.index]),
@@ -245,19 +245,19 @@ func libTrackNumbers(entries []library.Entry) []int {
 // plain row. Browsable rows end in "›".
 func libEntryLabel(e library.Entry, number int) string {
 	if e.Track != nil && !e.Track.Realtime {
-		return formatTrackRow(number, trackViewName(*e.Track), e.Track.DurationSecs)
+		return formatTrackRow(number, library.CleanText(trackViewName(*e.Track)), e.Track.DurationSecs)
 	}
 	width := ui.PanelWidth - 4 // cursor prefix
 	suffix := ""
 	if e.Open != nil {
 		suffix = " ›"
 	}
-	title := e.Title
+	title := library.CleanText(e.Title)
 	if e.Favorite {
 		title = "★ " + title
 	}
 	avail := width - lipgloss.Width(suffix)
-	detail := truncate(e.Detail, avail/2)
+	detail := truncate(library.CleanText(e.Detail), avail/2)
 	titleW := avail
 	if detail != "" {
 		titleW -= lipgloss.Width(detail) + 2

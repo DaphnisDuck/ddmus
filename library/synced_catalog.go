@@ -291,12 +291,12 @@ func catalogID(id int64) string { return strconv.FormatInt(id, 10) }
 func PlayableTrack(t catalog.Track) playlist.Track {
 	return playlist.Track{
 		Path:         t.PlayableURI,
-		Title:        t.Title,
-		Artist:       t.Artist,
-		Album:        t.AlbumTitle,
+		Title:        CleanText(t.Title),
+		Artist:       CleanText(t.Artist),
+		Album:        CleanText(t.AlbumTitle),
 		AlbumArtURL:  t.ArtworkURL,
 		Year:         t.Year,
-		Genre:        t.Genre,
+		Genre:        CleanText(t.Genre),
 		TrackNumber:  t.TrackNo,
 		DurationSecs: int(t.Duration.Seconds()),
 	}

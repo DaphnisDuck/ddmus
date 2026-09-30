@@ -1,8 +1,9 @@
 package main
 
 // ddmus: the catalog runtime. It opens the SQLite catalog, runs the
-// background Spotify sync and album-track fill and the local folder index,
-// and reports them to the library UI. Kept out of main.go so upstream merges
+// background Spotify and YouTube Music syncs (with Spotify's album-track fill
+// and YouTube's enrichment), the local folder index and the radio stations'
+// sync, and reports them to the library UI. Kept out of main.go so upstream merges
 // there stay conflict-free.
 
 import (
@@ -104,9 +105,9 @@ type providerSync struct {
 	requests int
 }
 
-// openCatalog opens the catalog with a sync source for Spotify, when it is
-// configured, for the music folder, when there is one, and for your radio
-// stations. A catalog that cannot open is logged and left out.
+// openCatalog opens the catalog with a sync source for Spotify and YouTube
+// Music, when they are configured, for the music folder, when there is one,
+// and for your radio stations. A catalog that cannot open is logged and left out.
 func openCatalog(sp *spotify.SpotifyProvider, rp *radio.Provider, cfg config.Config) *catalogRuntime {
 	rt := &catalogRuntime{providers: map[string]*providerSync{}, retryMin: syncRetryMin, retryMax: syncRetryMax}
 	rt.ctx, rt.cancel = context.WithCancel(context.Background())
@@ -193,7 +194,9 @@ func (rt *catalogRuntime) setSources(sources ...source) {
 		ps := &providerSync{worker: src.worker, lists: src.lists, quiet: src.quiet, collections: src.Collections()}
 		var complete bool
 		ps.startup, complete = rt.status(src.Provider(), len(ps.collections))
-		ps.stale = !complete || time.Since(ps.startup.LastSuccess) > src.refresh
+		// A sync that failed last time runs again, whatever its age: its
+		// retry timer did not outlive the process.
+		ps.stale = !complete || ps.startup.LastError != "" || time.Since(ps.startup.LastSuccess) > src.refresh
 		rt.providers[src.Provider()] = ps
 	}
 }

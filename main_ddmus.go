@@ -17,7 +17,7 @@ import (
 
 // librarySources picks the providers the Music root shows. Other configured
 // providers stay constructed (playback, resume and IPC still use them) but
-// have no root entry until Milestone 4.
+// have no root entry until each gets its own release.
 func librarySources(providers []model.ProviderEntry, initialDir string, rt *catalogRuntime) library.Sources {
 	src := library.Sources{MusicDir: musicDir(initialDir), Catalog: rt.catalog()}
 	var youtube playlist.Provider

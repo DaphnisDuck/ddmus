@@ -18,7 +18,6 @@ import (
 	"github.com/bjarneo/cliamp/catalogsync"
 	"github.com/bjarneo/cliamp/player"
 	"github.com/bjarneo/cliamp/playlist"
-	"github.com/bjarneo/cliamp/resolve"
 )
 
 // Files is the source's one collection: every audio file under the folder.
@@ -49,7 +48,7 @@ const indexerVersion = 1
 
 // New returns a Source for dir, comparing against index.
 func New(dir string, index Index) *Source {
-	return &Source{dir: dir, index: index, readTags: resolve.TracksFromPaths}
+	return &Source{dir: dir, index: index, readTags: readTags}
 }
 
 // Provider implements catalogsync.Source.
@@ -151,14 +150,20 @@ func walk(ctx context.Context, dir string) ([]catalog.FileStat, []string, error)
 	if !info.IsDir() {
 		return nil, nil, fmt.Errorf("music folder %s is not a directory", dir)
 	}
+	// WalkDir does not descend into a symlinked root (a ~/Music linked to
+	// another disk); a trailing separator makes it. Paths keep the link.
+	root := dir
+	if li, err := os.Lstat(dir); err == nil && li.Mode()&fs.ModeSymlink != 0 {
+		root = dir + string(filepath.Separator)
+	}
 	var files []catalog.FileStat
 	var unreadable []string
-	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
 		if err != nil {
-			if path == dir {
+			if path == root {
 				return fmt.Errorf("music folder: %w", err)
 			}
 			if errors.Is(err, fs.ErrNotExist) {

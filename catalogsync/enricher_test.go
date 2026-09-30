@@ -247,3 +247,36 @@ func TestEnricherStopsOnOutage(t *testing.T) {
 		t.Errorf("unenriched %d, reads %v; want every track kept and v1 never reached", len(left), src.reads)
 	}
 }
+
+// An album known only from an enriched track leaves the catalog, and search,
+// at the next enrichment once that track is no longer in the library.
+func TestEnricherDropsOrphanedDerivedAlbums(t *testing.T) {
+	store, _, e, _, _ := enricherSetup(t, "v1")
+	ctx := context.Background()
+	if err := e.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if albums, _ := store.Albums(ctx, catalog.YouTube, catalog.ByTitle); len(albums) != 1 {
+		t.Fatalf("albums after enrichment = %d, want the derived Album A", len(albums))
+	}
+	// The track is unliked: the sync drops it and sweeps.
+	if err := store.ApplySnapshot(ctx, catalog.Snapshot{Provider: catalog.YouTube, Collection: "liked"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Sweep(ctx, catalog.YouTube); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if albums, _ := store.Albums(ctx, catalog.YouTube, catalog.ByTitle); len(albums) != 0 {
+		t.Errorf("albums = %+v, want the orphaned album gone", albums)
+	}
+	found, err := store.Search(ctx, catalog.ParseQuery("album a"), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(found[catalog.SearchAlbum]); n != 0 {
+		t.Errorf("search finds %d albums, want none", n)
+	}
+}

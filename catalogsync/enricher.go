@@ -33,6 +33,9 @@ type EnrichStore interface {
 	// RecordEnrichFailure counts a run in which the track could not be
 	// read, marking it read at giveUpAfter counted runs.
 	RecordEnrichFailure(ctx context.Context, track catalog.Ref, giveUpAfter int) (gaveUp bool, err error)
+	// Sweep deletes the provider's rows nothing references any more, such
+	// as a derived album whose only track left the library.
+	Sweep(ctx context.Context, provider string) error
 }
 
 const (
@@ -75,19 +78,27 @@ func NewEnricher(store EnrichStore, src MetadataSource, pace Pacing, changed fun
 // same run read another track afterwards, or earlier when it failed at the
 // end: a run that read nothing may be an outage, not bad tracks. MaxFailures
 // skipped in a row end the run with the error, uncounted. Run returns
-// ErrRunning if a run is already going, ctx's error when cancelled, a store
+// ErrRunning if a run is already going (it then goes again when done), ctx's error when cancelled, a store
 // failure at once, and an error naming the last failure when tracks were
 // skipped.
 func (e *Enricher) Run(ctx context.Context) error {
-	provider := e.src.Provider()
 	if !e.begin() {
-		return fmt.Errorf("enrich %s: %w", provider, ErrRunning)
+		return fmt.Errorf("enrich %s: %w", e.src.Provider(), ErrRunning)
 	}
-	defer e.end()
+	return e.repeat(func() error { return e.enrichAll(ctx) })
+}
 
-	// The library may have changed since the last run: refresh first.
+// enrichAll is one Run's work.
+func (e *Enricher) enrichAll(ctx context.Context) error {
+	provider := e.src.Provider()
+	// The library may have changed since the last run: refresh first, and
+	// drop the albums and artists the refresh left without a member, so a
+	// removed track's album leaves search now rather than at the next sync.
 	if err := e.refresh(ctx); err != nil {
 		return err
+	}
+	if err := e.store.Sweep(ctx, provider); err != nil {
+		return fmt.Errorf("enrich %s: %w", provider, err)
 	}
 	var (
 		st      fillState

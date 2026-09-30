@@ -271,6 +271,10 @@ func (p *SpotifyProvider) albumTrackRecords(ctx context.Context, get webGetter, 
 // webGetter is webAPI's signature: one Web API request.
 type webGetter func(ctx context.Context, method, path string, query url.Values) (*http.Response, error)
 
+// maxRetryAfterSecs caps the wait a rate limit asks for, so a bad header
+// cannot stall the catalog workers for days (or overflow the duration).
+const maxRetryAfterSecs = 3600
+
 // webAPIOnce is webAPI without the 429 retries: a rate limit returns a
 // *catalog.RateLimitError carrying Spotify's Retry-After. Other statuses
 // are a *StatusError, as webAPI's are.
@@ -292,7 +296,7 @@ func (p *SpotifyProvider) webAPIOnce(ctx context.Context, method, path string, q
 	if resp.StatusCode == http.StatusTooManyRequests {
 		rl := &catalog.RateLimitError{}
 		if secs, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && secs > 0 {
-			rl.RetryAfter = time.Duration(secs) * time.Second
+			rl.RetryAfter = time.Duration(min(secs, maxRetryAfterSecs)) * time.Second
 		}
 		return nil, rl
 	}

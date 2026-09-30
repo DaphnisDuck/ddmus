@@ -95,3 +95,18 @@ func TestLibrarySourceShownInSRC(t *testing.T) {
 		t.Errorf("station: pane %q, want SRC [Radio]", pane)
 	}
 }
+
+// Titles from providers, tags and the catalog cannot send escape sequences
+// to the terminal through the library's rows.
+func TestLibraryRowsDropControlCharacters(t *testing.T) {
+	evil := "Title\x1b]52;c;ZXZpbA==\x07\x1b[2J"
+	rows := []library.Entry{
+		{Title: evil, Detail: evil, Open: library.Menu("x")},
+		{Track: &playlist.Track{Path: "/m/a.flac", Title: evil}},
+	}
+	for i, e := range rows {
+		if got := libEntryLabel(e, 1); strings.ContainsAny(got, "\x1b\x07") {
+			t.Errorf("row %d label %q keeps control characters", i, got)
+		}
+	}
+}

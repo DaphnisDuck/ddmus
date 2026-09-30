@@ -474,3 +474,26 @@ func TestIndexRegroupsOnNewIndexerVersion(t *testing.T) {
 		t.Errorf("stored state = %+v", states[Files])
 	}
 }
+
+// A music folder that is itself a symlink (~/Music on another disk) is
+// walked, and its files keep the link's path.
+func TestWalkFollowsASymlinkedRoot(t *testing.T) {
+	real := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(real, "album"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(real, "album", "1.flac"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "Music")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	files, _, err := walk(context.Background(), link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(link, "album", "1.flac"); len(files) != 1 || files[0].Path != want {
+		t.Errorf("files = %+v, want %s", files, want)
+	}
+}

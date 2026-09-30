@@ -294,6 +294,29 @@ func TestCatalogSyncReloadsStaleParentOnBack(t *testing.T) {
 	}
 }
 
+// A refresh that lands after search opened over its level still updates it.
+func TestCatalogRefreshLandsBehindSearch(t *testing.T) {
+	rows := []library.Entry{{ID: "a", Title: "A", Open: library.Menu("A")}}
+	loads := 0
+	albums := catLevel{"Albums", &rows, &loads}
+	search := fakeSearch{loads: &[]string{}, results: func(string) []library.Entry { return nil }}
+	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "Albums", Open: albums},
+		library.Entry{Title: "Search", Open: search}))
+	m = libPress(t, m, "enter") // Albums
+	rows = append(rows, library.Entry{ID: "b", Title: "B"})
+	updated, refresh := m.Update(CatalogSyncMsg{Provider: "spotify", Phase: CatalogSyncCollectionDone})
+	m = updated.(Model)
+	m = libPress(t, m, "/") // search opens over Albums while the refresh is in flight
+	m = libRun(t, m, refresh)
+	m = libPress(t, m, "esc") // close search
+	if got := libCrumb(m); got != "Music / Albums" {
+		t.Fatalf("after closing search: %q", got)
+	}
+	if got := len(m.libTop().entries); got != 2 {
+		t.Errorf("Albums after search = %d rows, want the refreshed 2", got)
+	}
+}
+
 func TestCatalogSyncBadgeAndRefreshKey(t *testing.T) {
 	m := newLibraryModel(testLibraryRoot())
 	if m.libSyncBadge() != "" {

@@ -21,6 +21,8 @@ func TestParseQuery(t *testing.T) {
 		{"source:local provider:Spotify holst", Query{Terms: []Term{word("holst")}, Providers: []string{Local, Spotify}}},
 		{"source:youtube x", Query{Terms: []Term{word("x")}, Providers: []string{YouTube}}},
 		{"type:albums type:station x", Query{Terms: []Term{word("x")}, Kinds: []SearchKind{SearchAlbum, SearchStation}}},
+		// A pasted NUL or other control character separates words.
+		{"mah\x00ler\x1b", Query{Terms: []Term{word("mah"), word("ler")}}},
 		// Mid-typing operators and unknown values.
 		{"artist:", Query{}},
 		{"type: x", Query{Terms: []Term{word("x")}}},

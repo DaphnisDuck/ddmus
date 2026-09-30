@@ -34,7 +34,7 @@ Enter on a track replaces the queue with the list it's in and starts at that tra
 
 ## The catalog and sync
 
-Spotify and Local browsing read from a local catalog (`~/.local/share/ddmus/library.db`), so lists open instantly and work offline. Spotify syncs at startup when its last sync is older than 30 minutes, Local re-indexes changed files at every startup, and `r` syncs the source you're browsing. The header shows each source's status (`↻ syncing`, `✓ synced 2m ago`, `sync failed · cached`). See [catalog.md](catalog.md) for what's cached, failure safety, and the `[ddmus]` settings.
+Spotify, YouTube Music and Local browsing read from a local catalog (`~/.local/share/ddmus/library.db`), so lists open instantly and work offline; your radio stations are in it too, for search. Spotify and YouTube Music sync at startup when their last sync is older than their refresh setting, Local re-indexes changed files at every startup, and `r` syncs the source you're browsing. The header shows each source's status (`↻ syncing`, `✓ synced 2m ago`, `sync failed · cached`). See [catalog.md](catalog.md) for what's cached, failure safety, and the `[ddmus]` settings.
 
 ## Keys
 

@@ -171,6 +171,17 @@ func (m Model) libraryVisible() bool { return m.libraryEnabled() && m.lib.visibl
 
 func (m *Model) libTop() *libFrame { return &m.lib.stack[len(m.lib.stack)-1] }
 
+// libFrameByGen is the frame whose load has generation gen, or nil once
+// that frame was popped or reloaded since.
+func (m *Model) libFrameByGen(gen uint64) *libFrame {
+	for i := range m.lib.stack {
+		if m.lib.stack[i].gen == gen {
+			return &m.lib.stack[i]
+		}
+	}
+	return nil
+}
+
 func (m *Model) libraryPush(level library.Level, source string) tea.Cmd {
 	m.lib.stack = append(m.lib.stack, libFrame{level: level, source: source})
 	return m.libraryLoad()
@@ -251,10 +262,12 @@ func (m *Model) libraryCatalogChanged(provider string) tea.Cmd {
 func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case libraryLoadedMsg:
-		if !m.libraryEnabled() || msg.gen != m.libTop().gen {
+		// The load goes to the frame that asked for it, which may no longer
+		// be the top: a refresh can land after its level opened a child.
+		f := m.libFrameByGen(msg.gen)
+		if f == nil {
 			return nil, true
 		}
-		f := m.libTop()
 		f.cancel = nil
 		f.err = msg.err
 		if msg.err == nil {
@@ -268,7 +281,9 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 					}
 				}
 			}
-			m.libAdjustScroll()
+			if f == m.libTop() {
+				m.libAdjustScroll()
+			}
 		}
 		f.keepID = ""
 		return nil, true

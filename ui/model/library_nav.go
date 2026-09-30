@@ -344,6 +344,20 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 	return nil, false
 }
 
+// librarySkip plays the next track, or the previous one, as cliamp's < and >
+// do.
+func (m *Model) librarySkip(next bool) tea.Cmd {
+	refresh := m.scrobbleCurrent()
+	var cmd tea.Cmd
+	if next {
+		cmd = m.nextTrack()
+	} else {
+		cmd = m.prevTrack()
+	}
+	m.notifyPlayback()
+	return tea.Batch(refresh, cmd)
+}
+
 // handleLibraryKey owns the main screen's keys when the library is enabled.
 // handled=false passes the key on to cliamp's handlers.
 func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool) {
@@ -357,6 +371,8 @@ func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool
 		case "tab", "esc", "b":
 			m.lib.visible = true
 			return nil, true
+		case "p", "n":
+			return m.librarySkip(key == "n"), true
 		}
 		return nil, !queuePassthroughKeys[key] && !libraryPassthroughKeys[key]
 	}
@@ -396,6 +412,8 @@ func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool
 		f.cursor = max(min(f.cursor+page, n-1), 0)
 	case "enter", "l", "right":
 		return m.libraryActivate(), true
+	case "p", "n":
+		return m.librarySkip(key == "n"), true
 	case "esc", "h", "left", "backspace":
 		cmd := m.libraryPop()
 		m.libAdjustScroll()

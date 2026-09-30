@@ -140,15 +140,15 @@ func TestLibraryKeyBarListsTable(t *testing.T) {
 		view      string
 		want, not []string
 	}{
-		{"Library", []string{"Move", "Open", "Search", "Queue", "Sync", "Quit", "Stop", "Prev/Next", "Seek far", "Volume", "Hide keys"},
-			[]string{"Back", "Order", "Help", "Info", "Shuffle"}},
+		{"Library", []string{"Move", "Open", "Search", "Queue", "Sync", "Quit", "Stop", "Prev/Next", "Volume", "Hide keys"},
+			[]string{"Back", "Order", "Help", "Info", "Shuffle", "Seek far"}},
 		{"Library below the root", []string{"Back", "Quit"}, nil},
 		{"ordered list", []string{"Order"}, []string{"Sync"}},
 		{"Queue", []string{"Library", "Play", "Filter", "Seek", "Shuffle", "Repeat", "Play next", "Up next", "Remove",
-			"Reorder", "Undo", "EQ", "Mono", "Speed", "Info", "Lyrics", "Jump", "Quit", "Stop", "Volume", "Hide keys"},
-			[]string{"Help", "Favorite", "Open", "Sync"}},
+			"Reorder", "Undo", "EQ", "Speed", "Info", "Lyrics", "Jump", "Quit", "Stop", "Volume", "Hide keys", "Prev/Next", "Seek far"},
+			[]string{"Help", "Favorite", "Open", "Sync", "Mono"}},
 		{"Library Search", []string{"Results", "Close", "Clear"}, []string{"Stop", "Volume", "Move", "Hide keys"}},
-		{"Search Results", []string{"Query", "Move", "Open", "Stop", "Quit"}, []string{"Search", "Sync"}},
+		{"Search Results", []string{"Query", "Move", "Open", "Stop", "Quit", "Prev/Next"}, []string{"Search", "Sync", "Seek far"}},
 	}
 	views := libViews(t)
 	for _, tt := range tests {

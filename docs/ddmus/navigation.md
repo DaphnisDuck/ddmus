@@ -55,9 +55,8 @@ The bar at the bottom of each view lists every key that works there, and only th
 | `o` | In an Albums list, switch between sorting by title and by artist |
 | `Space` | Play / pause |
 | `Tab` | Show the queue |
-| `<` `>` (`,` `.`) | Previous / next track |
+| `p` `n` | Previous / next track |
 | `s` | Stop |
-| `Shift+←` `Shift+→` | Seek by the large step |
 | `+` `-` | Volume |
 | `Ctrl+G` | Hide or show the key bar |
 
@@ -75,7 +74,7 @@ In search results, `/`, `Esc` and `h` return to the query; while typing, Enter o
 | `Enter` | Play the selected track |
 | `Space` | Play / pause |
 | `←` `→` | Seek 5 seconds; `Shift+←` `Shift+→` seek by the large step |
-| `<` `>` (`,` `.`) | Previous / next track |
+| `p` `n` | Previous / next track |
 | `s` | Stop |
 | `+` `-` | Volume |
 | `/` | Filter the queue |
@@ -86,7 +85,6 @@ In search results, `/`, `Esc` and `h` return to the query; while typing, Enter o
 | `x` | Remove the selected track; `Ctrl+Z` undoes it |
 | `Shift+↑` `Shift+↓` | Move the selected track up / down |
 | `e` | Next EQ preset |
-| `m` | Mono on / off |
 | `[` `]` | Speed down / up |
 | `i` | Track info |
 | `y` | Lyrics |
@@ -97,6 +95,8 @@ In search results, `/`, `Esc` and `h` return to the query; while typing, Enter o
 Track info, lyrics, Up next and Jump open over the queue; `Esc` returns to it.
 
 `q` quits ddmus at once from every library screen, the queue, and the overlays over it; only where you are typing (search, the queue filter, Jump) is it a letter. `Esc` always goes back one step (overlay → queue → Library, results → query → closed search, a list → its parent) and never quits. `r` means repeat in the queue and sync in the library.
+
+Mono has no key while the library is enabled; `mono = true` in config.toml, `--mono` or `ddmus mono` still turn it on, and the settings line shows `[M]` while it is.
 
 The settings panel shows the queue's settings: **SRC** is the playing track's source (`[Spotify]`, `[YouTube]`, `[Local]`, `[Radio]`), then volume, EQ, shuffle, repeat and speed. It is display only; the keys above change it. For a track the library didn't start (a file or URL given on the command line, the file browser, a provider's own search), SRC shows what the track's path tells, or nothing.
 

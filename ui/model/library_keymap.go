@@ -47,12 +47,15 @@ var (
 	libQueueKey   = libKeyHelp{[]string{"tab"}, "Tab", "Queue"}
 	libOrderKey   = libKeyHelp{[]string{"o"}, "o", "Order"}
 	libRefreshKey = libKeyHelp{[]string{"r"}, "r", "Sync"}
+	// libSkipKey is the library's previous/next track, in every view but
+	// the search input.
+	libSkipKey = libKeyHelp{[]string{"p", "n"}, "p n", "Prev/Next"}
 
 	// In search results, the back keys return to the query instead.
 	libResultKeys = slices.Concat(libMoveKeys, []libKeyHelp{
 		libOpenKey,
 		{[]string{"/", "esc", "h", "left", "backspace"}, "/ Esc/h", "Query"},
-		libPauseKey, libQueueKey, libQuitKey,
+		libPauseKey, libSkipKey, libQueueKey, libQuitKey,
 	})
 	// The search input takes q as text.
 	libSearchInputKeys = []libKeyHelp{
@@ -62,25 +65,25 @@ var (
 	}
 	libQueueKeys = []libKeyHelp{
 		{[]string{"tab", "esc", "b"}, "Tab/Esc", "Library"},
+		libSkipKey,
 	}
 
 	// libPlayerKeys are cliamp's transport keys, live in every view but the
 	// search input.
 	libPlayerKeys = []libKeyHelp{
-		{[]string{"<", ",", ">", "."}, "</>", "Prev/Next"},
 		{[]string{"s"}, "s", "Stop"},
-		{[]string{"shift+left", "shift+right"}, "Shift+←/→", "Seek far"},
 		{[]string{"+", "=", "-"}, "+/-", "Volume"},
 		{[]string{"ctrl+g"}, "Ctrl+G", "Hide keys"},
 	}
 
 	// libQueuePassKeys are cliamp's queue keys, live while the queue has the
-	// screen. n (Favorite) and Ctrl+I (Metadata, which terminals send as Tab)
-	// stay swallowed.
+	// screen. Ctrl+I (Metadata, which terminals send as Tab) and m (Mono)
+	// stay swallowed; n and p are the library's.
 	libQueuePassKeys = slices.Concat(libMoveKeys, []libKeyHelp{
 		{[]string{"enter"}, "Enter", "Play"},
 		libPauseKey,
 		{[]string{"left", "right"}, "←/→", "Seek"},
+		{[]string{"shift+left", "shift+right"}, "Shift+←/→", "Seek far"},
 		{[]string{"/"}, "/", "Filter"},
 		{[]string{"z"}, "z", "Shuffle"},
 		{[]string{"r"}, "r", "Repeat"},
@@ -90,7 +93,6 @@ var (
 		{[]string{"shift+up", "shift+down"}, "Shift+↑/↓", "Reorder"},
 		{[]string{"ctrl+z"}, "Ctrl+Z", "Undo"},
 		{[]string{"e"}, "e", "EQ"},
-		{[]string{"m"}, "m", "Mono"},
 		{[]string{"[", "]"}, "[/]", "Speed"},
 		{[]string{"i"}, "i", "Info"},
 		{[]string{"y"}, "y", "Lyrics"},
@@ -133,7 +135,7 @@ func (m Model) libraryKeyView() libKeyView {
 	if _, ok := m.libTop().level.(library.OrderedLevel); ok {
 		own = append(own, libOrderKey)
 	}
-	own = append(own, libPauseKey, libQueueKey)
+	own = append(own, libPauseKey, libSkipKey, libQueueKey)
 	if m.lib.refresh != nil {
 		own = append(own, libRefreshKey)
 	}

@@ -33,6 +33,9 @@ type Known struct {
 	// PlaylistSnapshots maps playlist provider IDs to their stored change
 	// markers; a playlist whose marker is unchanged needs no track fetch.
 	PlaylistSnapshots map[string]string
+	// Collections holds what is stored of each synced collection, so a
+	// source can tell cheaply that one is current.
+	Collections map[string]catalog.CollectionState
 }
 
 // EventKind distinguishes sync progress events.
@@ -107,7 +110,11 @@ func (e *Engine) syncAll(ctx context.Context, src Source) error {
 	if err != nil {
 		return fmt.Errorf("sync %s: %w", provider, err)
 	}
-	known := Known{PlaylistSnapshots: snapshots}
+	states, err := e.store.CollectionStates(ctx, provider)
+	if err != nil {
+		return fmt.Errorf("sync %s: %w", provider, err)
+	}
+	known := Known{PlaylistSnapshots: snapshots, Collections: states}
 	var errs []error
 	for _, collection := range src.Collections() {
 		if ctx.Err() != nil {

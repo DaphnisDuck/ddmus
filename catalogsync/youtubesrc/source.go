@@ -26,8 +26,10 @@ const (
 // error, never part of one.
 type Client interface {
 	// PlaylistRecords lists the music playlists, without tracks. A record
-	// with a Snapshot is refetched only when it changes.
-	PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error)
+	// with a Snapshot is refetched only when it changes. synced holds the
+	// catalog's playlists by ID: one of them that cannot be classified as
+	// music or not right now is listed anyway, so it is not reconciled away.
+	PlaylistRecords(ctx context.Context, synced map[string]string) ([]catalog.PlaylistRecord, error)
 	// PlaylistRecord reads one playlist by ID, without tracks.
 	PlaylistRecord(ctx context.Context, playlistID string) (catalog.PlaylistRecord, error)
 	PlaylistTrackRecords(ctx context.Context, playlistID string) ([]catalog.TrackRecord, error)
@@ -100,7 +102,7 @@ func (s *Source) Fetch(ctx context.Context, collection string, known catalogsync
 // change marker is missing or changed. A playlist YouTube will not show
 // keeps its stored tracks; any other failure fails the whole collection.
 func (s *Source) playlists(ctx context.Context, known map[string]string) ([]catalog.PlaylistRecord, error) {
-	lists, err := s.client.PlaylistRecords(ctx)
+	lists, err := s.client.PlaylistRecords(ctx, known)
 	if err != nil {
 		return nil, err
 	}
@@ -151,8 +153,8 @@ type Mixed struct {
 var _ Client = Mixed{}
 
 // PlaylistRecords implements Client through cookies.
-func (m Mixed) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error) {
-	return m.Cookies.PlaylistRecords(ctx)
+func (m Mixed) PlaylistRecords(ctx context.Context, synced map[string]string) ([]catalog.PlaylistRecord, error) {
+	return m.Cookies.PlaylistRecords(ctx, synced)
 }
 
 // PlaylistRecord implements Client through cookies.

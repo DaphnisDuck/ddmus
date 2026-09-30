@@ -21,6 +21,8 @@ No passwords or tokens are stored in the catalog. Spotify credentials stay in `~
 | YouTube Music | if the last successful sync is older than `youtube_refresh` (2 hours by default) | yes | the same retries |
 | Local | always; only files whose size or modification time changed are read again | yes | the same retries |
 
+A Spotify sync first asks for your saved albums' and liked songs' count and newest item (one request each). When both match the catalog, that list is not read again; it is still read in full at least once a day, so renamed titles and new artwork arrive. Playlists are refetched only when Spotify's version marker changed.
+
 `r` syncs the source you're browsing. At the Music root it syncs every source. Syncs run in the background, and the screen refreshes in place when one lands, keeping the cursor on the same item.
 
 **Spotify album tracks:** opening an album whose tracks aren't cached yet loads it from Spotify and caches it. A background fill then caches your other saved albums one at a time, newest saved first, about one a second. It pauses while you open an album or a sync runs, and when Spotify rate-limits it, it waits as long as Spotify asks (at least 5 seconds, doubling up to 10 minutes).

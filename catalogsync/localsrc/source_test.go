@@ -435,3 +435,42 @@ func TestIndexDropsDanglingSymlinks(t *testing.T) {
 		t.Errorf("albums = %v, want %v", got, want)
 	}
 }
+
+// A catalog built by older grouping rules is regrouped once, from stored
+// tags: no file is read again.
+func TestIndexRegroupsOnNewIndexerVersion(t *testing.T) {
+	l := newLibrary(t)
+	l.write("Holst/Planets/01.flac", "a", playlist.Track{Title: "Mars", Artist: "Holst", Album: "The Planets"})
+	l.write("Holst/Planets/02.flac", "b", playlist.Track{Title: "Venus", Artist: "Holst", Album: "The Planets"})
+	if err := l.sync(); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	fetch := func(version int) (catalog.Snapshot, error) {
+		return l.src.Fetch(ctx, Files, catalogsync.Known{Collections: map[string]catalog.CollectionState{Files: {Version: version}}})
+	}
+	if _, err := fetch(indexerVersion); !errors.Is(err, catalogsync.ErrUnchanged) {
+		t.Fatalf("current version: %v, want ErrUnchanged", err)
+	}
+	l.mu.Lock()
+	l.reads = nil
+	l.mu.Unlock()
+	snap, err := fetch(indexerVersion - 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Albums) != 1 || snap.Albums[0].Title != "The Planets" || len(snap.Tracks) != 2 || snap.Version != indexerVersion {
+		t.Errorf("regrouped %d albums %+v, %d tracks, version %d", len(snap.Albums), snap.Albums, len(snap.Tracks), snap.Version)
+	}
+	if got := l.readFiles(); len(got) != 0 {
+		t.Errorf("reread %q, want stored tags used", got)
+	}
+	// Through the engine the version is stored: the next sync is a no-op.
+	if err := l.sync(); err != nil || len(l.readFiles()) != 0 {
+		t.Errorf("sync after regrouping: %v, reads %q", err, l.readFiles())
+	}
+	states, _ := l.store.CollectionStates(ctx, catalog.Local)
+	if states[Files].Version != indexerVersion || states[Files].AppliedAt.IsZero() {
+		t.Errorf("stored state = %+v", states[Files])
+	}
+}

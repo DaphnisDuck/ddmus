@@ -41,6 +41,12 @@ type Source struct {
 
 var _ catalogsync.Source = (*Source)(nil)
 
+// indexerVersion is the version of the grouping rules in index.go. Bump it
+// when they change: every file is then regrouped once, from its stored
+// tags. A rule that needs a tag the catalog does not store must also make
+// the files read again.
+const indexerVersion = 1
+
 // New returns a Source for dir, comparing against index.
 func New(dir string, index Index) *Source {
 	return &Source{dir: dir, index: index, readTags: resolve.TracksFromPaths}
@@ -56,7 +62,7 @@ func (*Source) Collections() []string { return []string{Files} }
 // is, when the folder is missing, or is empty while the catalog holds files
 // (an unmounted drive looks like that). Files under a subfolder it cannot
 // read are kept as last indexed rather than dropped.
-func (s *Source) Fetch(ctx context.Context, collection string, _ catalogsync.Known) (catalog.Snapshot, error) {
+func (s *Source) Fetch(ctx context.Context, collection string, known catalogsync.Known) (catalog.Snapshot, error) {
 	if collection != Files {
 		return catalog.Snapshot{}, fmt.Errorf("unknown collection %q", collection)
 	}
@@ -99,7 +105,7 @@ func (s *Source) Fetch(ctx context.Context, collection string, _ catalogsync.Kno
 			removed++
 		}
 	}
-	if len(changed) == 0 && removed == 0 {
+	if len(changed) == 0 && removed == 0 && known.Collections[Files].Version == indexerVersion {
 		return catalog.Snapshot{}, catalogsync.ErrUnchanged
 	}
 	for i := range files {
@@ -122,7 +128,9 @@ func (s *Source) Fetch(ctx context.Context, collection string, _ catalogsync.Kno
 			files[batch[i]].track = t
 		}
 	}
-	return snapshot(files), nil
+	snap := snapshot(files)
+	snap.Version = indexerVersion
+	return snap, nil
 }
 
 // file is one indexed audio file and its track.

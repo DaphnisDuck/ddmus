@@ -127,7 +127,7 @@ func newFakeCatalog(t *testing.T) (*CookieCatalog, *fakeYTDLP) {
 
 func TestCookiePlaylistRecordsClassifiesOnce(t *testing.T) {
 	c, f := newFakeCatalog(t)
-	lists, err := c.PlaylistRecords(context.Background())
+	lists, err := c.PlaylistRecords(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestCookiePlaylistRecordsClassifiesOnce(t *testing.T) {
 	// Classification is cached: a second listing samples only the empty
 	// playlist again, which could not be told yet.
 	before := len(f.runs)
-	if _, err := c.PlaylistRecords(context.Background()); err != nil {
+	if _, err := c.PlaylistRecords(context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if got := len(f.runs) - before; got != 2 || f.count("list=PLempty") != 2 {
@@ -156,7 +156,7 @@ func TestCookiePlaylistRecordsClassifiesOnce(t *testing.T) {
 	}
 	// Once it has a music video, it is listed.
 	f.playlists["PLempty"] = map[string]any{"playlist_count": 1, "entries": []map[string]any{entry("v1", "Libertango", "Astor Piazzolla Oficial", "UCpiaz", 246)}}
-	if lists, err := c.PlaylistRecords(context.Background()); err != nil || len(lists) != 2 {
+	if lists, err := c.PlaylistRecords(context.Background(), nil); err != nil || len(lists) != 2 {
 		t.Errorf("after adding a song: %+v, %v", lists, err)
 	}
 }
@@ -222,17 +222,22 @@ func TestYTDLPError(t *testing.T) {
 func TestCookieClassificationSkipsRefusedVideos(t *testing.T) {
 	c, f := newFakeCatalog(t)
 	f.blocked = map[string]bool{"v1": true, "s1": true}
-	lists, err := c.PlaylistRecords(context.Background())
+	lists, err := c.PlaylistRecords(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(lists) != 1 || lists[0].Name != "Road Trip" || f.count("watch?v=v2") != 1 {
 		t.Fatalf("playlists = %+v, runs %v; want Road Trip classified from its second video", lists, f.runs)
 	}
+	// Already synced, it stays listed while it cannot be told.
+	lists, err = c.PlaylistRecords(context.Background(), map[string]string{"PLshows": ""})
+	if err != nil || len(lists) != 2 || lists[1].Name != "Game Shows" {
+		t.Fatalf("with Game Shows synced: %+v, %v", lists, err)
+	}
 	// Game Shows could not be told: not cached, so it is sampled again.
 	f.blocked = nil
 	before := f.count("watch?v=s1")
-	if _, err := c.PlaylistRecords(context.Background()); err != nil {
+	if _, err := c.PlaylistRecords(context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if f.count("watch?v=s1") != before+1 || f.count("watch?v=v2") != 1 {
@@ -246,11 +251,11 @@ func TestCookieClassificationRateLimited(t *testing.T) {
 	c, f := newFakeCatalog(t)
 	f.botCheck = true
 	var rl *catalog.RateLimitError
-	if _, err := c.PlaylistRecords(context.Background()); !errors.As(err, &rl) {
+	if _, err := c.PlaylistRecords(context.Background(), nil); !errors.As(err, &rl) {
 		t.Fatalf("PlaylistRecords = %v, want a rate limit", err)
 	}
 	f.botCheck = false
-	if lists, err := c.PlaylistRecords(context.Background()); err != nil || len(lists) != 1 || lists[0].Name != "Road Trip" {
+	if lists, err := c.PlaylistRecords(context.Background(), nil); err != nil || len(lists) != 1 || lists[0].Name != "Road Trip" {
 		t.Errorf("after the bot check: %+v, %v", lists, err)
 	}
 }

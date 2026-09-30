@@ -61,3 +61,5 @@ In the queue view, list navigation, Enter, `/` (filter the queue) and the transp
 ## Disabled cliamp keys
 
 Keys that jump to other parts of cliamp are disabled, including provider switching (`S`, `R`, `L`, `N`, …), `o`, `u`, `p`, `t`, `v`, `e`, `y` and `w`. They are swallowed by an allowlist in `ui/model/library_nav.go` (`libraryPassthroughKeys`, `queuePassthroughKeys`). To bring one back, add it there.
+
+The keymap (`?` or `Ctrl+K`) follows the same allowlist: in the library, the queue and search it lists only the keys that work there (the library's own keys, then the player keys passed through to cliamp), built in `ui/model/library_keymap.go`. A key brought back through the allowlist shows up in the keymap by itself when cliamp's command registry describes it.

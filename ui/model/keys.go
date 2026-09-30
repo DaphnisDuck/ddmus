@@ -204,6 +204,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if msg.String() == "ctrl+c" {
 		return m.quit()
 	}
+	if msg.String() == "q" && m.libraryQuitsOnQ() { // ddmus: q quits from every library screen
+		return m.quit()
+	}
 	if m.libraryDropsGlobalKey(msg.String()) { // ddmus: a library view's keys are its table's
 		return nil
 	}

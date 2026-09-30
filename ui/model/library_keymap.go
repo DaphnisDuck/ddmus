@@ -6,7 +6,8 @@ package model
 // exactly the table's cliamp keys, and the key bar at the bottom and the
 // keymap overlay's entries render the table, so a cliamp key works in a view
 // if and only if it is listed. The library's own keys are handled in
-// handleLibraryKey's switch; a new one needs its row here too.
+// handleLibraryKey's switch (q, which quits from every library screen, in
+// handleKey); a new one needs its row here too.
 
 import (
 	"slices"
@@ -51,9 +52,9 @@ var (
 	libResultKeys = slices.Concat(libMoveKeys, []libKeyHelp{
 		libOpenKey,
 		{[]string{"/", "esc", "h", "left", "backspace"}, "/ Esc/h", "Query"},
-		{[]string{"q"}, "q", "Back"},
-		libPauseKey, libQueueKey,
+		libPauseKey, libQueueKey, libQuitKey,
 	})
+	// The search input takes q as text.
 	libSearchInputKeys = []libKeyHelp{
 		{[]string{"enter", "down", "tab"}, "Enter/Tab", "Results"},
 		{[]string{"esc"}, "Esc", "Close"},
@@ -125,10 +126,8 @@ func (m Model) libraryKeyView() libKeyView {
 		return libKeyView{title: "Search Results", own: libResultKeys, pass: libPlayerKeys}
 	}
 	own := slices.Concat(libMoveKeys, []libKeyHelp{libOpenKey})
-	quit := libQuitKey
 	if len(m.lib.stack) > 1 {
 		own = append(own, libBackKey)
-		quit.label = "Back"
 	}
 	own = append(own, libSearchKey)
 	if _, ok := m.libTop().level.(library.OrderedLevel); ok {
@@ -138,7 +137,7 @@ func (m Model) libraryKeyView() libKeyView {
 	if m.lib.refresh != nil {
 		own = append(own, libRefreshKey)
 	}
-	own = append(own, quit)
+	own = append(own, libQuitKey)
 	return libKeyView{title: "Library", own: own, pass: libPlayerKeys}
 }
 
@@ -157,6 +156,24 @@ func (m Model) libraryOnScreen() bool {
 	}
 	s := m.activeScreen()
 	return s == screenLibrary || s == screenMain
+}
+
+// libraryQuitsOnQ reports whether q quits at once: the library is enabled
+// and no text input, nor a cliamp screen the library does not open, has the
+// keyboard. Over the library's own overlays (Up next, track info, lyrics)
+// it quits too.
+func (m Model) libraryQuitsOnQ() bool {
+	if !m.libraryEnabled() {
+		return false
+	}
+	switch {
+	case m.jumping, m.urlInputting, m.search.active, m.netSearch.active, m.provSearch.active,
+		m.devicePicker.visible, m.plPicker.visible, m.fileBrowser.visible, m.spotSearch.visible,
+		m.navBrowser.visible, m.themePicker.visible, m.visPicker.visible, m.plManager.visible, m.subs.visible:
+		return false
+	}
+	_, searching := m.libSearchLevel()
+	return !(m.lib.visible && searching && m.lib.searchInput)
 }
 
 // libraryDropsGlobalKey reports whether key, one cliamp handles before the

@@ -102,16 +102,9 @@ func TestLibraryPushPopRestoresCursor(t *testing.T) {
 		t.Fatalf("after back: %q cursor %d, want Albums with cursor on Mahler 5", got, m.libTop().cursor)
 	}
 	m = libPress(t, m, "esc")
-	m = libPress(t, m, "q") // q steps back below the root
+	m = libPress(t, m, "esc")
 	if got := libCrumb(m); got != "Music" || m.libTop().cursor != 1 {
 		t.Fatalf("at root: %q cursor %d, want Music with cursor on Spotify", got, m.libTop().cursor)
-	}
-	if m.quitting {
-		t.Fatal("q below the root quit")
-	}
-	updated, _ := m.Update(libKey("q"))
-	if !updated.(Model).quitting {
-		t.Error("q at the root did not quit")
 	}
 }
 

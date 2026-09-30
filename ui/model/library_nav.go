@@ -400,13 +400,6 @@ func (m *Model) handleLibraryKey(msg tea.KeyPressMsg) (cmd tea.Cmd, handled bool
 		cmd := m.libraryPop()
 		m.libAdjustScroll()
 		return cmd, true
-	case "q":
-		if len(m.lib.stack) == 1 {
-			return m.quit(), true
-		}
-		cmd := m.libraryPop()
-		m.libAdjustScroll()
-		return cmd, true
 	case "r":
 		if m.lib.refresh != nil {
 			m.status.Showf(statusTTLDefault, "Syncing library…")

@@ -91,14 +91,14 @@ ddmus ~/Music/some-album       # load a directory into the queue (Tab shows it)
 |---|---|
 | `j` `k` | Move down / up |
 | `l` `Enter` | Open, or play |
-| `h` `Esc` | Back |
+| `h` `Esc` | Back (never quits) |
 | `g` `G` | Top / bottom |
 | `/` | Search everything (see [docs/ddmus/search.md](docs/ddmus/search.md)) |
 | `o` | In an Albums list, sort by title or by artist |
 | `r` | Sync the source you're browsing now |
 | `Space` | Play / pause |
 | `Tab` | Switch between the library and the queue |
-| `q` | Back; quits at Music |
+| `q` | Quit, from any screen |
 | `Ctrl+G` | Hide or show the key bar |
 
 Selecting a track replaces the queue with its album or playlist and starts playing there. The bar at the bottom lists the keys of the view you're in; the full lists, the queue's included, are in [docs/ddmus/navigation.md](docs/ddmus/navigation.md).

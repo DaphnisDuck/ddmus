@@ -48,8 +48,8 @@ The bar at the bottom of each view lists every key that works there, and only th
 | `g` `G` / `Home` `End` | Top / bottom |
 | `Ctrl+D` `Ctrl+U` / `PgDn` `PgUp` | Page down / up |
 | `l` `Enter` `→` | Open, or play |
-| `h` `Esc` `Backspace` `←` | Back |
-| `q` | Back; quits at Music |
+| `h` `Esc` `Backspace` `←` | Back; at Music, nothing |
+| `q` | Quit |
 | `/` | Search |
 | `r` | Sync the source you're browsing now (everything, at Music) |
 | `o` | In an Albums list, switch between sorting by title and by artist |
@@ -63,7 +63,7 @@ The bar at the bottom of each view lists every key that works there, and only th
 
 On an error screen, Enter retries. When Spotify needs you to sign in, Enter starts sign-in in your browser and reloads once it finishes.
 
-In search results, `/`, `Esc` and `h` return to the query and `q` goes back; while typing, Enter or Tab moves to the results, `Esc` closes search and `Ctrl+U` clears the query. See [search.md](search.md).
+In search results, `/`, `Esc` and `h` return to the query; while typing, Enter or Tab moves to the results, `Esc` closes search and `Ctrl+U` clears the query. See [search.md](search.md).
 
 ### Queue
 
@@ -94,7 +94,9 @@ In search results, `/`, `Esc` and `h` return to the query and `q` goes back; whi
 | `q` | Quit |
 | `Ctrl+G` | Hide or show the key bar |
 
-Track info, lyrics, Up next and Jump open over the queue; `Esc` returns to it. `r` means repeat in the queue and sync in the library.
+Track info, lyrics, Up next and Jump open over the queue; `Esc` returns to it.
+
+`q` quits ddmus at once from every library screen, the queue, and the overlays over it; only where you are typing (search, the queue filter, Jump) is it a letter. `Esc` always goes back one step (overlay → queue → Library, results → query → closed search, a list → its parent) and never quits. `r` means repeat in the queue and sync in the library.
 
 The settings panel shows the queue's settings: **SRC** is the playing track's source (`[Spotify]`, `[YouTube]`, `[Local]`, `[Radio]`), then volume, EQ, shuffle, repeat and speed. It is display only; the keys above change it. For a track the library didn't start (a file or URL given on the command line, the file browser, a provider's own search), SRC shows what the track's path tells, or nothing.
 

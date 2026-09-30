@@ -26,6 +26,11 @@ import (
 // entries than YouTube reported, usually because it changed mid-read.
 var ErrIncomplete = errors.New("youtube: playlist changed while reading")
 
+// errUnclassified means a playlist has no video to sample yet (it is empty,
+// or every sampled video refuses a read). Its playlist is left out and not
+// cached, so a later sync tries again.
+var errUnclassified = errors.New("no readable video to classify")
+
 // notOwnLists are account lists that are never synced as playlists: Watch
 // later, Liked videos (all liked videos, music or not), and Liked Music,
 // which is synced as the liked collection.
@@ -90,14 +95,20 @@ func (c *CookieCatalog) PlaylistRecords(ctx context.Context) ([]catalog.Playlist
 	for _, l := range lists {
 		isMusic, known := music[l.id]
 		if !known {
-			if isMusic, err = c.isMusic(ctx, l.id); err != nil {
-				if ctx.Err() != nil {
-					return nil, ctx.Err()
-				}
+			isMusic, err = c.isMusic(ctx, l.id)
+			if errors.Is(err, errUnclassified) {
 				// Left out, and not cached, until a later sync can tell;
 				// one unreadable playlist must not fail the others.
 				applog.Info("youtube: cannot classify playlist %q yet: %v", l.title, err)
 				continue
+			}
+			if err != nil {
+				// A rate limit or failed read fails the collection, so the
+				// sync keeps the playlists it has; answers so far are kept.
+				if changed {
+					saveClassification(scope, music)
+				}
+				return nil, fmt.Errorf("youtube: classify playlist %q: %w", l.title, err)
 			}
 			music[l.id], changed = isMusic, true
 		}
@@ -114,8 +125,8 @@ func (c *CookieCatalog) PlaylistRecords(ctx context.Context) ([]catalog.Playlist
 // isMusic samples a playlist's first readable video, of its first five, and
 // reports whether YouTube files it under Music. A video listed as playable
 // can still refuse a full read (blocked in this region, say), so a refused
-// one passes to the next. A playlist with no video is not music; one whose
-// videos all refuse is an error.
+// one passes to the next. A playlist with no readable video fails with
+// errUnclassified.
 func (c *CookieCatalog) isMusic(ctx context.Context, playlistID string) (bool, error) {
 	out, err := c.ytdlp(ctx, playlistURL(playlistID), "--flat-playlist", "-J", "--playlist-end", "5")
 	if err != nil {
@@ -127,14 +138,12 @@ func (c *CookieCatalog) isMusic(ctx context.Context, playlistID string) (bool, e
 	if err := json.Unmarshal(out, &pl); err != nil {
 		return false, fmt.Errorf("parse playlist: %w", err)
 	}
-	lastErr := error(nil)
 	for _, e := range pl.Entries {
 		if _, ok := e.record(); !ok {
 			continue
 		}
 		out, err := c.ytdlp(ctx, watchURL(e.ID), "-j", "--skip-download")
 		if errors.Is(err, catalog.ErrForbidden) {
-			lastErr = err
 			continue
 		}
 		if err != nil {
@@ -148,7 +157,7 @@ func (c *CookieCatalog) isMusic(ctx context.Context, playlistID string) (bool, e
 		}
 		return slices.Contains(video.Categories, "Music"), nil
 	}
-	return false, lastErr
+	return false, errUnclassified
 }
 
 // PlaylistRecord returns one playlist, by ID, without tracks: for a
@@ -321,6 +330,14 @@ func runYTDLP(ctx context.Context, args ...string) ([]byte, error) {
 	return nil, ytdlpError(stderr.String(), err)
 }
 
+// refusals are yt-dlp messages, lowercased, for a playlist or video that
+// cannot be read however often it is tried.
+var refusals = []string{
+	"does not exist", "playlist is private", "private video", "not available",
+	"video unavailable", "confirm your age", "members-only", "members on level",
+	"not made this video available", "blocked it",
+}
+
 // ytdlpError turns yt-dlp's stderr into an error.
 func ytdlpError(stderr string, cause error) error {
 	msg := ""
@@ -336,9 +353,10 @@ func ytdlpError(stderr string, cause error) error {
 	if strings.Contains(lower, "not a bot") || strings.Contains(lower, "http error 429") {
 		return fmt.Errorf("yt-dlp: %s: %w", msg, &catalog.RateLimitError{})
 	}
-	if strings.Contains(lower, "does not exist") || strings.Contains(lower, "playlist is private") ||
-		strings.Contains(lower, "not available") || strings.Contains(lower, "video unavailable") {
-		return fmt.Errorf("yt-dlp: %s: %w", msg, catalog.ErrForbidden)
+	for _, refused := range refusals {
+		if strings.Contains(lower, refused) {
+			return fmt.Errorf("yt-dlp: %s: %w", msg, catalog.ErrForbidden)
+		}
 	}
 	return fmt.Errorf("yt-dlp: %s", msg)
 }

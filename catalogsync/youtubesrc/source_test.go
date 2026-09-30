@@ -141,7 +141,7 @@ func TestUnchangedMarkerSkipsTracks(t *testing.T) {
 }
 
 // Signed in both ways: liked through OAuth, playlists through cookies, and
-// liked through cookies when OAuth needs signing in.
+// liked through cookies when OAuth needs signing in or refuses.
 func TestMixedReadsEachCollectionItsBestWay(t *testing.T) {
 	ctx := context.Background()
 	oauth := &fakeClient{liked: []catalog.TrackRecord{track("v1", "From OAuth")}, listErr: errors.New("oauth lists nothing")}
@@ -164,6 +164,16 @@ func TestMixedReadsEachCollectionItsBestWay(t *testing.T) {
 	if liked, err := m.LikedTrackRecords(ctx); err != nil || liked[0].Title != "From cookies" {
 		t.Errorf("liked when signed out = %+v, %v; want cookies'", liked, err)
 	}
+	m.OAuth = &refuses{}
+	if liked, err := m.LikedTrackRecords(ctx); err != nil || liked[0].Title != "From cookies" {
+		t.Errorf("liked when OAuth refuses = %+v, %v; want cookies'", liked, err)
+	}
+}
+
+type refuses struct{ fakeClient }
+
+func (*refuses) LikedTrackRecords(context.Context) ([]catalog.TrackRecord, error) {
+	return nil, fmt.Errorf("youtube: playlist LM: quotaExceeded: %w", catalog.ErrForbidden)
 }
 
 type needsAuth struct{ fakeClient }

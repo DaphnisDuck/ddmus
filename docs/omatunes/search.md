@@ -1,6 +1,6 @@
 # Search
 
-Press `/` anywhere in the library to search everything the catalog holds: your Spotify library, your local music and your radio stations. Results appear as you type, and search works offline. On a library of 26,000 local tracks and 4,800 albums, typing a query took about 2 ms per keystroke typically and under 30 ms at worst (for two-letter prefixes such as "th").
+Press `/` anywhere in the library to search everything the catalog holds: your Spotify and YouTube Music libraries, your local music and your radio stations. Results appear as you type, and search works offline. On a library of 26,000 local tracks and 4,800 albums, typing a query took about 2 ms per keystroke typically and under 30 ms at worst (for two-letter prefixes such as "th").
 
 ## Keys
 
@@ -34,7 +34,7 @@ Opening a result works exactly as it does while browsing: an album opens its tra
 
 Search reads only the catalog, so it never waits on the network. Two rows at the end reach outside it when you choose them:
 
-- **Search Spotify for "…"** opens Spotify's own live search with your query already running. There you can find music you haven't saved, and add it to a playlist.
+- **Search Spotify for "…"** (and the same for any source that can search live, such as YouTube Music signed in with cookies only) opens that service's own search with your query already running. There you can find music you haven't saved, and add it to a playlist.
 - **Search the radio directory for "…"** lists matching stations from the Radio Browser directory (about 58,000 stations).
 
 ## Query language
@@ -46,7 +46,7 @@ Search reads only the catalog, so it never waits on the network. Two rows at the
 | `"new world"` | The words in order |
 | `artist:ozawa` | Only in the artist field (also `album:`, `title:`, `genre:`) |
 | `album:"the planets"` | A phrase in one field |
-| `source:local` | Only one source: `spotify`, `local` or `radio` (also `provider:`) |
+| `source:local` | Only one source: `spotify`, `youtube`, `local` or `radio` (also `provider:`) |
 | `type:album` | Only one kind: `artist`, `album`, `track`, `playlist` or `station` |
 
 Everything must match. A single letter matches only a whole word: prefix matching starts at the second letter, where the results become useful. An operator you type half-way (`artist:`) is ignored until it has a value, and anything that isn't an operator is searched as text.

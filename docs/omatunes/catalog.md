@@ -5,6 +5,7 @@ omatunes keeps your Spotify library and an index of your local music folder in o
 ## What it holds
 
 - **Spotify:** saved albums, followed artists, liked songs, and the playlists you own or follow, with their tracks. Album track lists are cached as you open albums, and in the background for the rest of your saved albums.
+- **YouTube Music:** your music playlists (and those listed in `youtube_playlists`) with their tracks, and Liked Music. Each track's artist, album and year is read in the background, which gives YouTube its Albums and Artists; an album holds only the tracks of it you have. See [youtube.md](youtube.md).
 - **Local:** every audio file under the music folder, grouped into albums, artists and genres. The folder is `initial_directory` in `config.toml`, else `$XDG_MUSIC_DIR`, else `~/Music`.
 - **Radio:** your favorite stations and the built-in and `radios.toml` stations, so [search](search.md) finds them. They are read from local files at every start and whenever you star or unstar a station. Browsing Radio still reads them directly.
 - **Search index:** a full-text index of everything above, kept in step with every change. See [search.md](search.md).
@@ -17,6 +18,7 @@ No passwords or tokens are stored in the catalog. Spotify credentials stay in `~
 | Source | At startup | On `r` | After a failure |
 |---|---|---|---|
 | Spotify | if the last successful sync is older than `spotify_refresh` (30 minutes by default) | yes | retries after 1 minute, doubling up to every 30 minutes |
+| YouTube Music | if the last successful sync is older than `youtube_refresh` (2 hours by default) | yes | the same retries |
 | Local | always; only files whose size or modification time changed are read again | yes | the same retries |
 
 `r` syncs the source you're browsing. At the Music root it syncs every source. Syncs run in the background, and the screen refreshes in place when one lands, keeping the cursor on the same item.
@@ -48,6 +50,8 @@ In `~/.config/omatunes/config.toml`:
 ```toml
 [omatunes]
 spotify_refresh = "30m"   # sync Spotify at startup if the last sync is older than this; "0s" syncs every time
+youtube_refresh = "2h"    # the same for YouTube Music
+youtube_playlists = []    # other people's YouTube playlists to sync, by link (see youtube.md)
 ```
 
 Durations use Go's format: `90s`, `30m`, `2h`. An invalid value keeps the default.

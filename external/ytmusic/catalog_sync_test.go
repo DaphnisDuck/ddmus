@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -23,40 +24,63 @@ type fakeYTDLP struct {
 	playlists map[string]map[string]any // playlist ID → -J output
 	videos    map[string][]string       // video ID → categories
 	blocked   map[string]bool           // video IDs whose full read is refused
+	botCheck  bool                      // every video read meets a bot check
 	runs      []string
 }
 
 func (f *fakeYTDLP) run(_ context.Context, args ...string) ([]byte, error) {
-	url := args[len(args)-1]
+	u := args[len(args)-1]
 	f.mu.Lock()
-	f.runs = append(f.runs, url)
+	f.runs = append(f.runs, u)
 	f.mu.Unlock()
 	if !slices.Contains(args, "--cookies-from-browser") {
 		return nil, errors.New("no cookies passed")
 	}
 	switch {
-	case strings.HasSuffix(url, "/feed/playlists"):
+	case strings.HasSuffix(u, "/feed/playlists"):
 		var lines []string
 		for _, e := range f.feed {
 			b, _ := json.Marshal(e)
 			lines = append(lines, string(b))
 		}
 		return []byte(strings.Join(lines, "\n") + "\n"), nil
-	case strings.Contains(url, "playlist?list="):
-		id := url[strings.Index(url, "list=")+5:]
+	case strings.Contains(u, "playlist?list="):
+		id, err := queryParam(u, "list")
+		if err != nil {
+			return nil, err
+		}
 		pl, ok := f.playlists[id]
 		if !ok {
 			return nil, ytdlpError("ERROR: [youtube:tab] "+id+": The playlist does not exist.", errors.New("exit 1"))
 		}
 		return json.Marshal(pl)
-	case strings.Contains(url, "watch?v="):
-		id := url[strings.Index(url, "v=")+2:]
+	case strings.Contains(u, "watch?v="):
+		id, err := queryParam(u, "v")
+		if err != nil {
+			return nil, err
+		}
+		if f.botCheck {
+			return nil, ytdlpError("ERROR: [youtube] "+id+": Sign in to confirm you're not a bot", errors.New("exit 1"))
+		}
 		if f.blocked[id] {
 			return nil, ytdlpError("ERROR: [youtube] "+id+": Video unavailable. It was blocked due to the claimed content", errors.New("exit 1"))
 		}
 		return json.Marshal(map[string]any{"id": id, "categories": f.videos[id]})
 	}
-	return nil, fmt.Errorf("unexpected url %s", url)
+	return nil, fmt.Errorf("unexpected url %s", u)
+}
+
+// queryParam is the non-empty query parameter key of a yt-dlp URL.
+func queryParam(u, key string) (string, error) {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return "", err
+	}
+	v := parsed.Query().Get(key)
+	if v == "" {
+		return "", fmt.Errorf("url %s has no %s", u, key)
+	}
+	return v, nil
 }
 
 func (f *fakeYTDLP) count(prefix string) int {
@@ -121,13 +145,19 @@ func TestCookiePlaylistRecordsClassifiesOnce(t *testing.T) {
 			t.Errorf("%s was read", id)
 		}
 	}
-	// Classification is cached: a second listing samples nothing.
+	// Classification is cached: a second listing samples only the empty
+	// playlist again, which could not be told yet.
 	before := len(f.runs)
 	if _, err := c.PlaylistRecords(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if got := len(f.runs) - before; got != 1 {
-		t.Errorf("second listing ran yt-dlp %d times, want only the feed", got)
+	if got := len(f.runs) - before; got != 2 || f.count("list=PLempty") != 2 {
+		t.Errorf("second listing ran yt-dlp %d times (%v), want the feed and Nothing Yet", got, f.runs)
+	}
+	// Once it has a music video, it is listed.
+	f.playlists["PLempty"] = map[string]any{"playlist_count": 1, "entries": []map[string]any{entry("v1", "Libertango", "Astor Piazzolla Oficial", "UCpiaz", 246)}}
+	if lists, err := c.PlaylistRecords(context.Background()); err != nil || len(lists) != 2 {
+		t.Errorf("after adding a song: %+v, %v", lists, err)
 	}
 }
 
@@ -172,6 +202,10 @@ func TestYTDLPError(t *testing.T) {
 		{"WARNING: x\nERROR: [youtube:tab] PLx: The playlist does not exist.", true, "does not exist"},
 		{"ERROR: [youtube:tab] PLx: This playlist is private", true, "private"},
 		{"ERROR: [youtube:tab] playlists: HTTP Error 401: Unauthorized", false, "401"},
+		{"ERROR: [youtube] x: Sign in to confirm your age. This video may be inappropriate for some users.", true, "age"},
+		{"ERROR: [youtube] x: Join this channel to get access to members-only content like this video", true, "members"},
+		{"ERROR: [youtube] x: The uploader has not made this video available in your country", true, "country"},
+		{"ERROR: [youtube] x: Private video. Sign in if you've been granted access to this video", true, "Private"},
 		{"", false, "exit 1"},
 	}
 	for _, tt := range tests {
@@ -206,6 +240,21 @@ func TestCookieClassificationSkipsRefusedVideos(t *testing.T) {
 	}
 }
 
+// A bot check while classifying fails the listing, so a sync keeps the
+// playlists it has, and caches nothing it could not tell.
+func TestCookieClassificationRateLimited(t *testing.T) {
+	c, f := newFakeCatalog(t)
+	f.botCheck = true
+	var rl *catalog.RateLimitError
+	if _, err := c.PlaylistRecords(context.Background()); !errors.As(err, &rl) {
+		t.Fatalf("PlaylistRecords = %v, want a rate limit", err)
+	}
+	f.botCheck = false
+	if lists, err := c.PlaylistRecords(context.Background()); err != nil || len(lists) != 1 || lists[0].Name != "Road Trip" {
+		t.Errorf("after the bot check: %+v, %v", lists, err)
+	}
+}
+
 func TestCookiePlaylistRecord(t *testing.T) {
 	c, f := newFakeCatalog(t)
 	f.playlists["PLsaved"] = map[string]any{"title": "Good soup", "playlist_count": 14, "entries": []map[string]any{entry("g1", "GO!", "CORTIS", "UCc", 180)}}
@@ -226,8 +275,11 @@ func TestCookieTrackMetadata(t *testing.T) {
 		"duet": {"track": "Duet", "artist": "A, B"},
 	}
 	c.run = func(_ context.Context, args ...string) ([]byte, error) {
-		url := args[len(args)-1]
-		switch id := url[strings.Index(url, "v=")+2:]; id {
+		id, err := queryParam(args[len(args)-1], "v")
+		if err != nil {
+			return nil, err
+		}
+		switch id {
 		case "blocked":
 			return nil, ytdlpError("ERROR: [youtube] blocked: Video unavailable", errors.New("exit 1"))
 		case "bot":

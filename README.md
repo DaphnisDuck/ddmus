@@ -1,6 +1,6 @@
 # Omatunes
 
-**Version 0.3**
+**Version 0.4**
 
 Omatunes is a retro terminal music player built around your library rather than around providers. It is a fork of [cliamp](https://github.com/bjarneo/cliamp) by Bjarne Øverli, made with love and a lot of respect for the original.
 
@@ -12,10 +12,11 @@ You shouldn't have to remember where your music lives. Omatunes organises everyt
 
 ```
 Music
-├── All Music Albums · Artists (every source together)
-├── Spotify   Albums · Artists · Playlists · Liked Songs
-├── Local     Albums · Artists · Genres · Folders · Playlists
-├── Radio     Favorites · Browse Stations
+├── All Music      Albums · Artists (every source together)
+├── Spotify        Albums · Artists · Playlists · Liked Songs
+├── YouTube Music  Albums · Artists · Playlists · Liked Music
+├── Local          Albums · Artists · Genres · Folders · Playlists
+├── Radio          Favorites · Browse Stations
 └── Search
 ```
 
@@ -23,20 +24,21 @@ The application owns navigation; providers own content and playback. The roadmap
 
 1. **Library navigation** (v0.1): the hierarchy above for Spotify, local files and internet radio, with vim-style keys, sitting above cliamp's existing now-playing, queue, EQ and visualizer.
 2. **Persistent catalog** (v0.2): a local SQLite catalog of your Spotify library and music folder that syncs in the background, so browsing a large library is instant and works offline.
-3. **Unified search** (v0.3, this release): search-as-you-type across Spotify, local files and your radio stations at once, offline, plus an All Music menu that lists every source's albums and artists together.
-4. **More providers**: bring cliamp's other providers (YouTube Music, Plex, Jellyfin, Navidrome, …) into the catalog.
+3. **Unified search** (v0.3): search-as-you-type across Spotify, local files and your radio stations at once, offline, plus an All Music menu that lists every source's albums and artists together.
+4. **More providers**, one per release: **YouTube Music** (v0.4, this release) syncs your playlists and Liked Music, with albums and artists read in the background; Plex, Jellyfin, Navidrome and cliamp's other providers can follow.
 
 The full plan lives in [plan.md](plan.md).
 
 ## Status
 
-v0.3 is an early release for people comfortable building from source.
+v0.4 is an early release for people comfortable building from source.
 
-- **In the Music hierarchy:** Spotify, local files and internet radio.
+- **In the Music hierarchy:** Spotify, YouTube Music, local files and internet radio.
+- **YouTube Music:** your music playlists and Liked Music sync into the catalog (browser cookies or your own Google OAuth client, as in cliamp), and each track's artist, album and year is read in the background, giving YouTube Albums and Artists too. See [docs/omatunes/youtube.md](docs/omatunes/youtube.md).
 - **Catalog:** Spotify and Local browsing read from a local catalog, so lists open instantly and work offline. Spotify syncs in the background, and album track lists are cached as you open albums and, gradually, for the rest of your saved albums. The local music folder is re-indexed at every start, rereading only changed files. See [docs/omatunes/catalog.md](docs/omatunes/catalog.md).
-- **Search:** `/` from anywhere searches the whole catalog as you type, with operators like `artist:`, `album:` and `source:local`. Enter on a track plays its album from that track, and rows at the end run a live Spotify or radio-directory search. See [docs/omatunes/search.md](docs/omatunes/search.md).
-- **All Music:** Music → All Music lists albums and artists from Spotify and Local together, each labelled with its source. Albums sort by title; `o` sorts them by artist.
-- **Hidden for now:** cliamp's other providers (podcasts, YouTube, SoundCloud, Mixcloud, Navidrome, Plex, Jellyfin, Emby, Qobuz, Tidal, and more) are still in the code but have no entry in the menu yet. They come back in milestone 4.
+- **Search:** `/` from anywhere searches the whole catalog as you type, with operators like `artist:`, `album:` and `source:local`. Enter on a track plays its album from that track, and rows at the end run a source's own live search or a radio-directory search. See [docs/omatunes/search.md](docs/omatunes/search.md).
+- **All Music:** Music → All Music lists albums and artists from Spotify, YouTube Music and Local together, each labelled with its source. Albums sort by title; `o` sorts them by artist.
+- **Hidden for now:** cliamp's other providers (podcasts, non-music YouTube, SoundCloud, Mixcloud, Navidrome, Plex, Jellyfin, Emby, Qobuz, Tidal, and more) are still in the code but have no entry in the menu yet. They come back one per release.
 - **Disabled keys:** most of cliamp's jump keys (provider switching, theme and visualizer pickers, file browser and similar) are turned off while the new navigation settles. See [docs/omatunes/navigation.md](docs/omatunes/navigation.md).
 - **Runs alongside cliamp:** Omatunes keeps its own config, data and media-key (MPRIS) name, so you can install both. See [docs/omatunes/files.md](docs/omatunes/files.md).
 
@@ -71,7 +73,7 @@ Without Make: `go build -o omatunes .`
 **Optional runtime dependencies**
 
 - [ffmpeg](https://ffmpeg.org/) for AAC, ALAC, Opus and WMA playback
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for the YouTube-family providers (not yet in the Omatunes menu)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for YouTube Music
 
 Windows builds follow cliamp's instructions, which need MSYS2 and CGO for Spotify; see cliamp's README. They are untested for Omatunes.
 

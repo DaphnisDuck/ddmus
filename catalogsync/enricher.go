@@ -80,13 +80,19 @@ func (e *Enricher) Run(ctx context.Context) error {
 		if len(tracks) == 0 {
 			return nil
 		}
+		found := false
 		for _, t := range tracks {
-			if err := e.enrich(ctx, t, &st); err != nil {
+			ok, err := e.enrich(ctx, t, &st)
+			if err != nil {
 				return fmt.Errorf("enrich %s: %q: %w", provider, t.Title, err)
 			}
+			found = found || ok
 		}
-		if err := e.refresh(ctx); err != nil {
-			return err
+		// A batch that found nothing changed no album or artist.
+		if found {
+			if err := e.refresh(ctx); err != nil {
+				return err
+			}
 		}
 	}
 }
@@ -102,11 +108,11 @@ func (e *Enricher) refresh(ctx context.Context) error {
 }
 
 // enrich reads one track, retrying it through rate limits and passing
-// failures.
-func (e *Enricher) enrich(ctx context.Context, t catalog.Track, st *fillState) error {
+// failures, and reports whether it found music details.
+func (e *Enricher) enrich(ctx context.Context, t catalog.Track, st *fillState) (bool, error) {
 	for {
 		if err := e.waitIdle(ctx); err != nil {
-			return err
+			return false, err
 		}
 		meta, err := e.src.TrackMetadata(ctx, t.Ref)
 		if errors.Is(err, catalog.ErrForbidden) {
@@ -119,20 +125,20 @@ func (e *Enricher) enrich(ctx context.Context, t catalog.Track, st *fillState) e
 		switch {
 		case err == nil, errors.Is(err, catalog.ErrNotFound): // gone since listing
 			st.backoff, st.failures = 0, 0
-			return e.sleep(ctx, e.pace.Delay)
+			return err == nil && meta.Found(), e.sleep(ctx, e.pace.Delay)
 		case ctx.Err() != nil:
-			return ctx.Err()
+			return false, ctx.Err()
 		case errors.As(err, &rl):
 			if err := e.sleep(ctx, max(st.next(e.pace), rl.RetryAfter)); err != nil {
-				return err
+				return false, err
 			}
 		default:
 			st.failures++
 			if st.failures >= e.pace.MaxFailures {
-				return err
+				return false, err
 			}
 			if err := e.sleep(ctx, st.next(e.pace)); err != nil {
-				return err
+				return false, err
 			}
 		}
 	}

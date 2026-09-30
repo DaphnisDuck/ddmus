@@ -166,11 +166,11 @@ func (m Mixed) PlaylistTrackRecords(ctx context.Context, playlistID string) ([]c
 }
 
 // LikedTrackRecords implements Client through OAuth, or cookies when OAuth
-// needs signing in.
+// needs signing in or refuses (its daily quota spent, say).
 func (m Mixed) LikedTrackRecords(ctx context.Context) ([]catalog.TrackRecord, error) {
 	tracks, err := m.OAuth.LikedTrackRecords(ctx)
-	if errors.Is(err, playlist.ErrNeedsAuth) {
-		applog.Info("youtube: OAuth needs signing in again; reading Liked Music through cookies")
+	if errors.Is(err, playlist.ErrNeedsAuth) || errors.Is(err, catalog.ErrForbidden) {
+		applog.Info("youtube: reading Liked Music through cookies: %v", err)
 		return m.Cookies.LikedTrackRecords(ctx)
 	}
 	return tracks, err

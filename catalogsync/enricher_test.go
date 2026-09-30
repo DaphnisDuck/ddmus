@@ -92,6 +92,20 @@ func TestEnricherFillsTheLibrary(t *testing.T) {
 	}
 }
 
+// A batch that finds nothing refreshes nothing beyond the run's first
+// refresh.
+func TestEnricherSkipsEmptyRefresh(t *testing.T) {
+	_, src, e, _, changes := enricherSetup(t, "v1", "v2")
+	src.errs["v1"] = []error{catalog.ErrForbidden}
+	src.errs["v2"] = []error{catalog.ErrForbidden}
+	if err := e.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if *changes != 1 {
+		t.Errorf("refreshed %d times, want only at the start", *changes)
+	}
+}
+
 func TestEnricherGivesUp(t *testing.T) {
 	_, src, e, _, _ := enricherSetup(t, "v1")
 	down := errors.New("dial tcp: no route to host")

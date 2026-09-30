@@ -128,7 +128,8 @@ func openCatalog(sp *spotify.SpotifyProvider, rp *radio.Provider, cfg config.Con
 	}
 	if client := youtubeClient(cfg.YouTubeMusic); client != nil {
 		// Tracks are enriched with their artist, album and year through
-		// yt-dlp: with the browser's cookies when set, else anonymously.
+		// yt-dlp: with the browser's cookies when set, else (OAuth-only
+		// sign-in) anonymously.
 		meta := ytmusic.NewCookieCatalog(strings.TrimSpace(cfg.YouTubeMusic.CookiesFrom))
 		enricher := catalogsync.NewEnricher(rt.store, meta, enrichPacing, func() {
 			rt.notify(catalogsync.Event{Kind: catalogsync.CollectionDone, Provider: catalog.YouTube, Collection: catalog.CollectionDerived})
@@ -303,9 +304,10 @@ func (rt *catalogRuntime) refresh(provider string) {
 
 // sync starts a sync of provider in the background. A sync of a provider
 // with a background worker pauses it while it runs and runs it after, so
-// it covers what the sync brought. A sync already running makes it a no-op, except for a quiet
-// source: its sync is instant and follows a local change (a favorite
-// toggled), so the running sync runs once more to include it.
+// it covers what the sync brought. A sync already running makes it a
+// no-op, except for a quiet source: its sync is instant and follows a
+// local change (a favorite toggled), so the running sync runs once more
+// to include it.
 func (rt *catalogRuntime) sync(provider string) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()

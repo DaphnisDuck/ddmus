@@ -135,6 +135,32 @@ func TestOAuthPlaylistRecords(t *testing.T) {
 	}
 }
 
+// A failed sample fails the listing and caches nothing; an empty playlist
+// is left out uncached, so a later sync tries it again.
+func TestOAuthClassificationFailures(t *testing.T) {
+	c, f := newOAuthFixture(t)
+	f.playlists = append(f.playlists,
+		map[string]any{"id": "PLbroken", "etag": "e4", "snippet": map[string]any{"title": "Broken"}},
+		map[string]any{"id": "PLempty", "etag": "e5", "snippet": map[string]any{"title": "Nothing Yet"}})
+	f.items["PLempty"] = nil
+	if _, err := c.PlaylistRecords(context.Background()); err == nil {
+		t.Fatal("PlaylistRecords succeeded with an unreadable playlist")
+	}
+	if cached := loadClassification("oauth:test"); cached != nil {
+		t.Errorf("cached %v after a failed listing", cached)
+	}
+	f.playlists = f.playlists[:len(f.playlists)-2]
+	f.playlists = append(f.playlists, map[string]any{"id": "PLempty", "etag": "e5", "snippet": map[string]any{"title": "Nothing Yet"}})
+	lists, err := c.PlaylistRecords(context.Background())
+	if err != nil || len(lists) != 1 || lists[0].Name != "Road Trip" {
+		t.Fatalf("playlists = %+v, %v", lists, err)
+	}
+	cached := loadClassification("oauth:test")
+	if _, ok := cached["PLempty"]; ok || !cached["PLroad"] || cached["PLshows"] {
+		t.Errorf("cache = %v, want Road Trip music, Game Shows not, Nothing Yet unknown", cached)
+	}
+}
+
 func TestOAuthPlaylistTracks(t *testing.T) {
 	c, _ := newOAuthFixture(t)
 	tracks, err := c.PlaylistTrackRecords(context.Background(), "PLroad")

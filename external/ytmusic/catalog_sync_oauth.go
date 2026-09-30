@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"google.golang.org/api/googleapi"
@@ -40,13 +41,14 @@ func NewOAuthCatalog(clientID, clientSecret string) *OAuthCatalog {
 func (c *OAuthCatalog) silentService(ctx context.Context) (*youtube.Service, string, error) {
 	sess, err := NewSessionSilent(ctx, c.clientID, c.clientSecret)
 	if err != nil {
-		return nil, "", fmt.Errorf("youtube: %v: %w", err, playlist.ErrNeedsAuth)
+		return nil, "", fmt.Errorf("youtube: %w: %w", playlist.ErrNeedsAuth, err)
 	}
 	return sess.Service(), sess.cacheScope, nil
 }
 
 // PlaylistRecords returns the account's music playlists, without tracks,
-// classified as in cliamp's OAuth mode. Snapshot is the item count and the
+// classified as in cliamp's OAuth mode by a sampled video's category.
+// Snapshot is the item count and the
 // playlist's etag, so an unchanged playlist is not reread.
 func (c *OAuthCatalog) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistRecord, error) {
 	svc, scope, err := c.service(ctx)
@@ -81,11 +83,14 @@ func (c *OAuthCatalog) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistR
 			break
 		}
 	}
-	entries := make([]playlistEntry, len(all))
+	ids := make([]string, len(all))
 	for i, l := range all {
-		entries[i] = l.entry
+		ids[i] = l.entry.ID
 	}
-	music := classifyPlaylists(ctx, svc, entries, nil, scope)
+	music, err := classifyForSync(ctx, svc, ids, scope)
+	if err != nil {
+		return nil, err
+	}
 	var records []catalog.PlaylistRecord
 	for _, l := range all {
 		if music[l.entry.ID] {
@@ -96,6 +101,52 @@ func (c *OAuthCatalog) PlaylistRecords(ctx context.Context) ([]catalog.PlaylistR
 		}
 	}
 	return records, nil
+}
+
+// classifyForSync reports which playlists are music, sharing cliamp's
+// cache. Unlike cliamp's classifyPlaylists, a failed read is an error, so a
+// sync keeps the playlists it has, and a playlist with no video to sample
+// (empty, say) is left out uncached, so a later sync tries again.
+func classifyForSync(ctx context.Context, svc *youtube.Service, ids []string, scope string) (map[string]bool, error) {
+	music := loadClassification(scope)
+	if music == nil {
+		music = map[string]bool{}
+	}
+	sampled := map[string]string{} // video ID → playlist ID
+	var videos []string
+	for _, id := range ids {
+		if _, known := music[id]; known {
+			continue
+		}
+		resp, err := svc.PlaylistItems.List([]string{"contentDetails"}).PlaylistId(id).MaxResults(1).Context(ctx).Do()
+		if err != nil {
+			return nil, fmt.Errorf("youtube: classify playlist %s: %w", id, apiError(err))
+		}
+		if len(resp.Items) == 0 || resp.Items[0].ContentDetails == nil || resp.Items[0].ContentDetails.VideoId == "" {
+			continue
+		}
+		v := resp.Items[0].ContentDetails.VideoId
+		sampled[v] = id
+		videos = append(videos, v)
+	}
+	if len(videos) == 0 {
+		return music, nil
+	}
+	for batch := range slices.Chunk(videos, youtubeAPIBatchSize) {
+		resp, err := svc.Videos.List([]string{"snippet"}).Id(batch...).Context(ctx).Do()
+		if err != nil {
+			return nil, fmt.Errorf("youtube: classify playlists: %w", err)
+		}
+		// A sampled video the API no longer returns leaves its playlist
+		// unknown.
+		for _, v := range resp.Items {
+			if id, ok := sampled[v.Id]; ok && v.Snippet != nil {
+				music[id] = v.Snippet.CategoryId == musicCategoryID
+			}
+		}
+	}
+	saveClassification(scope, music)
+	return music, nil
 }
 
 // PlaylistRecord returns one playlist, by ID, without tracks: for a
@@ -175,6 +226,7 @@ func (c *OAuthCatalog) playlistTracks(ctx context.Context, playlistID string) ([
 	}
 	// Durations are a separate call per 50 videos; one that fails leaves
 	// its tracks' durations unknown rather than failing the playlist.
+	// fetchDurations never reads its receiver, so a nil one serves.
 	durations := (*baseProvider)(nil).fetchDurations(ctx, svc, items)
 	for i := range tracks {
 		tracks[i].Duration = time.Duration(durations[tracks[i].Ref.ProviderID]) * time.Second

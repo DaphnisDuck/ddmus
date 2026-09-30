@@ -93,6 +93,7 @@ var (
 		{[]string{"shift+up", "shift+down"}, "Shift ↑ ↓", "Reorder"},
 		{[]string{"ctrl+z"}, "Ctrl+Z", "Undo"},
 		{[]string{"e"}, "e", "EQ"},
+		{[]string{"v"}, "v", "Visualizer"},
 		{[]string{"[", "]"}, "[ ]", "Speed"},
 		{[]string{"i"}, "i", "Info"},
 		{[]string{"y"}, "y", "Lyrics"},

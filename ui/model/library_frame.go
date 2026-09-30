@@ -36,10 +36,13 @@ func (m Model) libBorderOn(l frameLayout) bool {
 // row under the border.
 func (m Model) libFrameStyle() lipgloss.Style {
 	l := m.layout
+	// ui.FrameStyle is global: clear what an earlier layout set on it.
+	s := ui.FrameStyle.UnsetBorderStyle().UnsetBorderTop().UnsetBorderRight().UnsetBorderBottom().UnsetBorderLeft().
+		UnsetBorderForeground().UnsetHeight()
 	if !m.libraryEnabled() {
-		return ui.FrameStyle.Padding(l.paddingV, l.paddingH) // cliamp's frame, as before
+		return s.Padding(l.paddingV, l.paddingH) // cliamp's frame, as before
 	}
-	s := ui.FrameStyle.Border(lipgloss.RoundedBorder(), l.border).BorderForeground(ui.ColorDim).Height(0)
+	s = s.Border(lipgloss.RoundedBorder(), l.border).BorderForeground(ui.ColorDim)
 	if l.border {
 		return s.Padding(l.paddingV-1, l.paddingH-1).Height(m.height)
 	}

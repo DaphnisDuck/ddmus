@@ -423,6 +423,9 @@ func (m *Model) advanceTitleScroll(now time.Time) {
 }
 
 func (m Model) renderTierHelp() string {
+	if bar, ok := m.libKeyBar(ui.PanelWidth); ok { // ddmus: the library views' wrapped key bar
+		return bar
+	}
 	if m.layout.tier != layoutMinimal {
 		return m.renderHelp()
 	}
@@ -712,7 +715,7 @@ func (m Model) renderControls() string {
 // pane is a request for playlist space.
 func (m Model) renderSourceVolume() string {
 	left := m.renderProviderPill()
-	if left == "" {
+	if left == "" && !m.libraryEnabled() { // ddmus: no source, no row
 		left = labelStyle.Render("SRC ") + dimStyle.Render("[") +
 			trackStyle.Render(m.providerName()) + dimStyle.Render("]")
 	}
@@ -753,6 +756,9 @@ func (m Model) providerName() string {
 }
 
 func (m Model) renderProviderPill() string {
+	if m.libraryEnabled() { // ddmus: the playing track's source (library_source.go)
+		return m.libSourcePill()
+	}
 	if len(m.providers) <= 1 {
 		return ""
 	}

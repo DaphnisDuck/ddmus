@@ -184,6 +184,9 @@ func (m *Model) recomputeLayout() {
 	if m.hideHelpBar && !simplified {
 		layout.fixedRows = max(0, layout.fixedRows-1)
 	}
+	if !m.hideHelpBar && !simplified { // ddmus: the library's key bar wraps
+		layout.fixedRows += m.libFitKeyBar(layout.panelWidth, height-2*paddingV-layout.fixedRows-layout.footerRows)
+	}
 	if layout.twoColumn && m.showMetadata && !m.visualizerDisabled() {
 		// Opening details can borrow visualizer rows, never hide direct settings.
 		// The configured height stays intact and returns when details close.

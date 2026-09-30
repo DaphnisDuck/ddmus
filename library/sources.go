@@ -46,21 +46,21 @@ func Root(src Sources) Level {
 	synced := map[string]bool{}
 	if src.Catalog != nil {
 		for _, s := range src.Synced {
-			entries = append(entries, Entry{Title: s.Title, Open: SyncedMenu(src.Catalog, s)})
+			entries = append(entries, Entry{Title: s.Title, Open: SyncedMenu(src.Catalog, s), Source: s.Provider})
 			synced[s.Provider] = true
 		}
 	}
 	// Without a catalog sync, Spotify browses live.
 	if src.Spotify != nil && !synced[catalog.Spotify] {
-		entries = append(entries, Entry{Title: "Spotify", Open: Spotify(src.Spotify)})
+		entries = append(entries, Entry{Title: "Spotify", Open: Spotify(src.Spotify), Source: catalog.Spotify})
 	}
 	if src.Catalog != nil && src.MusicDir != "" {
-		entries = append(entries, Entry{Title: "Local", Open: LocalCatalog(src.Catalog, src.Local, src.MusicDir)})
+		entries = append(entries, Entry{Title: "Local", Open: LocalCatalog(src.Catalog, src.Local, src.MusicDir), Source: catalog.Local})
 	} else if src.Local != nil {
-		entries = append(entries, Entry{Title: "Local", Open: local(src.Local)})
+		entries = append(entries, Entry{Title: "Local", Open: local(src.Local), Source: catalog.Local})
 	}
 	if src.Radio != nil || src.Channels != nil {
-		entries = append(entries, Entry{Title: "Radio", Open: radio(src.Radio, src.Channels)})
+		entries = append(entries, Entry{Title: "Radio", Open: radio(src.Radio, src.Channels), Source: catalog.Radio})
 	}
 	// With a catalog, Search is the unified search screen; without, the
 	// provider's own search.

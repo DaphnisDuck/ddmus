@@ -222,8 +222,8 @@ func TestLibraryOrderKey(t *testing.T) {
 	m := newLibraryModel(library.Menu("Music", library.Entry{Title: "Albums", Open: albums}))
 	m = libPress(t, m, "enter")
 	m = libPress(t, m, "j") // on B
-	if !strings.Contains(m.libHeaderLine(), "by title") || !strings.Contains(m.libHelpLine(), "Order") {
-		t.Errorf("header %q, help %q; want the order shown", m.libHeaderLine(), m.libHelpLine())
+	if !strings.Contains(m.libHeaderLine(), "by title") || !strings.Contains(m.renderTierHelp(), "Order") {
+		t.Errorf("header %q, help %q; want the order shown", m.libHeaderLine(), m.renderTierHelp())
 	}
 	m = libPress(t, m, "o")
 	f := m.libTop()

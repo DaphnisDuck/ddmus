@@ -204,6 +204,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if msg.String() == "ctrl+c" {
 		return m.quit()
 	}
+	if m.libraryDropsGlobalKey(msg.String()) { // ddmus: a library view's keys are its table's
+		return nil
+	}
 	if msg.String() == "ctrl+z" {
 		return m.undoPlaylistMutation()
 	}

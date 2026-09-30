@@ -181,7 +181,7 @@ func (s *catalogView) beyond(q catalog.Query) []Entry {
 		entries = append(entries, Entry{Section: beyondSection, Title: "Search the radio directory for “" + text + "”",
 			Open: TrackLevel("Radio directory", s.radioProv, func(context.Context) ([]playlist.Track, error) {
 				return st.SearchStationTracks(text)
-			})})
+			}), Source: catalog.Radio})
 	}
 	return entries
 }
@@ -197,6 +197,7 @@ func (s *catalogView) entry(r catalog.SearchResult) (e Entry, ok bool) {
 	case r.Playlist != nil && s.synced[r.Playlist.Ref.Provider] != nil:
 		e, ok = s.synced[r.Playlist.Ref.Provider].playlistEntry(*r.Playlist), true
 		e.Detail = joinDetail(SourceLabel(r.Playlist.Ref.Provider), e.Detail)
+		e.Source = r.Playlist.Ref.Provider
 	case r.Track != nil:
 		e, ok = s.trackRow(*r.Track, r.Kind == catalog.SearchStation), true
 	}
@@ -209,7 +210,7 @@ func (s *catalogView) entry(r catalog.SearchResult) (e Entry, ok bool) {
 // plays a station alone as a live stream.
 func (s *catalogView) trackRow(t catalog.Track, station bool) Entry {
 	track := PlayableTrack(t)
-	e := Entry{ID: catalogID(t.ID), Title: t.Title, Track: &track, PlayFrom: s.albumFrom(t)}
+	e := Entry{ID: catalogID(t.ID), Title: t.Title, Track: &track, PlayFrom: s.albumFrom(t), Source: t.Ref.Provider}
 	if station {
 		track.Stream, track.Realtime = true, true
 		e.PlayFrom = func(context.Context) ([]playlist.Track, int, error) {
@@ -232,6 +233,7 @@ func (s *catalogView) artistRow(a catalog.Artist) (Entry, bool) {
 		return Entry{}, false
 	}
 	e.Detail = SourceLabel(a.Ref.Provider)
+	e.Source = a.Ref.Provider
 	return e, true
 }
 
@@ -249,6 +251,7 @@ func (s *catalogView) albumRow(a catalog.Album) (Entry, bool) {
 	}
 	// The source comes first so a long credit cannot truncate it away.
 	e.Detail = joinDetail(SourceLabel(a.Ref.Provider), e.Detail)
+	e.Source = a.Ref.Provider
 	return e, true
 }
 

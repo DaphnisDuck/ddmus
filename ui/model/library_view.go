@@ -154,34 +154,11 @@ func syncAge(d time.Duration) string {
 	}
 }
 
+// libHelpLine is the library overlay's help piece. renderTierHelp draws the
+// key bar (library_keymap.go) before reaching it; this keeps the overlay whole.
 func (m *Model) libHelpLine() string {
-	if _, ok := m.libSearchLevel(); ok && m.lib.searchInput {
-		return fitHelpLine(strings.Join([]string{helpKey("Enter", "Results"), helpKey("Esc", "Close"),
-			helpKey("Ctrl+U", "Clear")}, " "))
-	}
-	parts := []string{helpKey("j/k", "Move"), helpKey("l", "Open")}
-	quit := helpKey("q", "Quit")
-	if len(m.lib.stack) > 1 {
-		parts = append(parts, helpKey("h", "Back"))
-		quit = helpKey("q", "Back")
-	}
-	if _, ok := m.libSearchLevel(); ok {
-		// In search results, / and h return to the query.
-		parts = []string{helpKey("j/k", "Move"), helpKey("l", "Open"), helpKey("/", "Edit"), helpKey("h", "Query")}
-		quit = helpKey("q", "Back")
-	} else {
-		parts = append(parts, helpKey("/", "Search"))
-	}
-	if _, ok := m.libTop().level.(library.OrderedLevel); ok {
-		// Before the hints that fitHelpLine trims first.
-		parts = append(parts, helpKey("o", "Order"))
-	}
-	parts = append(parts, helpKey("Space", "Pause"), helpKey("Tab", "Queue"))
-	if m.lib.refresh != nil {
-		parts = append(parts, helpKey("r", "Sync"))
-	}
-	parts = append(parts, quit)
-	return fitHelpLine(strings.Join(parts, " "))
+	bar, _ := m.libKeyBar(ui.PanelWidth)
+	return bar
 }
 
 func (m *Model) renderLibraryBody() string {

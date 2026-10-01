@@ -51,17 +51,31 @@ func (s *Store) Album(ctx context.Context, id int64) (catalog.Album, error) {
 	return albums[0], nil
 }
 
-// AlbumTracks implements catalog.Catalog.
+// afterAlbumCachedRead runs between AlbumTracks' two reads; tests replace it
+// to commit a write there.
+var afterAlbumCachedRead = func() {}
+
+// AlbumTracks implements catalog.Catalog. The cached flag and the tracks are
+// read in one transaction, so both come from the same snapshot even when a
+// sync commits in between. ReadOnly makes the driver begin a deferred
+// transaction rather than the DSN's BEGIN IMMEDIATE, so the read never takes
+// the write lock.
 func (s *Store) AlbumTracks(ctx context.Context, albumID int64) ([]catalog.Track, bool, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, false, fmt.Errorf("album %d: %w", albumID, err)
+	}
+	defer tx.Rollback()
 	var cached bool
-	err := s.db.QueryRowContext(ctx, `SELECT tracks_cached_at IS NOT NULL FROM albums WHERE id = ?`, albumID).Scan(&cached)
+	err = tx.QueryRowContext(ctx, `SELECT tracks_cached_at IS NOT NULL FROM albums WHERE id = ?`, albumID).Scan(&cached)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, fmt.Errorf("album %d: %w", albumID, catalog.ErrNotFound)
 	}
 	if err != nil {
 		return nil, false, fmt.Errorf("album %d: %w", albumID, err)
 	}
-	tracks, err := queryAll(ctx, s.db, scanTrack, `SELECT `+trackColumns+`
+	afterAlbumCachedRead()
+	tracks, err := queryAll(ctx, tx, scanTrack, `SELECT `+trackColumns+`
 		FROM tracks t LEFT JOIN albums al ON al.id = t.album_id
 		WHERE t.album_id = ?
 		ORDER BY t.disc, t.track_no, t.title`, albumID)
@@ -176,8 +190,13 @@ func (s *Store) SyncStatus(ctx context.Context, provider string) ([]catalog.Coll
 		FROM sync_state WHERE provider = ? ORDER BY collection`, provider)
 }
 
+// querier is a *sql.DB or a *sql.Tx.
+type querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
 // queryAll runs query and scans every row with scan.
-func queryAll[T any](ctx context.Context, db *sql.DB, scan func(*sql.Rows) (T, error), query string, args ...any) ([]T, error) {
+func queryAll[T any](ctx context.Context, db querier, scan func(*sql.Rows) (T, error), query string, args ...any) ([]T, error) {
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("catalog query: %w", err)

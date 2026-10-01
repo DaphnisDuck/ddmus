@@ -121,6 +121,57 @@ func TestAlbumTracks(t *testing.T) {
 	}
 }
 
+func TestAlbumTracksReadsOneSnapshot(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	apply(t, s, catalog.Snapshot{Collection: "albums", Albums: []catalog.AlbumRecord{
+		{Ref: sref("al1"), Title: "Symphonies"},
+	}})
+	albums, err := s.Albums(ctx, catalog.Spotify, catalog.ByTitle)
+	if err != nil || len(albums) != 1 {
+		t.Fatalf("Albums() = %v, %v", albums, err)
+	}
+	id := albums[0].ID
+
+	// A sync caches the album between the flag read and the track read.
+	t.Cleanup(func() { afterAlbumCachedRead = func() {} })
+	afterAlbumCachedRead = func() {
+		afterAlbumCachedRead = func() {}
+		err := s.CacheAlbumTracks(ctx, sref("al1"), []catalog.TrackRecord{
+			{Ref: sref("t1"), Title: "I.", Disc: 1, TrackNo: 1, PlayableURI: "spotify:track:t1"},
+		})
+		if err != nil {
+			t.Errorf("CacheAlbumTracks() = %v", err)
+		}
+	}
+	tracks, cached, err := s.AlbumTracks(ctx, id)
+	if err != nil || cached || len(tracks) != 0 {
+		t.Errorf("read across the sync: %d tracks, cached=%v, err=%v; want the album as it was before", len(tracks), cached, err)
+	}
+	tracks, cached, err = s.AlbumTracks(ctx, id)
+	if err != nil || !cached || len(tracks) != 1 {
+		t.Errorf("read after the sync: %d tracks, cached=%v, err=%v; want the cached track", len(tracks), cached, err)
+	}
+}
+
+func TestAlbumTracksDuringWrite(t *testing.T) {
+	s, ctx := seeded(t)
+	// A sync holds the write lock; reading an album must not wait for it.
+	w, err := s.wdb.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Rollback()
+	if _, err := w.ExecContext(ctx, `UPDATE albums SET title = title WHERE id = 10`); err != nil {
+		t.Fatal(err)
+	}
+	rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if tracks, cached, err := s.AlbumTracks(rctx, 10); err != nil || !cached || len(tracks) != 2 {
+		t.Errorf("AlbumTracks(10) during a write: %d tracks, cached=%v, err=%v", len(tracks), cached, err)
+	}
+}
+
 func TestArtistsAndArtistAlbums(t *testing.T) {
 	s, ctx := seeded(t)
 	artists, err := s.Artists(ctx, catalog.Spotify)

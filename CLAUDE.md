@@ -138,6 +138,29 @@ Golden path for a non-trivial change:
 4. Run `make check`.
 5. Invoke `/simplify` on the diff.
 6. If user-visible: upstream-style changes update both `docs/` and `site/index.html`; ddmus-only changes update `docs/ddmus/`.
+7. Run the Codex review loop below before reporting the change as done.
+
+### Codex review loop (ddmus)
+
+Claude implements and is the only writer. Codex reviews independently. The owner makes product decisions. The `agent-review` harness lives in `~/.local/share/agent-review`, outside the repo, so a change under review cannot edit its own gate. It runs `codex exec` in a sandbox that cannot write the repo, `.git`, or the run records (`~/.local/state/agent-review/ddmus/`), and it returns JSON checked against a schema.
+
+1. **Start the review.** Write `request.md`: the owner's request verbatim, plus the confirmed acceptance criteria and constraints. Write `notes.md`: what you changed and what you validated, phrased as claims to check, never as "please verify my correct implementation". Then run:
+   - `agent-review start <run> --base <sha> --request request.md --notes notes.md`. Add `--exclude <path>` for each untracked file that is not part of the change.
+   - `agent-review round <run>` in the background. It takes about 2 to 20 minutes.
+
+   Do not touch the working tree while a round runs. A changed tree voids the round.
+2. **Triage every finding on its merits.** Each one gets exactly one disposition:
+   - **fix**, with a regression test confirmed to fail without the fix;
+   - **dispute**, with technical reasoning and evidence;
+   - **defer**, for LOW/NIT or out-of-scope items;
+   - **owner**, when it needs a product decision.
+
+   Codex findings are evidence, not orders. Don't dispute just to disagree.
+3. **Verify.** Write a response file covering every finding, then run `agent-review round <run> --response <file>`. Run a third round only if a BLOCKER/HIGH is still open or the fixes caused a regression. The harness refuses a fourth.
+4. **Stop and report to the owner:** the outcome, what was fixed, every dispute with both positions, deferred items, unresolved MEDIUMs, and the checks run (`agent-review status <run>` lists them). Escalate immediately, without spending rounds, on product decisions, material architecture disagreement, scope growth, or anything destructive. An `incomplete` round (timeout, invalid output, tree changed) is never an approval. Report it.
+5. **Agreement is not authorization.** Two agents agreeing does not authorize a commit, merge, or product decision.
+
+Skip the loop only for docs- or comment-only changes, and say that you skipped it. If you are Codex reviewing: you are read-only, and the review prompt's reviewer rules override the Claude steps in this file.
 
 ---
 

@@ -15,7 +15,7 @@ Music
 - **All Music:** Albums and Artists from Spotify, YouTube Music and Local in one list each, every row labelled with its source. The same album or artist in both stays two rows, side by side. Opening a row goes to that source's own album or artist.
 - **Spotify:**
   - **Albums** are your saved albums.
-  - **Artists** are the artists you follow; each one opens their albums and singles.
+  - **Artists** are the artists you follow. Each one opens the albums of theirs the catalog knows, with no wait, and a **Full discography…** row that loads all their albums and singles from Spotify. An artist with no albums in the catalog opens the full discography directly.
   - **Playlists** are the ones you own or follow.
   - **Liked Songs** is your saved tracks.
 - **YouTube Music:** your music playlists, Liked Music, and the albums and artists read from those tracks in the background. See [youtube.md](youtube.md).

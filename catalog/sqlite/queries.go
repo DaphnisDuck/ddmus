@@ -51,38 +51,99 @@ func (s *Store) Album(ctx context.Context, id int64) (catalog.Album, error) {
 	return albums[0], nil
 }
 
-// afterAlbumCachedRead runs between AlbumTracks' two reads; tests replace it
-// to commit a write there.
-var afterAlbumCachedRead = func() {}
+// betweenReads runs between the statements of a read: after a by-ref
+// lookup, and between an album's cached flag and its tracks. Tests replace
+// it to commit a write there.
+var betweenReads = func() {}
 
-// AlbumTracks implements catalog.Catalog. The cached flag and the tracks are
-// read in one transaction, so both come from the same snapshot even when a
-// sync commits in between. ReadOnly makes the driver begin a deferred
-// transaction rather than the DSN's BEGIN IMMEDIATE, so the read never takes
-// the write lock.
-func (s *Store) AlbumTracks(ctx context.Context, albumID int64) ([]catalog.Track, bool, error) {
+// AlbumTracks implements catalog.Catalog.
+func (s *Store) AlbumTracks(ctx context.Context, albumID int64) (tracks []catalog.Track, cached bool, err error) {
+	err = s.read(ctx, func(tx *sql.Tx) error {
+		tracks, cached, err = albumTracks(ctx, tx, albumID)
+		return err
+	})
+	return tracks, cached, err
+}
+
+// AlbumTracksByRef implements catalog.Catalog.
+func (s *Store) AlbumTracksByRef(ctx context.Context, ref catalog.Ref) (tracks []catalog.Track, cached bool, err error) {
+	err = s.read(ctx, func(tx *sql.Tx) error {
+		id, err := refID(ctx, tx, catalog.KindAlbum, ref)
+		if err != nil {
+			return err
+		}
+		tracks, cached, err = albumTracks(ctx, tx, id)
+		return err
+	})
+	return tracks, cached, err
+}
+
+// read runs fn in one read-only transaction on the read handle, so all it
+// reads comes from one snapshot even when a sync commits meanwhile.
+// ReadOnly makes the driver begin a deferred transaction rather than the
+// DSN's BEGIN IMMEDIATE, so a read never takes the write lock.
+func (s *Store) read(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return nil, false, fmt.Errorf("album %d: %w", albumID, err)
+		return fmt.Errorf("catalog read: %w", err)
 	}
 	defer tx.Rollback()
+	return fn(tx)
+}
+
+// albumTracks reads an album's cached flag and tracks within tx.
+func albumTracks(ctx context.Context, tx *sql.Tx, albumID int64) ([]catalog.Track, bool, error) {
 	var cached bool
-	err = tx.QueryRowContext(ctx, `SELECT tracks_cached_at IS NOT NULL FROM albums WHERE id = ?`, albumID).Scan(&cached)
+	err := tx.QueryRowContext(ctx, `SELECT tracks_cached_at IS NOT NULL FROM albums WHERE id = ?`, albumID).Scan(&cached)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, fmt.Errorf("album %d: %w", albumID, catalog.ErrNotFound)
 	}
 	if err != nil {
 		return nil, false, fmt.Errorf("album %d: %w", albumID, err)
 	}
-	afterAlbumCachedRead()
-	tracks, err := queryAll(ctx, tx, scanTrack, `SELECT `+trackColumns+`
+	betweenReads()
+	// A cached album lists exactly its cached tracks; an uncached one, what
+	// the catalog knows of it from other collections.
+	query := `SELECT ` + trackColumns + `
 		FROM tracks t LEFT JOIN albums al ON al.id = t.album_id
 		WHERE t.album_id = ?
-		ORDER BY t.disc, t.track_no, t.title`, albumID)
+		ORDER BY t.disc, t.track_no, t.title`
+	if cached {
+		query = `SELECT ` + trackColumns + `
+		FROM album_tracks x JOIN tracks t ON t.id = x.track_id LEFT JOIN albums al ON al.id = x.album_id
+		WHERE x.album_id = ?
+		ORDER BY t.disc, t.track_no, t.title`
+	}
+	tracks, err := queryAll(ctx, tx, scanTrack, query, albumID)
 	if err != nil {
 		return nil, false, err
 	}
 	return tracks, cached, nil
+}
+
+// kindTables names each entity kind's table.
+var kindTables = map[catalog.Kind]string{
+	catalog.KindAlbum: "albums", catalog.KindArtist: "artists", catalog.KindPlaylist: "playlists",
+}
+
+// refID returns the catalog ID the entity of kind with ref has now, within
+// tx, or ErrNotFound.
+func refID(ctx context.Context, tx *sql.Tx, kind catalog.Kind, ref catalog.Ref) (int64, error) {
+	table, ok := kindTables[kind]
+	if !ok {
+		return 0, fmt.Errorf("catalog %s: unknown kind", kind)
+	}
+	var id int64
+	err := tx.QueryRowContext(ctx, `SELECT id FROM `+table+` WHERE provider = ? AND provider_id = ?`,
+		ref.Provider, ref.ProviderID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("%s %s: %w", kind, ref.ProviderID, catalog.ErrNotFound)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("%s %s: %w", kind, ref.ProviderID, err)
+	}
+	betweenReads()
+	return id, nil
 }
 
 // UncachedAlbums implements catalogsync.AlbumStore: provider's library
@@ -107,7 +168,24 @@ func (s *Store) Artists(ctx context.Context, provider string) ([]catalog.Artist,
 
 // ArtistAlbums implements catalog.Catalog.
 func (s *Store) ArtistAlbums(ctx context.Context, artistID int64) ([]catalog.Album, error) {
-	return queryAll(ctx, s.db, scanAlbum, `SELECT `+albumColumns+`
+	return artistAlbums(ctx, s.db, artistID)
+}
+
+// ArtistAlbumsByRef implements catalog.Catalog.
+func (s *Store) ArtistAlbumsByRef(ctx context.Context, ref catalog.Ref) (albums []catalog.Album, err error) {
+	err = s.read(ctx, func(tx *sql.Tx) error {
+		id, err := refID(ctx, tx, catalog.KindArtist, ref)
+		if err != nil {
+			return err
+		}
+		albums, err = artistAlbums(ctx, tx, id)
+		return err
+	})
+	return albums, err
+}
+
+func artistAlbums(ctx context.Context, q querier, artistID int64) ([]catalog.Album, error) {
+	return queryAll(ctx, q, scanAlbum, `SELECT `+albumColumns+`
 		FROM album_artists x JOIN albums al ON al.id = x.album_id
 		WHERE x.artist_id = ?
 		ORDER BY al.year DESC, al.sort_title`, artistID)
@@ -125,7 +203,24 @@ func (s *Store) Playlists(ctx context.Context, provider string) ([]catalog.Playl
 
 // PlaylistTracks implements catalog.Catalog.
 func (s *Store) PlaylistTracks(ctx context.Context, playlistID int64) ([]catalog.Track, error) {
-	return queryAll(ctx, s.db, scanTrack, `SELECT `+trackColumns+`
+	return playlistTracks(ctx, s.db, playlistID)
+}
+
+// PlaylistTracksByRef implements catalog.Catalog.
+func (s *Store) PlaylistTracksByRef(ctx context.Context, ref catalog.Ref) (tracks []catalog.Track, err error) {
+	err = s.read(ctx, func(tx *sql.Tx) error {
+		id, err := refID(ctx, tx, catalog.KindPlaylist, ref)
+		if err != nil {
+			return err
+		}
+		tracks, err = playlistTracks(ctx, tx, id)
+		return err
+	})
+	return tracks, err
+}
+
+func playlistTracks(ctx context.Context, q querier, playlistID int64) ([]catalog.Track, error) {
+	return queryAll(ctx, q, scanTrack, `SELECT `+trackColumns+`
 		FROM playlist_tracks pt JOIN tracks t ON t.id = pt.track_id
 		LEFT JOIN albums al ON al.id = t.album_id
 		WHERE pt.playlist_id = ?

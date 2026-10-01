@@ -172,7 +172,7 @@ func TestSweepKeepsCachedLibraryAlbumsWhole(t *testing.T) {
 	}
 	apply(t, s, catalog.Snapshot{Collection: "albums", Albums: []catalog.AlbumRecord{album}})
 	apply(t, s, catalog.Snapshot{Collection: "liked", Tracks: tracks("t1", "t2", "t3")})
-	if _, err := s.db.Exec(`UPDATE albums SET tracks_cached_at = 1`); err != nil {
+	if err := s.CacheAlbumTracks(context.Background(), sref("al"), tracks("t1", "t2", "t3")); err != nil {
 		t.Fatal(err)
 	}
 	// Only t1 stays liked: the saved, cached album keeps its whole list.

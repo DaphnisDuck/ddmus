@@ -18,6 +18,7 @@ import (
 	"errors"
 	"image"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,11 +45,16 @@ const (
 	artIndent, artGap = 2, 1
 )
 
+// artCacheSize caps the decoded artworks kept; each is up to 512×512 RGBA
+// (1 MiB) plus its encoded transmission.
+const artCacheSize = 16
+
 // libArt is the artwork state, shared by the model's copies.
 type libArt struct {
 	id     int // the terminal's image id: 1–255, a 256-color foreground
 	load   func(context.Context, artwork.Ref) (image.Image, error)
 	images map[string]*libArtImage // by Ref.Key; nil: the track has none
+	loaded []string                // keys of the non-nil images, oldest first
 	busy   map[string]bool         // loads in flight
 
 	// The terminal's cell size in pixels, once it answers; 1×2 until then.
@@ -58,7 +64,19 @@ type libArt struct {
 	// The image the terminal holds, and its placement.
 	sent       string
 	cols, rows int
+	// writing is true while an image write is on its way to the terminal.
+	// Commands from different updates run concurrently, so two writes in
+	// flight could reach the terminal in either order; one at a time, each
+	// acknowledged, keeps the terminal in step with the latest state.
+	writing bool
+	// selected is the track the info view showed at the last sync; a change
+	// (a queue replaced under the open view) syncs again.
+	selected string
 }
+
+// artworkWrittenMsg acknowledges an image write: tea.Sequence delivers it
+// after the write's raw output.
+type artworkWrittenMsg struct{}
 
 // libArtImage is a loaded artwork and the sequence that sends it to the
 // terminal, built with the load, off the UI goroutine.
@@ -113,9 +131,9 @@ func (m *Model) libArtworkOpen() tea.Cmd {
 		return tea.Batch(cmds...)
 	}
 	a.busy[ref.Key] = true
-	load, id := a.load, a.id
+	load, id, parent := a.load, a.id, m.libContext()
 	cmds = append(cmds, func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), artLoadTimeout)
+		ctx, cancel := context.WithTimeout(parent, artLoadTimeout)
 		defer cancel()
 		img, err := load(ctx, ref)
 		if err != nil {
@@ -138,7 +156,7 @@ func (m *Model) handleArtworkMsg(msg tea.Msg) bool {
 		delete(a.busy, msg.key)
 		switch {
 		case msg.err == nil:
-			a.images[msg.key] = msg.art
+			a.keep(msg.key, msg.art, artwork.Resolve(m.selectedMetadataTrack()).Key)
 		case errors.Is(msg.err, artwork.ErrNone):
 			a.images[msg.key] = nil // none: not asked for again
 		default:
@@ -150,8 +168,28 @@ func (m *Model) handleArtworkMsg(msg tea.Msg) bool {
 			a.cellW, a.cellH = msg.Width, msg.Height
 		}
 		return true
+	case artworkWrittenMsg:
+		if a != nil {
+			a.writing = false
+		}
+		return true
 	}
 	return false
+}
+
+// keep stores a loaded artwork, dropping the oldest beyond artCacheSize,
+// never the one shown (pinned). A dropped artwork loads again if needed.
+func (a *libArt) keep(key string, art *libArtImage, pinned string) {
+	a.images[key] = art
+	a.loaded = append(slices.DeleteFunc(a.loaded, func(k string) bool { return k == key }), key)
+	for i := 0; len(a.loaded) > artCacheSize && i < len(a.loaded); {
+		if k := a.loaded[i]; k != pinned && k != a.sent {
+			delete(a.images, k)
+			a.loaded = slices.Delete(a.loaded, i, i+1)
+			continue
+		}
+		i++
+	}
 }
 
 // libInfoArt returns the selected track's loaded artwork and its key, when
@@ -249,34 +287,56 @@ func (m *Model) libArtworkSync(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
 		if a.sent == "" {
 			return cmd
 		}
-		a.sent = ""
+		// sent stays set: a write still in flight may land after this
+		// delete, so main frees the image again once the program has ended
+		// (ArtworkCleanup).
 		return tea.Sequence(tea.Raw(kittyimg.Delete(a.id)), cmd)
 	}
 	var out []tea.Cmd
+	selected := ""
+	if m.showInfo {
+		selected = m.selectedMetadataTrack().Path
+	}
 	switch msg.(type) {
 	case tea.WindowSizeMsg:
 		if a.queried {
 			out = append(out, tea.Raw(kittyimg.CellSizeQuery))
 		}
-	case tea.KeyPressMsg, uv.CellSizeEvent, artworkLoadedMsg:
+	case tea.KeyPressMsg, uv.CellSizeEvent, artworkLoadedMsg, artworkWrittenMsg:
 	default:
-		return cmd
+		// Ticks and the like change nothing, unless something replaced the
+		// queue under the open view.
+		if selected == a.selected {
+			return cmd
+		}
 	}
+	changed := selected != a.selected
+	a.selected = selected
 	if !m.showInfo {
 		return tea.Batch(append(out, cmd)...) // the image stays with the terminal for the next open
+	}
+	if changed {
+		// A track selected under the open view loads its artwork. (A failed
+		// load is not retried here, only at the next open.)
+		out = append(out, m.libArtworkOpen())
 	}
 	// The update may have changed what the layout depends on (the info view
 	// opening, the key bar); lay out as View will before measuring the box.
 	m.recomputeLayout()
 	art, key, cols, rows, ok := m.libInfoArtBox()
+	var seq string
 	switch {
-	case !ok:
+	case !ok || a.writing: // a write in flight: its acknowledgement syncs again
 	case a.sent != key:
-		out = append(out, tea.Raw(art.send+kittyimg.Place(a.id, cols, rows)))
+		seq = art.send + kittyimg.Place(a.id, cols, rows)
 		a.sent, a.cols, a.rows = key, cols, rows
 	case a.cols != cols || a.rows != rows:
-		out = append(out, tea.Raw(kittyimg.Place(a.id, cols, rows)))
+		seq = kittyimg.Place(a.id, cols, rows)
 		a.cols, a.rows = cols, rows
+	}
+	if seq != "" {
+		a.writing = true
+		out = append(out, tea.Sequence(tea.Raw(seq), func() tea.Msg { return artworkWrittenMsg{} }))
 	}
 	return tea.Batch(append(out, cmd)...)
 }

@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
 
 	"github.com/bjarneo/cliamp/catalog"
@@ -30,6 +32,19 @@ type OAuthCatalog struct {
 	// service returns the API client and the account's classification
 	// cache scope; replaced in tests.
 	service func(ctx context.Context) (*youtube.Service, string, error)
+
+	// The access token is kept and shared by every read, so a sync signs
+	// in when it expires rather than once per read (a sync reads each
+	// playlist on its own). Each read builds its service on it with a token
+	// source on the read's own context, so a refresh is cancelled with the
+	// read and nothing outlives its caller. It starts over when the stored
+	// sign-in changes.
+	mu       sync.Mutex
+	token    *oauth2.Token
+	tokenFor string // the stored refresh token token comes from
+	// apiOptions are added to each read's service; tests point it at a
+	// fake Data API.
+	apiOptions []option.ClientOption
 }
 
 // NewOAuthCatalog returns an OAuthCatalog for the client.
@@ -40,14 +55,73 @@ func NewOAuthCatalog(clientID, clientSecret string) *OAuthCatalog {
 }
 
 func (c *OAuthCatalog) silentService(ctx context.Context) (*youtube.Service, string, error) {
-	if creds, err := loadCreds(); err != nil || creds.RefreshToken == "" {
+	ts, scope, err := c.tokenSource(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	svc, err := youtube.NewService(ctx, append([]option.ClientOption{option.WithTokenSource(ts)}, c.apiOptions...)...)
+	if err != nil {
+		return nil, "", fmt.Errorf("youtube: create service: %w", err)
+	}
+	return svc, scope, nil
+}
+
+// tokenSource is a read's token source: the catalog's token, refreshed on
+// ctx when it has expired.
+func (c *OAuthCatalog) tokenSource(ctx context.Context) (oauth2.TokenSource, string, error) {
+	creds, err := loadCreds()
+	if err != nil || creds.RefreshToken == "" {
 		return nil, "", fmt.Errorf("youtube: %w: no stored sign-in", playlist.ErrNeedsAuth)
 	}
-	sess, err := NewSessionSilent(ctx, c.clientID, c.clientSecret)
-	if err != nil {
-		return nil, "", signInError(err)
+	c.mu.Lock()
+	if c.token == nil || c.tokenFor != creds.RefreshToken {
+		c.token, c.tokenFor = &oauth2.Token{RefreshToken: creds.RefreshToken}, creds.RefreshToken
 	}
-	return sess.Service(), sess.cacheScope, nil
+	token := c.token
+	c.mu.Unlock()
+	conf := googleOAuthConfig(c.clientID, c.clientSecret)
+	ts := &catalogTokenSource{c: c, from: creds.RefreshToken,
+		src: oauth2.ReuseTokenSource(token, conf.TokenSource(tokenContext(ctx), token))}
+	return ts, oauthCacheScope(c.clientID, creds.RefreshToken), nil
+}
+
+// catalogTokenSource keeps each new access token for the next read, saves
+// a refresh token Google rotated, and reports a refused grant as
+// playlist.ErrNeedsAuth (through signInError) at whatever read hits it.
+// It belongs to the sign-in it was made from: once that is no longer the
+// catalog's (a new sign-in), it still serves its own read but neither
+// shares its token nor saves anything, so it cannot undo the new sign-in.
+type catalogTokenSource struct {
+	c    *OAuthCatalog
+	from string // the stored refresh token this source was made from
+	src  oauth2.TokenSource
+}
+
+func (s *catalogTokenSource) Token() (*oauth2.Token, error) {
+	tok, err := s.src.Token()
+	if err != nil {
+		err = signInError(err)
+		if errors.Is(err, playlist.ErrNeedsAuth) {
+			// Google's auth adapter rebuilds an oauth2.RetrieveError in its
+			// own error type, dropping whatever wraps it; so the refusal goes
+			// out as text, and ErrNeedsAuth reaches the read's caller.
+			return nil, fmt.Errorf("%w: %v", playlist.ErrNeedsAuth, err)
+		}
+		return nil, err
+	}
+	s.c.mu.Lock()
+	defer s.c.mu.Unlock()
+	if s.from != s.c.tokenFor {
+		return tok, nil // a newer sign-in replaced this one
+	}
+	if tok.RefreshToken != "" && tok.RefreshToken != s.from {
+		// Google rotated the refresh token.
+		if err := saveCreds(&storedCreds{RefreshToken: tok.RefreshToken}); err == nil {
+			s.c.tokenFor, s.from = tok.RefreshToken, tok.RefreshToken
+		}
+	}
+	s.c.token = tok
+	return tok, nil
 }
 
 // signInError wraps a failed silent sign-in in playlist.ErrNeedsAuth only
@@ -133,7 +207,7 @@ func classifyForSync(ctx context.Context, svc *youtube.Service, ids []string, sc
 	if music == nil {
 		music = map[string]bool{}
 	}
-	sampled := map[string]string{} // video ID → playlist ID
+	sampled := map[string][]string{} // video ID → playlist IDs
 	var videos []string
 	for _, id := range ids {
 		if _, known := music[id]; known {
@@ -146,9 +220,12 @@ func classifyForSync(ctx context.Context, svc *youtube.Service, ids []string, sc
 		if len(resp.Items) == 0 || resp.Items[0].ContentDetails == nil || resp.Items[0].ContentDetails.VideoId == "" {
 			continue
 		}
+		// Playlists can start with the same video: each takes its category.
 		v := resp.Items[0].ContentDetails.VideoId
-		sampled[v] = id
-		videos = append(videos, v)
+		if _, dup := sampled[v]; !dup {
+			videos = append(videos, v)
+		}
+		sampled[v] = append(sampled[v], id)
 	}
 	if len(videos) == 0 {
 		return music, nil
@@ -161,7 +238,10 @@ func classifyForSync(ctx context.Context, svc *youtube.Service, ids []string, sc
 		// A sampled video the API no longer returns leaves its playlist
 		// unknown.
 		for _, v := range resp.Items {
-			if id, ok := sampled[v.Id]; ok && v.Snippet != nil {
+			if v.Snippet == nil {
+				continue
+			}
+			for _, id := range sampled[v.Id] {
 				music[id] = v.Snippet.CategoryId == musicCategoryID
 			}
 		}
@@ -280,11 +360,27 @@ func itemRecord(it *youtube.PlaylistItem) (catalog.TrackRecord, bool) {
 }
 
 // apiError marks a playlist the API will not show (gone, or private to
-// someone else) as catalog.ErrForbidden, so a sync keeps what it had.
+// someone else) as catalog.ErrForbidden, so a sync keeps what it had. A 403
+// for running out of quota says nothing about the playlist: it stays a
+// plain error, which fails the collection rather than dropping a playlist.
 func apiError(err error) error {
 	var gerr *googleapi.Error
-	if errors.As(err, &gerr) && (gerr.Code == http.StatusNotFound || gerr.Code == http.StatusForbidden) {
+	if !errors.As(err, &gerr) {
+		return err
+	}
+	if gerr.Code == http.StatusNotFound || gerr.Code == http.StatusForbidden && !quotaError(gerr) {
 		return fmt.Errorf("%w: %w", catalog.ErrForbidden, err)
 	}
 	return err
+}
+
+// quotaError reports whether a Data API error is a quota or rate limit.
+func quotaError(gerr *googleapi.Error) bool {
+	for _, e := range gerr.Errors {
+		switch e.Reason {
+		case "quotaExceeded", "dailyLimitExceeded", "rateLimitExceeded", "userRateLimitExceeded":
+			return true
+		}
+	}
+	return false
 }

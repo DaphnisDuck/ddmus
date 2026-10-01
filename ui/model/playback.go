@@ -23,6 +23,7 @@ func (m *Model) replacePlaylist(tracks []playlist.Track) {
 	}
 	m.playlist.Replace(tracks)
 	m.normalizeQueueOverlay()
+	m.retireLibraryPlay() // ddmus: a newer queue retires a pending library play
 }
 
 func trackIndexByPath(tracks []playlist.Track, path string) int {
@@ -175,6 +176,7 @@ func (m *Model) playCurrentTrack() tea.Cmd {
 // playTrackImmediate appends a track to the playlist and starts playing it now,
 // stopping any current playback. Used by search-result "Play now" actions.
 func (m *Model) playTrackImmediate(track playlist.Track) tea.Cmd {
+	m.retireLibraryPlay() // ddmus: every caller is an explicit play
 	m.player.Stop()
 	m.player.ClearPreload()
 	m.playlist.Add(track)
@@ -213,6 +215,7 @@ func (m *Model) appendTrack(track playlist.Track) tea.Cmd {
 // its first track. Like playTrackImmediate it adds rather than replaces, so a
 // queue built up over an evening survives picking an album from search.
 func (m *Model) playAlbumImmediate(album playlist.Track, tracks []playlist.Track) tea.Cmd {
+	m.retireLibraryPlay() // ddmus: every caller is an explicit play
 	m.player.Stop()
 	m.player.ClearPreload()
 	idx := m.playlist.Len()

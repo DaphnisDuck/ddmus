@@ -32,6 +32,7 @@ type fakeDataAPI struct {
 	category  map[string]string           // video ID → category ID
 	duration  map[string]string           // video ID → ISO 8601
 	totalBump map[string]int              // playlist ID → extra reported total
+	refuse    map[string]string           // playlist ID → 403 reason for its lookup
 	calls     []string
 }
 
@@ -52,6 +53,12 @@ func (f *fakeDataAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/playlists"):
 		if id := q.Get("id"); id != "" {
+			if reason, ok := f.refuse[id]; ok {
+				w.WriteHeader(http.StatusForbidden)
+				write(map[string]any{"error": map[string]any{"code": 403, "message": "refused",
+					"errors": []map[string]any{{"reason": reason, "message": "refused"}}}})
+				return
+			}
 			var found []map[string]any
 			for _, p := range f.playlists {
 				if p["id"] == id {
@@ -218,6 +225,43 @@ func TestOAuthPlaylistRecord(t *testing.T) {
 	}
 	if _, err := c.PlaylistRecord(context.Background(), "PLmissing"); !errors.Is(err, catalog.ErrForbidden) {
 		t.Errorf("missing = %v, want ErrForbidden", err)
+	}
+}
+
+// Running out of quota is not a playlist that has gone: it must fail the
+// read, not mark the playlist forbidden, or a sync drops a followed playlist.
+func TestOAuthPlaylistRecordQuota(t *testing.T) {
+	c, f := newOAuthFixture(t)
+	f.refuse = map[string]string{"PLroad": "quotaExceeded", "PLshows": "rateLimitExceeded", "PLprivate": "forbidden"}
+	for _, id := range []string{"PLroad", "PLshows"} {
+		if _, err := c.PlaylistRecord(context.Background(), id); err == nil || errors.Is(err, catalog.ErrForbidden) {
+			t.Errorf("%s over quota = %v, want a plain error", id, err)
+		}
+	}
+	if _, err := c.PlaylistRecord(context.Background(), "PLprivate"); !errors.Is(err, catalog.ErrForbidden) {
+		t.Errorf("private playlist = %v, want ErrForbidden", err)
+	}
+}
+
+// Two new playlists that start with the same video both get classified.
+func TestOAuthClassifiesPlaylistsSharingAVideo(t *testing.T) {
+	c, f := newOAuthFixture(t)
+	f.playlists = append(f.playlists,
+		map[string]any{"id": "PLroad2", "etag": "e6", "snippet": map[string]any{"title": "Road Trip II"}})
+	f.items["PLroad2"] = f.items["PLroad"][:1]
+	lists, err := c.PlaylistRecords(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, l := range lists {
+		names = append(names, l.Name)
+	}
+	if len(names) != 2 || names[0] != "Road Trip" || names[1] != "Road Trip II" {
+		t.Errorf("playlists = %q, want both playlists that start with the music video", names)
+	}
+	if videos := strings.Count(strings.Join(f.calls, " "), "/videos?r0"); videos != 1 {
+		t.Errorf("the shared video was looked up %d times, want once", videos)
 	}
 }
 

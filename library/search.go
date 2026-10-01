@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -103,6 +104,10 @@ type searchLevel struct {
 	query string
 }
 
+// CatalogProvider makes search a catalog level of every source: its results
+// come from the catalog alone, so a sync rereads them.
+func (l *searchLevel) CatalogProvider() string { return "" }
+
 func (l *searchLevel) Title() string                      { return "Search" }
 func (l *searchLevel) Query() string                      { return l.query }
 func (l *searchLevel) WithQuery(query string) SearchLevel { return l.s.level(query) }
@@ -117,9 +122,12 @@ func (s *catalogView) results(ctx context.Context, query string) ([]Entry, error
 	if q.Empty() {
 		return nil, nil
 	}
-	found, err := s.cat.Search(ctx, q, searchFetch)
-	if err != nil {
-		return nil, err
+	var found catalog.SearchResults
+	if s.restrict(&q) {
+		var err error
+		if found, err = s.cat.Search(ctx, q, searchFetch); err != nil {
+			return nil, err
+		}
 	}
 	var entries []Entry
 	for _, sec := range searchSections {
@@ -144,13 +152,46 @@ func (s *catalogView) results(ctx context.Context, query string) ([]Entry, error
 // more lists up to moreLimit results of one kind.
 func (s *catalogView) more(q catalog.Query, kind catalog.SearchKind, heading string) Level {
 	q.Kinds = []catalog.SearchKind{kind}
-	return NewLevel(heading, func(ctx context.Context) ([]Entry, error) {
+	return &catalogLevel{funcLevel{heading, func(ctx context.Context) ([]Entry, error) {
+		q := q // loads of this level can overlap; each restricts its own copy
+		if !s.restrict(&q) {
+			return nil, nil
+		}
 		found, err := s.cat.Search(ctx, q, moreLimit)
 		if err != nil {
 			return nil, err
 		}
 		return s.rows(found[kind]), nil
-	})
+	}}, ""} // read from the catalog alone, so a sync rereads it
+}
+
+// restrict limits q to the configured sources, so results of a source that
+// is no longer set up (its rows still in the catalog) neither show nor take
+// the places of results that would. An explicit source: keeps only its
+// configured sources. It reports false when none is left to search.
+func (s *catalogView) restrict(q *catalog.Query) bool {
+	var sources []string
+	for _, p := range s.sources() {
+		if len(q.Providers) == 0 || slices.Contains(q.Providers, p) {
+			sources = append(sources, p)
+		}
+	}
+	q.Providers = sources
+	return len(sources) > 0
+}
+
+// sources are the catalog providers whose rows can open or play: the
+// synced ones, Local, and Radio when the radio provider is set up.
+func (s *catalogView) sources() []string {
+	out := []string{catalog.Local}
+	for p := range s.synced {
+		out = append(out, p)
+	}
+	if s.radioProv != nil {
+		out = append(out, catalog.Radio)
+	}
+	slices.Sort(out)
+	return out
 }
 
 // rows builds the results' rows, skipping those of unconfigured sources.
@@ -199,7 +240,7 @@ func (s *catalogView) entry(r catalog.SearchResult) (e Entry, ok bool) {
 		e.Detail = joinDetail(SourceLabel(r.Playlist.Ref.Provider), e.Detail)
 		e.Source = r.Playlist.Ref.Provider
 	case r.Track != nil:
-		e, ok = s.trackRow(*r.Track, r.Kind == catalog.SearchStation), true
+		e, ok = s.trackRow(*r.Track, r.Kind == catalog.SearchStation), slices.Contains(s.sources(), r.Track.Ref.Provider)
 	}
 	// Kinds share catalog IDs; the kind keeps a row's ID unique.
 	e.ID = string(r.Kind) + ":" + e.ID
@@ -276,8 +317,10 @@ func (s *catalogView) albumFrom(t catalog.Track) func(ctx context.Context) ([]pl
 		if !cached && t.Ref.Provider != catalog.Local && (b == nil || !b.partialAlbums) {
 			tracks = s.fetchAlbum(ctx, t.AlbumID)
 		}
+		// The track is found by ref, not ID: if a sync replaced the album
+		// and the track since, their old IDs may now be other entities'.
 		for i, at := range tracks {
-			if at.ID == t.ID {
+			if at.Ref == t.Ref {
 				out := make([]playlist.Track, len(tracks))
 				for j, tr := range tracks {
 					out[j] = PlayableTrack(tr)

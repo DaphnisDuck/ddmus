@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.repository == 'bjarneo/cliamp' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') # ddmus: upstream only
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -92,6 +92,8 @@ func (f *libFrame) setEntries(entries []library.Entry) {
 	}
 	f.titleCol = listColumn(titles)
 	numbers := libTrackNumbers(entries)
+	f.rows, f.numbers = libraryRows(entries), numbers
+	f.rowOf = libRowOf(f.rows, len(entries))
 	f.needs = make([]int, len(entries))
 	for i, e := range entries {
 		f.needs[i] = libEntryNeed(e, numbers[i], f.titleCol)

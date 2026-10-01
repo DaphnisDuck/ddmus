@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/bjarneo/cliamp/catalog"
@@ -199,13 +200,13 @@ func (f *fetchCatalog) FetchAlbumTracks(_ context.Context, a catalog.Album) ([]c
 	if f.offline {
 		return nil, errors.New("offline")
 	}
-	return []catalog.Track{{ID: 60, Title: "One"}, {ID: 61, Title: "Two", AlbumID: a.ID}}, nil
+	return []catalog.Track{{ID: 60, Ref: sref2("t60"), Title: "One"}, {ID: 61, Ref: sref2("t61"), Title: "Two", AlbumID: a.ID}}, nil
 }
 
 func TestSearchTrackFetchesUncachedAlbum(t *testing.T) {
 	cat, _, _ := newCatalogFixture()
 	fc := &fetchCatalog{fakeCatalog: cat}
-	s := &catalogView{cat: fc}
+	s := &catalogView{cat: fc, synced: map[string]*catalogBrowser{catalog.Spotify: {cat: fc}}}
 	two := catalog.Track{ID: 61, Ref: sref2("t61"), Title: "Two", AlbumID: 2, PlayableURI: "spotify:track:t61"}
 	e, ok := s.entry(catalog.SearchResult{Kind: catalog.SearchTrack, Provider: catalog.Spotify, Track: &two})
 	if !ok {
@@ -362,4 +363,23 @@ func TestRowsCarryTheirSource(t *testing.T) {
 			t.Errorf("All Music album %q has no source", e.Title)
 		}
 	}
+}
+
+// Loads of one More… level can overlap (open, back out, open again before
+// the first finishes); each must restrict its own query. Run with -race.
+func TestSearchMoreLoadsOverlap(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	s := &catalogView{cat: cat, synced: map[string]*catalogBrowser{catalog.Spotify: {cat: cat}}}
+	more := s.more(catalog.ParseQuery("ozawa"), catalog.SearchAlbum, "Albums")
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := more.Load(context.Background()); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
 }

@@ -78,14 +78,23 @@ func artModel(t *testing.T, w, h int, f *fakeArt) Model {
 func press(t *testing.T, m Model, key string) (Model, string) {
 	t.Helper()
 	updated, cmd := m.Update(queueKey(key))
-	m = updated.(Model)
+	return deliver(t, updated.(Model), cmd)
+}
+
+// deliver runs cmd, hands the model the artwork messages it produces (loads
+// and write acknowledgements, as the program would), and returns the model
+// and all the raw output, in order.
+func deliver(t *testing.T, m Model, cmd tea.Cmd) (Model, string) {
+	t.Helper()
 	msgs := msgsOf(cmd)
 	raw := rawOf(msgs)
 	for _, msg := range msgs {
-		if _, ok := msg.(artworkLoadedMsg); ok {
-			updated, cmd := m.Update(msg)
-			m = updated.(Model)
-			raw += rawOf(msgsOf(cmd))
+		switch msg.(type) {
+		case artworkLoadedMsg, artworkWrittenMsg:
+			updated, next := m.Update(msg)
+			var more string
+			m, more = deliver(t, updated.(Model), next)
+			raw += more
 		}
 	}
 	return m, raw
@@ -195,8 +204,7 @@ func TestInfoArtworkFollowsTheTerminal(t *testing.T) {
 	m, _ = press(t, m, "i")
 	placed := m.lib.art.rows
 	updated, cmd := m.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
-	m = updated.(Model)
-	raw := rawOf(msgsOf(cmd))
+	m, raw := deliver(t, updated.(Model), cmd)
 	if !strings.Contains(raw, "d=i") || !strings.Contains(raw, "a=p") || m.lib.art.rows <= placed {
 		t.Errorf("a taller terminal placed %q (%d rows, was %d)", raw, m.lib.art.rows, placed)
 	}
@@ -213,11 +221,11 @@ func TestInfoArtworkFollowsTheTerminal(t *testing.T) {
 		checkFrame(t, small, size.w, size.h)
 	}
 	// The terminal's real cell size changes the box.
-	updated, _ = m.Update(uv.CellSizeEvent{Width: 10, Height: 20})
-	m = updated.(Model)
+	updated, cmd = m.Update(uv.CellSizeEvent{Width: 10, Height: 20})
+	m, _ = deliver(t, updated.(Model), cmd)
 	c1 := m.lib.art.cols
-	updated, _ = m.Update(uv.CellSizeEvent{Width: 10, Height: 10})
-	m = updated.(Model)
+	updated, cmd = m.Update(uv.CellSizeEvent{Width: 10, Height: 10})
+	m, _ = deliver(t, updated.(Model), cmd)
 	if m.lib.art.cols >= c1 {
 		t.Errorf("square cells: %d columns, want fewer than %d", m.lib.art.cols, c1)
 	}

@@ -660,13 +660,13 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 
 	case ">", ".":
 		refresh := m.scrobbleCurrent()
-		cmd := m.nextTrack()
+		cmd := m.skipByUser(true) // ddmus: retires a pending library play
 		m.notifyPlayback()
 		return tea.Batch(refresh, cmd)
 
 	case "<", ",":
 		refresh := m.scrobbleCurrent()
-		cmd := m.prevTrack()
+		cmd := m.skipByUser(false) // ddmus: retires a pending library play
 		m.notifyPlayback()
 		return tea.Batch(refresh, cmd)
 
@@ -793,6 +793,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 				break
 			}
 			refresh := m.scrobbleCurrent()
+			m.retireLibraryPlay() // ddmus: the chosen track wins over an album still loading
 			m.playlist.SetIndex(m.plCursor)
 			cmd := m.playCurrentTrack()
 			m.notifyPlayback()
@@ -1045,12 +1046,12 @@ func (m *Model) handleFullVisualizerKey(msg tea.KeyPressMsg) tea.Cmd {
 		return cmd
 	case ">", ".":
 		refresh := m.scrobbleCurrent()
-		cmd := m.nextTrack()
+		cmd := m.skipByUser(true) // ddmus: retires a pending library play
 		m.notifyPlayback()
 		return tea.Batch(refresh, cmd)
 	case "<", ",":
 		refresh := m.scrobbleCurrent()
-		cmd := m.prevTrack()
+		cmd := m.skipByUser(false) // ddmus: retires a pending library play
 		m.notifyPlayback()
 		return tea.Batch(refresh, cmd)
 	case "left":
@@ -1568,6 +1569,7 @@ func (m *Model) handleSearchKey(msg tea.KeyPressMsg) tea.Cmd {
 		var cmd tea.Cmd
 		if len(m.search.results) > 0 {
 			idx := m.search.results[m.search.cursor]
+			m.retireLibraryPlay() // ddmus: the chosen track wins over an album still loading
 			m.playlist.SetIndex(idx)
 			m.plCursor = idx
 			cmd = m.playCurrentTrack()

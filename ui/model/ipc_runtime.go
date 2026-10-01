@@ -151,13 +151,13 @@ func (m *Model) handleV2Request(msg V2RequestMsg) tea.Cmd {
 		return nil
 	case "next":
 		m.scrobbleCurrent()
-		cmd := m.nextTrack()
+		cmd := m.skipByUser(true) // ddmus: retires a pending library play
 		m.notifyAll()
 		m.completeV2Job(msg.Jobs, msg.JobID, ipc.Response{OK: true})
 		return cmd
 	case "prev":
 		m.scrobbleCurrent()
-		cmd := m.prevTrack()
+		cmd := m.skipByUser(false) // ddmus: retires a pending library play
 		m.notifyAll()
 		m.completeV2Job(msg.Jobs, msg.JobID, ipc.Response{OK: true})
 		return cmd
@@ -268,6 +268,7 @@ func (m *Model) handleV2QueueRequest(ctx context.Context, jobs *ipc.JobStore, jo
 			m.failV2Job(jobs, jobID, v2InvalidParamsError())
 			return nil
 		}
+		m.retireLibraryPlay() // ddmus: the chosen track wins over an album still loading
 		m.playlist.SetIndex(request.Index)
 		m.plCursor = request.Index
 		cmd := m.playCurrentTrack()

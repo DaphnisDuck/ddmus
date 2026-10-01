@@ -95,7 +95,7 @@ make check        # fmt + vet + test
 make install      # installs binary into ~/.local/bin
 ```
 
-- Go version: **1.26** (see `go.mod`; toolchain pinned via `mise.toml`).
+- Go version: **1.27.1**, pinned in `mise.toml` (bumped deliberately; `go.mod` keeps upstream's minimum, 1.26).
 - Linux build needs `libasound2-dev` / `alsa-lib` at build time.
 - For audio at runtime on PipeWire or PulseAudio, install `pipewire-alsa` or `pulseaudio-alsa` (see memory `project_alsa_audio_troubleshooting.md`).
 - Optional runtime deps: `ffmpeg` (AAC/ALAC/Opus/WMA), `yt-dlp` (YT/SC/Bandcamp/Bilibili).
@@ -144,9 +144,16 @@ Golden path for a non-trivial change:
 
 Claude implements and is the only writer. Codex reviews independently. The owner makes product decisions. The `agent-review` harness lives in `~/.local/share/agent-review`, outside the repo, so a change under review cannot edit its own gate. It runs `codex exec` in a sandbox that cannot write the repo, `.git`, or the run records (`~/.local/state/agent-review/ddmus/`), and it returns JSON checked against a schema.
 
-1. **Start the review.** Write `request.md`: the owner's request verbatim, plus the confirmed acceptance criteria and constraints. Write `notes.md`: what you changed and what you validated, phrased as claims to check, never as "please verify my correct implementation". Then run:
+1. **Start the review.** Write `request.md`: the owner's request verbatim, plus the confirmed acceptance criteria and constraints. Write `notes.md` as claims to check, never as "please verify my correct implementation". It covers:
+   - the entry points affected, and the invariants the change preserves;
+   - the tests added or changed, by name, and the exact commands you ran;
+   - for a cross-cutting fix, a caller matrix: every path that reaches the changed behavior and how each is handled;
+   - for performance questions, the benchmark command and its output;
+   - what you are unsure of.
+
+   Then run:
    - `agent-review start <run> --base <sha> --request request.md --notes notes.md`. Add `--exclude <path>` for each untracked file that is not part of the change.
-   - `agent-review round <run>` in the background. It takes about 2 to 20 minutes.
+   - `agent-review round <run>` in the background. It takes about 2 to 20 minutes. It first runs `make fmt-check`, `go vet ./...` and `go test -race -count=1 ./...` on the tree and gives Codex the results, so Codex runs only targeted checks. `--tests CMD` narrows the suite; `--no-validate` skips it.
 
    Do not touch the working tree while a round runs. A changed tree voids the round.
 2. **Triage every finding on its merits.** Each one gets exactly one disposition:
@@ -156,6 +163,14 @@ Claude implements and is the only writer. Codex reviews independently. The owner
    - **owner**, when it needs a product decision.
 
    Codex findings are evidence, not orders. Don't dispute just to disagree.
+   **Effort is risk-based.**
+   - Defaults: `round` reviews at medium and verifies at low.
+   - Ask Codex only at coherent slice boundaries, not after every patch.
+   - The harness raises the effort from what the diff touches, and I cannot lower it:
+     - high: migrations, `player/`, auth/session code, `ui/model/playback*`, `provider/interfaces.go`, new goroutines or mutexes, more than 800 non-test lines;
+     - medium: catalog, sync, provider, IPC, contexts, channels, atomics, more than 150 lines.
+   - In a verification round, what the diff touches raises effort to medium at most, and an open BLOCKER/HIGH also raises it to medium. Only Codex's `recommended_effort` from the latest round, or `--effort high`, makes a verification high.
+   - Pass `--effort high` for architectural changes and milestone or release-candidate audits.
 3. **Verify.** Write a response file covering every finding, then run `agent-review round <run> --response <file>`. Run a third round only if a BLOCKER/HIGH is still open or the fixes caused a regression. The harness refuses a fourth.
 4. **Stop and report to the owner:** the outcome, what was fixed, every dispute with both positions, deferred items, unresolved MEDIUMs, and the checks run (`agent-review status <run>` lists them). Escalate immediately, without spending rounds, on product decisions, material architecture disagreement, scope growth, or anything destructive. An `incomplete` round (timeout, invalid output, tree changed) is never an approval. Report it.
 5. **Agreement is not authorization.** Two agents agreeing does not authorize a commit, merge, or product decision.

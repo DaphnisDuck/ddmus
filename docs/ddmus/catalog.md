@@ -37,7 +37,7 @@ The top of the library shows each source's state:
 - `✓ synced 2m ago`
 - `sync failed · cached`: the last attempt failed, and you're browsing what the catalog already holds.
 
-With both Spotify and Local, each status is prefixed with its source. Details of a failure are in `~/.config/ddmus/cliamp.log`.
+With both Spotify and Local, each status is prefixed with its source. Details of a failure are in `~/.config/ddmus/ddmus.log`.
 
 ## Failure safety
 

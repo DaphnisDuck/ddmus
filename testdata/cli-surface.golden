@@ -1,0 +1,90 @@
+command ddmus
+ddmus flag vol float64 default=0
+ddmus flag shuffle,no-shuffle bool+no default=false
+ddmus flag repeat string default=
+ddmus flag auto-play,no-auto-play bool+no default=false
+ddmus flag help-bar,no-help-bar bool+no default=true
+ddmus flag provider string default=
+ddmus flag start-theme string default=
+ddmus flag visualizer string default=
+ddmus flag visualizer-60fps bool default=false
+ddmus flag eq-preset string default=
+ddmus flag sample-rate int default=0
+ddmus flag buffer-ms int default=0
+ddmus flag resample-quality int default=0
+ddmus flag bit-depth int default=0
+ddmus flag audio-device string default=
+ddmus flag playlist string default=
+ddmus flag log-level string default=
+ddmus flag expand-playlist,no-expand-playlist bool+no default=false
+ddmus flag low-power,no-low-power bool+no default=false
+command ddmus playlist
+command ddmus playlist list
+command ddmus playlist create
+ddmus playlist create flag ssh string default=
+ddmus playlist create flag dir []string default=
+command ddmus playlist rename
+command ddmus playlist add
+ddmus playlist add flag dir []string default=
+command ddmus playlist dirs
+command ddmus playlist show
+ddmus playlist show flag json bool default=false
+command ddmus playlist remove
+ddmus playlist remove flag index int default=0
+command ddmus playlist delete
+command ddmus playlist dedupe
+command ddmus playlist sort
+ddmus playlist sort flag by string default="title"
+command ddmus playlist doctor
+ddmus playlist doctor flag fix bool default=false
+command ddmus playlist export
+ddmus playlist export flag format string default="m3u"
+ddmus playlist export flag output,o string default=
+command ddmus playlist import
+ddmus playlist import flag name string default=
+command ddmus playlist bookmark
+ddmus playlist bookmark flag index int default=0
+command ddmus playlist bookmarks
+command ddmus playlist enrich
+ddmus playlist enrich flag source string default="path"
+command ddmus history
+ddmus history flag limit int default=50 local
+ddmus history flag json bool default=false local
+command ddmus history clear
+command ddmus setup
+command ddmus youtube
+command ddmus youtube signin
+ddmus youtube signin flag force bool default=false
+command ddmus spotify
+command ddmus spotify reset
+command ddmus play
+command ddmus pause
+command ddmus toggle
+command ddmus next
+command ddmus prev
+command ddmus stop
+command ddmus status
+ddmus status flag json bool default=false
+command ddmus volume
+command ddmus seek
+command ddmus load
+command ddmus queue
+command ddmus theme
+command ddmus vis
+command ddmus visstream
+ddmus visstream flag fps int default=30
+command ddmus shuffle
+command ddmus repeat
+command ddmus speed
+command ddmus eq
+ddmus eq flag band int default=-1
+command ddmus device
+command ddmus remote
+command ddmus remote state
+command ddmus remote capabilities
+command ddmus remote call
+ddmus remote call flag params string default="{}"
+ddmus remote call flag wait bool default=false
+command ddmus remote job
+command ddmus remote cancel
+command ddmus remote events

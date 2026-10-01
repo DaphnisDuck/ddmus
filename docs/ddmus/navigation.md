@@ -97,7 +97,7 @@ Track info, lyrics, Up next and Jump open over the queue; `Esc` returns to it.
 
 `q` quits ddmus at once from every library screen, the queue, and the overlays over it; only where you are typing (search, the queue filter, Jump) is it a letter. `Esc` always goes back one step (overlay → queue → Library, results → query → closed search, a list → its parent) and never quits. `r` means repeat in the queue and sync in the library.
 
-Mono has no key while the library is enabled; `mono = true` in config.toml, `--mono` or `ddmus mono` still turn it on, and the settings line shows `[M]` while it is.
+Mono has no key while the library is enabled, and 1.0 removed `--mono` and `ddmus mono`; `mono = true` in config.toml still turns it on, and the settings line shows `[M]` while it is.
 
 The settings panel shows the queue's settings: **SRC** is the playing track's source (`[Spotify]`, `[YouTube]`, `[Local]`, `[Radio]`), then volume, EQ, shuffle, repeat and speed. It is display only; the keys above change it. For a track the library didn't start (a file or URL given on the command line, the file browser, a provider's own search), SRC shows what the track's path tells, or nothing.
 

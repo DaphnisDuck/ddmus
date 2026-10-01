@@ -98,6 +98,9 @@ Done when:
 ### M10: Album artwork in track info
 - `i` in the queue shows the album's artwork beside the track's metadata when the terminal can draw images (Kitty, Ghostty) and artwork exists (Spotify covers, local embedded art or cover files). Everywhere else the info view is as before. Nothing else in the UI changes.
 
+### 1.0 release (feature freeze)
+- M1–M10 are the 1.0 feature set. No features before 1.0: prove, package, document, release. The plan, with its workstreams, gates A–D and every owner decision, is `docs/ddmus/release-plan.md`. Work happens on `release-1.0`.
+
 ## Architecture invariants
 1. `library/` defines the navigation Node model and has no Bubbletea dependency. `ui/model` only talks to Nodes (and, from M2, the Catalog). The exception is playback, which uses the existing cliamp paths.
 2. Capability detection (type assertions on `provider/interfaces.go`) lives in the `library/` adapters, never in the view layer.
@@ -760,6 +763,11 @@ Branch `m10-artwork`.
   - urfave/cli 3.13, x/net 0.59, x/oauth2 0.37, google api 0.299.
   - None fixes a vulnerability (none was open). go-librespot stays at 0.9.1 until upstream moves: 0.10 changes an API the Spotify code uses and needs live testing.
 - [x] Live check (2026-10-01, the owner in Kitty, real config): a searched track's album load interrupted by Stop and by `n`; track info while the queue changes underneath it; an artist page (cached albums first, Full discography…); the TUI after the renderer update (resizes, queue, info view). Nothing unexpected. Found on the way, and inherited: cliamp's own Spotify search ("Search Spotify for …") appends an album to the queue instead of replacing it, and its album load may not be cancelled by Stop. Both go to the 1.0 inherited-surface audit.
+- [ ] 1.0 release (plan approved 2026-10-01, branch `release-1.0`, see `docs/ddmus/release-plan.md`):
+  - [x] Gate A, clean baseline: `review-fixes` merged (9084b3a) after the owner's Kitty checks.
+  - [ ] Release preparation: CLI audit, packaging and licensing, README, website, fresh-user tests (Gate B).
+  - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
+  - [ ] v1.0.0 (Gate D).
 
 ## Decisions log
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.
@@ -825,6 +833,32 @@ Branch `m10-artwork`.
 - 2026-10-01: `go.mod` stays at `go 1.26.6` (upstream's minimum) while ddmus builds with 1.27.1 through mise.
   - Raising it would change only two runtime defaults (`tracebacklabels`, unused by ddmus; `x509sslcertoverrideplatform`, Windows and macOS only) and allow Go 1.27 language features, which nothing needs.
   - Raise it when upstream does, or when ddmus needs a 1.27 feature.
+- 2026-10-01: Feature freeze for 1.0 (owner). Everything not in M1–M10 is post-1.0; see the Post-1.0 backlog below.
+- 2026-10-01: The 1.0 release plan is approved (owner; reviewed with Codex). Its decisions, in full in `docs/ddmus/release-plan.md`:
+  - Supported providers: Spotify, YouTube Music, Local, Radio. The hidden providers' public entry points go (help, setup, config activation, IPC, provider-switching hotkeys); their existing config stays untouched but inert.
+  - `--daemon` and `cliamp://` registration and dispatch are removed. Plugins are unsupported: no command, no loading at startup, no IPC plugin operations; existing plugin config stays inert.
+  - Packaging: GitHub Release (canonical), AUR `ddmus-bin` (owner as maintainer) and build from source; Linux amd64, tested on Arch and Debian 13. Releases carry checksums, an SBOM and a build attestation; trust items (official-source statement, stepping-away section, account hardening, `SECURITY.md`) ship with them.
+  - Licensing: MIT source, GPL-3.0 executable (go-librespot). `xlab/vorbis-go` has no license file; the owner accepts that inherited risk, and it is named in the notices.
+  - Compatibility: forward migrations within 1.x, no downgrade; backup advice follows a classification of persistent state by recoverability.
+  - Release blockers: BLOCKER and HIGH block; a MEDIUM is waived only with a written rationale; LOW and NIT never block. Candidates are drafts until automated checks pass; 7-day soak before v1.0.0.
+  - Website live no later than v1.0.0; demo recorded with `vhs`; one Kitty screenshot.
+  - In cliamp's Spotify search, Enter on an album or track replaces the queue (`a` and `q` unchanged).
+
+## Post-1.0 backlog
+Nothing here is built before 1.0.
+- Auto EQ from normalized genre metadata.
+- Ambient or generated sounds.
+- More providers: only ones the owner uses and can test; the hidden ones are candidates.
+- Sixel, iTerm2 and other artwork protocols (WezTerm, Konsole, foot).
+- InnerTube discovery of saved YouTube Music playlists the API doesn't list.
+- Cross-source, ddmus-owned playlists.
+- `X` in the queue clears the whole queue (Ctrl+Z undoes it); `X` is free once the provider hotkeys go.
+- YouTube cookie playlist count check (guard against a short playlist feed).
+- Daemon or headless persistent playback (likely a 2.0 architectural project).
+- Broad-prefix search speed (P3), only if it becomes a complaint.
+- Linux arm64, macOS, Homebrew, `.deb`/`.rpm`, once someone can test them.
+- `go install` (needs the module renamed, which makes upstream merges costly).
+- Replace `xlab/vorbis-go` with a properly licensed decoder: a feasibility study (candidate `jfreymuth/oggvorbis`, MIT, already in `go.mod`; likely needs a go-librespot change or a maintained patch).
 
 ## Open questions
 - Whether `music_dir` should split from `initial_directory` (the Local scan folder vs the file browser's start folder). Default: keep reusing `initial_directory` until someone needs them apart.

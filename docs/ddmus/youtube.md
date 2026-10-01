@@ -87,5 +87,5 @@ The first pass over a large library takes a while (about half an hour for 360 tr
 ## Troubleshooting
 
 - **No YouTube Music in Music:** check that `[ytmusic]` does not say `enabled = false`, that it has a sign-in (cookies or both OAuth keys), and that `yt-dlp` is on your PATH.
-- **"sync failed" for YouTube:** the log (`~/.config/ddmus/cliamp.log`) has yt-dlp's message. A 401, or `cannot decrypt`, means the cookies are not being read (see the keyring note above).
+- **"sync failed" for YouTube:** the log (`~/.config/ddmus/ddmus.log`) has yt-dlp's message. A 401, or `cannot decrypt`, means the cookies are not being read (see the keyring note above).
 - **A saved playlist is missing:** add its link to `youtube_playlists`.

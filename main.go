@@ -850,7 +850,7 @@ func initLogging(levelStr string) (func() error, string, error) {
 	if err != nil {
 		return noop, "", fmt.Errorf("resolve config dir: %w", err)
 	}
-	closeFn, err := applog.Init(filepath.Join(dir, "cliamp.log"), level)
+	closeFn, err := applog.Init(filepath.Join(dir, appdir.Name+".log"), level) // ddmus: ddmus.log
 	if err != nil {
 		return noop, "", err
 	}
@@ -962,9 +962,9 @@ func stateResult(snapshot ipc.RuntimeSnapshot) ipc.Response {
 
 func main() {
 	appmeta.SetVersion(version)
-	app := buildApp()
+	app := ddmusApp() // ddmus: the 1.0 surface (cli_ddmus.go)
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, cliError(err)) // ddmus
 		os.Exit(1)
 	}
 }

@@ -234,7 +234,7 @@ func overridesFromFlags(c *cli.Command) (config.Overrides, error) {
 // ddmus: the self-updater downloads cliamp's releases, which would replace
 // ddmus with cliamp. It stays registered (hidden) so `ddmus upgrade`
 // explains itself instead of failing as an unknown command.
-var errUpgradeDisabled = errors.New("upgrade is disabled in ddmus: it would install cliamp over ddmus; update by pulling and rebuilding (git pull && make install)")
+var errUpgradeDisabled = errors.New("ddmus doesn't update itself: update it with your package manager (AUR: ddmus-bin), or download the latest release from https://github.com/DaphnisDuck/ddmus/releases")
 
 func upgradeCommand() *cli.Command {
 	return &cli.Command{
@@ -786,13 +786,7 @@ func statusCommand() *cli.Command {
 			if resp.Repeat != "" {
 				fmt.Printf("Repeat: %s\n", resp.Repeat)
 			}
-			if resp.Mono != nil {
-				if *resp.Mono {
-					fmt.Println("Mono: on")
-				} else {
-					fmt.Println("Mono: off")
-				}
-			}
+			// ddmus: no Mono line; mono isn't a ddmus feature.
 			if resp.Speed > 0 {
 				fmt.Printf("Speed: %.2fx\n", resp.Speed)
 			}
@@ -963,6 +957,9 @@ func shuffleCommand() *cli.Command {
 			if c.Args().Len() > 0 {
 				name = strings.ToLower(c.Args().First())
 			}
+			if err := checkModeName("shuffle", name); err != nil { // ddmus
+				return err
+			}
 			resp, err := ipcSend("shuffle", ipc.Request{Name: name})
 			if err != nil {
 				return err
@@ -986,6 +983,9 @@ func repeatCommand() *cli.Command {
 			name := "cycle"
 			if c.Args().Len() > 0 {
 				name = strings.ToLower(c.Args().First())
+			}
+			if err := checkModeName("repeat", name); err != nil { // ddmus
+				return err
 			}
 			resp, err := ipcSend("repeat", ipc.Request{Name: name})
 			if err != nil {

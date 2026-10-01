@@ -500,3 +500,19 @@ func TestNewProvider(t *testing.T) {
 		t.Error("newProvider returned nil provider")
 	}
 }
+
+// ddmus: an out-of-range index is reported as the user gave it, not 0-based.
+func TestPlaylistRemoveReportsGivenIndex(t *testing.T) {
+	home := setupTestEnv(t)
+	audioDir := filepath.Join(home, "music")
+	writeAudioFile(t, filepath.Join(audioDir, "song1.mp3"))
+	if _, err := captureStdout(t, func() error {
+		return PlaylistCreate("mix", []string{audioDir}, "", nil)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	err := PlaylistRemove("mix", 9)
+	if err == nil || !strings.Contains(err.Error(), "track index 9 out of range") {
+		t.Errorf("PlaylistRemove(9) = %v", err)
+	}
+}

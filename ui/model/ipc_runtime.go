@@ -454,6 +454,10 @@ func (m *Model) handleV2EQ(jobs *ipc.JobStore, jobID string, request ipc.Request
 
 func (m *Model) handleV2Mode(jobs *ipc.JobStore, jobID string, request ipc.Request) tea.Cmd {
 	name := strings.ToLower(request.Name)
+	if !ipc.ValidModeName(request.Cmd, name) { // ddmus: an unknown name fails instead of toggling
+		m.failV2Job(jobs, jobID, v2InvalidParamsError())
+		return nil
+	}
 	switch request.Cmd {
 	case "shuffle":
 		if (name == "on" && !m.playlist.Shuffled()) || (name == "off" && m.playlist.Shuffled()) || (name != "on" && name != "off") {

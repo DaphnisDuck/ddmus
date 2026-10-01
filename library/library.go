@@ -38,6 +38,18 @@ type CatalogLevel interface {
 	CatalogProvider() string
 }
 
+// CachedLevel is implemented by levels beneath the catalog lists whose rows
+// the catalog backs but whose Load may also reach the provider: an album not
+// cached yet, a playlist the sync could not read. When a sync of
+// CachedProvider changes the catalog, the UI rereads them with LoadCached,
+// which reads the catalog alone, so a sync never sets off live calls. ok
+// false means the rows did not come from the catalog (a live fallback), and
+// they stay as they are.
+type CachedLevel interface {
+	CachedProvider() string
+	LoadCached(ctx context.Context) (entries []Entry, ok bool, err error)
+}
+
 // OrderedLevel is implemented by levels that can list their rows in more
 // than one order. The UI's order key calls NextOrder and reloads the level.
 type OrderedLevel interface {

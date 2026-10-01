@@ -6,6 +6,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,8 +28,77 @@ type fakeCatalog struct {
 	genres      []catalog.Genre
 	genreAlbs   map[string][]catalog.Album
 	found       catalog.SearchResults
+	queriesMu   sync.Mutex // Search may run from overlapping loads
 	queries     []catalog.Query
 	synced      bool
+}
+
+func (f *fakeCatalog) AlbumTracksByRef(ctx context.Context, ref catalog.Ref) ([]catalog.Track, bool, error) {
+	id, err := f.idOf(catalog.KindAlbum, ref)
+	if err != nil {
+		return nil, false, err
+	}
+	return f.AlbumTracks(ctx, id)
+}
+func (f *fakeCatalog) ArtistAlbumsByRef(ctx context.Context, ref catalog.Ref) ([]catalog.Album, error) {
+	id, err := f.idOf(catalog.KindArtist, ref)
+	if err != nil {
+		return nil, err
+	}
+	return f.ArtistAlbums(ctx, id)
+}
+func (f *fakeCatalog) PlaylistTracksByRef(ctx context.Context, ref catalog.Ref) ([]catalog.Track, error) {
+	id, err := f.idOf(catalog.KindPlaylist, ref)
+	if err != nil {
+		return nil, err
+	}
+	return f.PlaylistTracks(ctx, id)
+}
+
+// idOf finds an entity by ref among everything the fake lists, the way the
+// store looks it up by its unique (provider, provider ID).
+func (f *fakeCatalog) idOf(kind catalog.Kind, ref catalog.Ref) (int64, error) {
+	refs := map[catalog.Ref]int64{}
+	addAlbums := func(albums []catalog.Album) {
+		for _, a := range albums {
+			if kind == catalog.KindAlbum {
+				refs[a.Ref] = a.ID
+			}
+		}
+	}
+	addAlbums(f.albums)
+	for _, as := range f.artistAlbs {
+		addAlbums(as)
+	}
+	for _, as := range f.genreAlbs {
+		addAlbums(as)
+	}
+	for _, a := range f.artists {
+		if kind == catalog.KindArtist {
+			refs[a.Ref] = a.ID
+		}
+	}
+	for _, p := range f.playlists {
+		if kind == catalog.KindPlaylist {
+			refs[p.Ref] = p.ID
+		}
+	}
+	for _, results := range f.found {
+		for _, r := range results {
+			switch {
+			case r.Album != nil && kind == catalog.KindAlbum:
+				refs[r.Album.Ref] = r.Album.ID
+			case r.Artist != nil && kind == catalog.KindArtist:
+				refs[r.Artist.Ref] = r.Artist.ID
+			case r.Playlist != nil && kind == catalog.KindPlaylist:
+				refs[r.Playlist.Ref] = r.Playlist.ID
+			}
+		}
+	}
+	if id, ok := refs[ref]; ok {
+		return id, nil
+	}
+	return 0, catalog.ErrNotFound
 }
 
 func (f *fakeCatalog) Albums(_ context.Context, _ string, order catalog.AlbumOrder) ([]catalog.Album, error) {
@@ -71,7 +141,9 @@ func (f *fakeCatalog) GenreAlbums(_ context.Context, _, genre string) ([]catalog
 	return f.genreAlbs[genre], nil
 }
 func (f *fakeCatalog) Search(_ context.Context, q catalog.Query, limit int) (catalog.SearchResults, error) {
+	f.queriesMu.Lock()
 	f.queries = append(f.queries, q)
+	f.queriesMu.Unlock()
 	out := catalog.SearchResults{}
 	for kind, rs := range f.found {
 		if q.Wants(kind) {
@@ -183,15 +255,45 @@ func TestSpotifyCatalogPlaylists(t *testing.T) {
 	}
 }
 
+// An artist page is catalog first (owner's decision, 2026-10-01): the
+// albums the catalog knows at once, without a provider call, and a row that
+// loads the full discography when chosen. An artist the catalog has no
+// albums for opens the provider's list.
 func TestSpotifyCatalogArtistDiscography(t *testing.T) {
-	_, live, root := newCatalogFixture()
+	cat, live, root := newCatalogFixture()
 	artist := child(t, child(t, root, "Artists"), "Ozawa")
-	if got := titles(load(t, artist)); !slices.Equal(got, []string{"Discography Album"}) {
-		t.Errorf("online discography = %v", got)
+	rows := load(t, artist)
+	if got := titles(rows); !slices.Equal(got, []string{"Cached", "Full discography…"}) || len(live.calls) != 0 {
+		t.Fatalf("artist page = %v after provider calls %v; want the catalog's albums and the discography row, no call", got, live.calls)
+	}
+	if got := titles(load(t, rows[1].Open)); !slices.Equal(got, []string{"Discography Album"}) {
+		t.Errorf("full discography = %v", got)
 	}
 	live.offline = true
-	if got := titles(load(t, artist)); !slices.Equal(got, []string{"Cached"}) {
-		t.Errorf("offline discography = %v, want the catalog's albums", got)
+	if _, err := rows[1].Open.Load(context.Background()); err == nil {
+		t.Error("offline full discography succeeded")
+	}
+	if got := titles(load(t, artist)); !slices.Equal(got, []string{"Cached", "Full discography…"}) {
+		t.Errorf("offline artist page = %v, want the catalog's albums", got)
+	}
+
+	// No cached albums: the page is the provider's list, which a sync's
+	// reread leaves alone.
+	live.offline = false
+	delete(cat.artistAlbs, 5)
+	if got := titles(load(t, artist)); !slices.Equal(got, []string{"Discography Album"}) {
+		t.Errorf("artist without cached albums = %v, want the live list", got)
+	}
+	if _, ok, err := artist.(CachedLevel).LoadCached(context.Background()); ok || err != nil {
+		t.Errorf("reread replaced the live list: ok=%v err=%v", ok, err)
+	}
+	// A sync caching some of the artist's albums leaves the full list too.
+	cat.artistAlbs[5] = []catalog.Album{{ID: 1, Ref: sref2("al-cached"), Title: "Cached", Year: 1990}}
+	if _, ok, err := artist.(CachedLevel).LoadCached(context.Background()); ok || err != nil {
+		t.Errorf("reread after albums were cached replaced the live list: ok=%v err=%v", ok, err)
+	}
+	if got := titles(load(t, artist)); !slices.Equal(got, []string{"Cached", "Full discography…"}) {
+		t.Errorf("reopened = %v, want the catalog first again", got)
 	}
 }
 
@@ -348,5 +450,135 @@ func TestSyncedMenuFollowsCollections(t *testing.T) {
 	}
 	if _, ok := child(t, root, "Spotify").(CatalogLevel); ok {
 		t.Error("unsynced Spotify used catalog levels")
+	}
+}
+
+// After a sync, an open album or playlist rereads the catalog alone: rows
+// the catalog has replace the shown ones, rows fetched live stay, and no
+// reread calls the provider (review R9).
+func TestCatalogLevelsRereadTheCatalogAlone(t *testing.T) {
+	cat, live, root := newCatalogFixture()
+	rereadErr := func(e Entry) ([]Entry, bool, error) {
+		t.Helper()
+		cl, ok := e.Open.(CachedLevel)
+		if !ok || cl.CachedProvider() != catalog.Spotify {
+			t.Fatalf("%s is not a cached level of Spotify", e.Title)
+		}
+		return cl.LoadCached(context.Background())
+	}
+	reread := func(e Entry) ([]Entry, bool) {
+		t.Helper()
+		rows, ok, err := rereadErr(e)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rows, ok
+	}
+	albums := load(t, child(t, root, "Albums"))
+	cat.albumTracks[1] = append(cat.albumTracks[1], catalog.Track{ID: 13, Title: "II.", PlayableURI: "spotify:track:t13"})
+	if rows, ok := reread(albums[0]); !ok || !slices.Equal(titles(rows), []string{"I.", "II."}) {
+		t.Errorf("cached album reread = %q, %v", titles(rows), ok)
+	}
+	if _, ok := reread(albums[1]); ok {
+		t.Error("an uncached album's reread claims catalog rows, which would replace the live ones")
+	}
+	pls := load(t, child(t, root, "Playlists"))
+	for _, p := range pls { // opened first, as the UI rereads only a level it loaded
+		load(t, p.Open)
+	}
+	live.calls, live.asked = nil, nil
+	cat.plTracks[20] = append(cat.plTracks[20], catalog.Track{ID: 14, Title: "Song 2", PlayableURI: "spotify:track:t14"})
+	for _, p := range pls {
+		rows, ok := reread(p)
+		switch p.Title {
+		case "Mine":
+			if !ok || len(rows) != 2 {
+				t.Errorf("playlist reread = %q, %v", titles(rows), ok)
+			}
+		case "Locked": // its items are fetched live
+			if ok {
+				t.Error("the locked playlist's reread claims catalog rows")
+			}
+		}
+	}
+	if len(live.calls) != 0 || len(live.asked) != 0 {
+		t.Errorf("rereads called the provider: %v %v", live.calls, live.asked)
+	}
+	// A playlist a sync removed says so in place of its rows.
+	cat.playlists = cat.playlists[1:]
+	if _, ok, err := rereadErr(pls[0]); !ok || !errors.Is(err, catalog.ErrNotFound) {
+		t.Errorf("a removed playlist's reread = %v, %v; want it reported in place of its rows", ok, err)
+	}
+}
+
+// Search results come from the catalog alone, so a sync rereads them.
+func TestSearchLevelsAreCatalogLevels(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	s := &catalogView{cat: cat}
+	for _, l := range []Level{s.level("ozawa"), s.more(catalog.ParseQuery("ozawa"), catalog.SearchAlbum, "Albums")} {
+		if cl, ok := l.(CatalogLevel); !ok || cl.CatalogProvider() != "" {
+			t.Errorf("%s is not a catalog level of every source", l.Title())
+		}
+	}
+}
+
+// A cached level keeps the provider's sign-in, as level does.
+func TestCachedLevelKeepsSignIn(t *testing.T) {
+	b := &catalogBrowser{prov: &fakeSpotify{}, provider: catalog.Spotify}
+	l := b.cachedLevel("Album", func(context.Context) ([]Entry, error) { return nil, nil },
+		func(context.Context) ([]Entry, bool, error) { return nil, false, nil })
+	if _, ok := l.(AuthLevel); !ok {
+		t.Error("cached level of a provider that signs in offers no sign-in")
+	}
+	if _, ok := l.(CachedLevel); !ok {
+		t.Error("not a cached level")
+	}
+}
+
+// A playlist a sync emptied shows empty; one whose rows were fetched live
+// (the sync could not read it) keeps them while the catalog has none.
+func TestPlaylistRereadOfAnEmptiedPlaylist(t *testing.T) {
+	cat, _, root := newCatalogFixture()
+	pls := load(t, child(t, root, "Playlists"))
+	for _, p := range pls {
+		load(t, p.Open)
+	}
+	cat.plTracks[20] = nil // Mine, read from the catalog, emptied by a sync
+	for _, p := range pls {
+		rows, ok, err := p.Open.(CachedLevel).LoadCached(context.Background())
+		switch {
+		case err != nil:
+			t.Fatal(err)
+		case p.Title == "Mine" && (!ok || len(rows) != 0):
+			t.Errorf("emptied playlist reread = %q, %v; want empty rows", titles(rows), ok)
+		case p.Title == "Locked" && ok:
+			t.Error("the live-fetched playlist's rows were replaced by the empty catalog list")
+		}
+	}
+}
+
+// An artist page without a live discography (YouTube) reads the catalog
+// alone, so a sync rereads it.
+func TestCatalogOnlyArtistPageIsRereadable(t *testing.T) {
+	cat, _, _ := newCatalogFixture()
+	b := &catalogBrowser{cat: cat, prov: &fakeProvider{name: "YouTube"}, provider: catalog.Spotify}
+	e := b.artistEntry(cat.artists[0])
+	cl, ok := e.Open.(CachedLevel)
+	if !ok {
+		t.Fatal("catalog-only artist page is not rereadable")
+	}
+	cat.artistAlbs[5] = append(cat.artistAlbs[5], catalog.Album{ID: 2, Ref: sref2("al-new"), Title: "Not Cached"})
+	if rows, ok, err := cl.LoadCached(context.Background()); err != nil || !ok || len(rows) != 2 {
+		t.Errorf("artist reread = %q, %v, %v", titles(rows), ok, err)
+	}
+	// With a live discography, the page still rereads the catalog alone,
+	// keeping its discography row.
+	live := &liveSpotify{fakeProvider: fakeProvider{name: "Spotify"}}
+	b.prov = live
+	l := b.artistEntry(cat.artists[0]).Open
+	load(t, l)
+	rows, ok, err := l.(CachedLevel).LoadCached(context.Background())
+	if got := titles(rows); err != nil || !ok || !slices.Equal(got, []string{"Cached", "Not Cached", "Full discography…"}) || len(live.calls) != 0 {
+		t.Errorf("live-provider artist reread = %v, %v, %v, calls %v", got, ok, err, live.calls)
 	}
 }

@@ -141,9 +141,9 @@ func (m *Model) handleLibrarySearchTick(msg librarySearchTickMsg) tea.Cmd {
 func (m *Model) libraryPlayFrom(e library.Entry, source string) tea.Cmd {
 	gen := nextRequest(&m.lib.gen)
 	m.lib.playGen = gen
-	playFrom, title := e.PlayFrom, e.Title
+	playFrom, title, parent := e.PlayFrom, e.Title, m.libContext()
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
+		ctx, cancel := context.WithTimeout(parent, libraryLoadTimeout)
 		defer cancel()
 		tracks, index, err := playFrom(ctx)
 		return libraryPlayMsg{gen: gen, title: title, source: source, tracks: tracks, index: index, err: err}

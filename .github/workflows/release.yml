@@ -218,6 +218,7 @@ jobs:
 
   release:
     needs: build
+    if: github.repository == 'bjarneo/cliamp' # ddmus: publish only from upstream until ddmus has its own packaging
     outputs:
       prerelease: ${{ steps.release-type.outputs.prerelease }}
     runs-on: ubuntu-latest
@@ -321,7 +322,7 @@ jobs:
 
   update-homebrew:
     needs: release
-    if: needs.release.outputs.prerelease != 'true'
+    if: github.repository == 'bjarneo/cliamp' && needs.release.outputs.prerelease != 'true' # ddmus: upstream only
     runs-on: ubuntu-latest
     steps:
       - name: Download checksums

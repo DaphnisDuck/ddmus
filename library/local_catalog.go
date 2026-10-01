@@ -49,9 +49,9 @@ func (b *catalogBrowser) localAlbumEntry(a catalog.Album) Entry {
 		detail = fmt.Sprintf("%s · %d", detail, a.Year)
 	}
 	return Entry{ID: catalogID(a.ID), Title: a.Title, Detail: detail, Open: b.list(a.Title, func(ctx context.Context) ([]Entry, error) {
-		tracks, _, err := b.cat.AlbumTracks(ctx, a.ID)
+		tracks, _, err := b.cat.AlbumTracksByRef(ctx, a.Ref)
 		if err != nil {
-			return nil, err
+			return nil, notInLibrary(err)
 		}
 		return catalogTrackEntries(tracks), nil
 	})}
@@ -71,9 +71,9 @@ func (b *catalogBrowser) localArtists(ctx context.Context) ([]Entry, error) {
 
 func (b *catalogBrowser) localArtistEntry(a catalog.Artist) Entry {
 	return Entry{ID: catalogID(a.ID), Title: a.Name, Open: b.list(a.Name, func(ctx context.Context) ([]Entry, error) {
-		albums, err := b.cat.ArtistAlbums(ctx, a.ID)
+		albums, err := b.cat.ArtistAlbumsByRef(ctx, a.Ref)
 		if err != nil {
-			return nil, err
+			return nil, notInLibrary(err)
 		}
 		return b.localAlbumEntries(albums), nil
 	})}

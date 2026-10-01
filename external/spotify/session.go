@@ -15,6 +15,7 @@ import (
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
+	"time" // ddmus
 
 	"github.com/bjarneo/cliamp/applog"
 	"github.com/bjarneo/cliamp/internal/browser"
@@ -298,8 +299,18 @@ func spotifyOAuthConfig(clientID string, scopes []string) *oauth2.Config {
 // without opening a browser.
 func silentTokenRefresh(clientID, refreshToken string) (*oauth2.Token, error) {
 	conf := spotifyOAuthConfig(clientID, oauthScopes)
-	src := conf.TokenSource(context.Background(), &oauth2.Token{RefreshToken: refreshToken})
+	src := conf.TokenSource(tokenContext(), &oauth2.Token{RefreshToken: refreshToken}) // ddmus: bounded
 	return src.Token()
+}
+
+// ddmus: token refreshes use a bounded client. oauth2's default
+// (http.DefaultClient) never times out, so a stalled token endpoint held a
+// session start, and every Web API call after the token expired, forever.
+var tokenHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
+// tokenContext carries the bounded client to oauth2's requests. ddmus
+func tokenContext() context.Context {
+	return context.WithValue(context.Background(), oauth2.HTTPClient, tokenHTTPClient)
 }
 
 // persistingTokenSource saves refresh-token rotations without making a usable
@@ -334,7 +345,7 @@ func (s *persistingTokenSource) Token() (*oauth2.Token, error) {
 
 func webAPITokenSource(clientID string, token *oauth2.Token, creds storedCreds) oauth2.TokenSource {
 	conf := spotifyOAuthConfig(clientID, oauthScopes)
-	source := conf.TokenSource(context.Background(), token)
+	source := conf.TokenSource(tokenContext(), token) // ddmus: bounded
 	return &persistingTokenSource{
 		source:       source,
 		refreshToken: creds.RefreshToken,

@@ -40,18 +40,33 @@ func libraryRows(entries []library.Entry) []libRow {
 	return rows
 }
 
-// libScroll returns the first visible row so the cursor's row (and the
+// libRowOf maps each of n entries to its line in rows.
+func libRowOf(rows []libRow, n int) []int {
+	rowOf := make([]int, n)
+	for i, row := range rows {
+		if row.index >= 0 {
+			rowOf[row.index] = i
+		}
+	}
+	return rowOf
+}
+
+// libLayout returns f's rendered lines, track numbers and entry lines:
+// cached by setEntries, or worked out for a frame given its entries
+// another way.
+func (f *libFrame) libLayout() (rows []libRow, numbers, rowOf []int) {
+	if len(f.rowOf) == len(f.entries) && len(f.numbers) == len(f.entries) {
+		return f.rows, f.numbers, f.rowOf
+	}
+	rows = libraryRows(f.entries)
+	return rows, libTrackNumbers(f.entries), libRowOf(rows, len(f.entries))
+}
+
+// libScroll returns the first visible row so the cursor's row r (and the
 // heading directly above it) fits in budget rows.
-func libScroll(rows []libRow, cursor, scroll, budget int) int {
+func libScroll(rows []libRow, r, scroll, budget int) int {
 	if budget <= 0 || len(rows) <= budget {
 		return 0
-	}
-	r := 0
-	for i, row := range rows {
-		if row.index == cursor {
-			r = i
-			break
-		}
 	}
 	top := r
 	if r > 0 && rows[r-1].index < 0 {
@@ -71,7 +86,8 @@ func (m *Model) libAdjustScroll() {
 		return
 	}
 	f := m.libTop()
-	f.scroll = libScroll(libraryRows(f.entries), f.cursor, f.scroll, m.libListBudget())
+	rows, _, rowOf := f.libLayout()
+	f.scroll = libScroll(rows, libCursorRow(rowOf, f.cursor), f.scroll, m.libListBudget())
 }
 
 // libListBudget is how many rows the list gets: the body, less the search
@@ -208,9 +224,8 @@ func (m *Model) renderLibraryList(budget int) string {
 		titleCol = f.titleCol
 	}
 	defer ui.WithPanelWidth(listRowWidth(panel, f.column, 0))() // section headings
-	rows := libraryRows(f.entries)
-	scroll := libScroll(rows, f.cursor, f.scroll, budget)
-	numbers := libTrackNumbers(f.entries)
+	rows, numbers, rowOf := f.libLayout()
+	scroll := libScroll(rows, libCursorRow(rowOf, f.cursor), f.scroll, budget)
 	// While the search input has focus, Enter does not act on a row, so no
 	// row shows the cursor.
 	_, searching := m.libSearchLevel()
@@ -234,6 +249,14 @@ func (m *Model) renderLibraryList(budget int) string {
 		restore()
 	}
 	return bodyLines(lines, budget)
+}
+
+// libCursorRow is the cursor's line, or 0 when the cursor is off the list.
+func libCursorRow(rowOf []int, cursor int) int {
+	if cursor < 0 || cursor >= len(rowOf) {
+		return 0
+	}
+	return rowOf[cursor]
 }
 
 // libTrackNumbers numbers each section's tracks from 1 (0 for other rows),

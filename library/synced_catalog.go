@@ -3,6 +3,7 @@ package library
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -120,9 +121,49 @@ func (b *catalogBrowser) list(title string, load func(ctx context.Context) ([]En
 }
 
 // level is a level beneath the lists. It may fall back to the provider, so
-// it offers sign-in and is not refreshed by syncs.
+// it offers sign-in and is not reloaded by syncs.
 func (b *catalogBrowser) level(title string, load func(ctx context.Context) ([]Entry, error)) Level {
 	return providerLevel(title, b.prov, load)
+}
+
+// cachedLevel is a level beneath the lists that a sync rereads from the
+// catalog alone (library.CachedLevel); like level, it may fall back to the
+// provider and offers sign-in.
+func (b *catalogBrowser) cachedLevel(title string, load func(ctx context.Context) ([]Entry, error),
+	cached func(ctx context.Context) ([]Entry, bool, error)) Level {
+	l := cachedFuncLevel{funcLevel{title, load}, b.provider, cached}
+	if a, ok := b.prov.(playlist.Authenticator); ok {
+		return &cachedSignInLevel{l, a}
+	}
+	return &l
+}
+
+type cachedFuncLevel struct {
+	funcLevel
+	provider string
+	cached   func(ctx context.Context) ([]Entry, bool, error)
+}
+
+func (l *cachedFuncLevel) CachedProvider() string { return l.provider }
+func (l *cachedFuncLevel) LoadCached(ctx context.Context) ([]Entry, bool, error) {
+	return l.cached(ctx)
+}
+
+type cachedSignInLevel struct {
+	cachedFuncLevel
+	auth playlist.Authenticator
+}
+
+func (l *cachedSignInLevel) Authenticator() playlist.Authenticator { return l.auth }
+
+// cachedRows turns a catalog reread's error into its result: an entity a
+// sync removed reports so in place of its rows; any other failure leaves the
+// rows shown.
+func cachedRows(err error) ([]Entry, bool, error) {
+	if errors.Is(err, catalog.ErrNotFound) {
+		return nil, true, notInLibrary(err)
+	}
+	return nil, false, nil
 }
 
 // syncingPlaceholder stands in for an empty list: before the first sync has
@@ -160,10 +201,20 @@ func (b *catalogBrowser) albums(ctx context.Context) ([]Entry, error) {
 }
 
 func (b *catalogBrowser) albumEntry(a catalog.Album, detail string) Entry {
-	return Entry{ID: catalogID(a.ID), Title: a.Title, Detail: detail, Open: b.level(a.Title, func(ctx context.Context) ([]Entry, error) {
-		tracks, cached, err := b.cat.AlbumTracks(ctx, a.ID)
+	cached := func(ctx context.Context) ([]Entry, bool, error) {
+		tracks, cached, err := b.cat.AlbumTracksByRef(ctx, a.Ref)
 		if err != nil {
-			return nil, err
+			return cachedRows(err)
+		}
+		if !cached && !b.partialAlbums {
+			return nil, false, nil // the rows were fetched live
+		}
+		return catalogTrackEntries(tracks), true, nil
+	}
+	return Entry{ID: catalogID(a.ID), Title: a.Title, Detail: detail, Open: b.cachedLevel(a.Title, func(ctx context.Context) ([]Entry, error) {
+		tracks, cached, err := b.cat.AlbumTracksByRef(ctx, a.Ref)
+		if err != nil {
+			return nil, notInLibrary(err)
 		}
 		if cached || b.partialAlbums {
 			return catalogTrackEntries(tracks), nil
@@ -185,7 +236,7 @@ func (b *catalogBrowser) albumEntry(a catalog.Album, detail string) Entry {
 			return nil, err
 		}
 		return trackEntries(live), nil
-	})}
+	}, cached)}
 }
 
 func (b *catalogBrowser) artists(ctx context.Context) ([]Entry, error) {
@@ -201,31 +252,74 @@ func (b *catalogBrowser) artists(ctx context.Context) ([]Entry, error) {
 }
 
 func (b *catalogBrowser) artistEntry(a catalog.Artist) Entry {
-	return Entry{ID: catalogID(a.ID), Title: a.Name, Open: b.level(a.Name, func(ctx context.Context) ([]Entry, error) {
-		return b.artistAlbums(ctx, a)
-	})}
+	ab, live := b.prov.(provider.ArtistBrowser)
+	// The page is the albums the catalog knows, at once, and for a provider
+	// with a live discography a row that loads it when chosen. When the
+	// catalog has none of the artist's albums the page is the provider's
+	// list itself (fromProvider), which a sync leaves alone.
+	var fromProvider atomic.Bool
+	page := func(albums []catalog.Album) []Entry {
+		entries := b.catalogArtistAlbums(albums)
+		if live {
+			entries = append(entries, b.discographyRow(ab, a))
+		}
+		return entries
+	}
+	load := func(ctx context.Context) ([]Entry, error) {
+		albums, err := b.cat.ArtistAlbumsByRef(ctx, a.Ref)
+		if live && (errors.Is(err, catalog.ErrNotFound) || err == nil && len(albums) == 0) {
+			fromProvider.Store(true)
+			return liveDiscography(b.prov, ab, a)
+		}
+		if err != nil {
+			return nil, notInLibrary(err)
+		}
+		fromProvider.Store(false)
+		return page(albums), nil
+	}
+	cached := func(ctx context.Context) ([]Entry, bool, error) {
+		// The provider's full list stays, even once the catalog has some
+		// of the albums: reopening the page shows the catalog first.
+		if fromProvider.Load() {
+			return nil, false, nil
+		}
+		albums, err := b.cat.ArtistAlbumsByRef(ctx, a.Ref)
+		if err != nil {
+			return cachedRows(err)
+		}
+		return page(albums), true, nil
+	}
+	return Entry{ID: catalogID(a.ID), Title: a.Name, Open: b.cachedLevel(a.Name, load, cached)}
 }
 
-// artistAlbums shows the artist's full discography from the provider, and
-// falls back to the albums the catalog knows when the provider is out of
-// reach (offline, rate-limited).
-func (b *catalogBrowser) artistAlbums(ctx context.Context, a catalog.Artist) ([]Entry, error) {
-	if ab, ok := b.prov.(provider.ArtistBrowser); ok {
-		live, liveErr := ab.ArtistAlbums(a.Ref.ProviderID)
-		if liveErr == nil {
-			return artistAlbumEntries(b.prov, live), nil
-		}
-		cached, err := b.cat.ArtistAlbums(ctx, a.ID)
-		if err != nil || len(cached) == 0 {
-			return nil, liveErr
-		}
-		return b.catalogArtistAlbums(cached), nil
-	}
-	cached, err := b.cat.ArtistAlbums(ctx, a.ID)
+// discographyRow opens the artist's full discography, loaded from the
+// provider when chosen.
+func (b *catalogBrowser) discographyRow(ab provider.ArtistBrowser, a catalog.Artist) Entry {
+	return Entry{ID: "discography:" + a.Ref.ProviderID, Title: "Full discography…",
+		Open: b.level("Full discography", func(context.Context) ([]Entry, error) {
+			return liveDiscography(b.prov, ab, a)
+		})}
+}
+
+// liveDiscography is the artist's albums and singles as the provider lists
+// them.
+func liveDiscography(prov playlist.Provider, ab provider.ArtistBrowser, a catalog.Artist) ([]Entry, error) {
+	albums, err := ab.ArtistAlbums(a.Ref.ProviderID)
 	if err != nil {
 		return nil, err
 	}
-	return b.catalogArtistAlbums(cached), nil
+	return artistAlbumEntries(prov, albums), nil
+}
+
+// notInLibrary explains an entity a listed action can no longer find. The
+// actions read their entity by ref, never by the ID it was listed with: a
+// sync may have removed it since, and SQLite may have given its old ID to
+// another entity, which the action must not open in its place.
+func notInLibrary(err error) error {
+	if errors.Is(err, catalog.ErrNotFound) {
+		return fmt.Errorf("no longer in the library: %w", err)
+	}
+	return err
 }
 
 func (b *catalogBrowser) catalogArtistAlbums(albums []catalog.Album) []Entry {
@@ -253,10 +347,25 @@ func (b *catalogBrowser) playlistEntry(p catalog.Playlist) Entry {
 	if p.Own {
 		section = SpotifyOwnPlaylistsSection
 	}
-	e := Entry{ID: catalogID(p.ID), Title: p.Name, Section: section, Open: b.level(p.Name, func(ctx context.Context) ([]Entry, error) {
-		tracks, err := b.cat.PlaylistTracks(ctx, p.ID)
+	// fetchedLive records whether the rows shown came from the provider: an
+	// empty catalog list then means the sync could not read the playlist,
+	// and the live rows stay; otherwise empty is the playlist now.
+	var fetchedLive atomic.Bool
+	cached := func(ctx context.Context) ([]Entry, bool, error) {
+		tracks, err := b.cat.PlaylistTracksByRef(ctx, p.Ref)
 		if err != nil {
-			return nil, err
+			return cachedRows(err)
+		}
+		if len(tracks) == 0 && fetchedLive.Load() {
+			return nil, false, nil
+		}
+		fetchedLive.Store(false)
+		return catalogTrackEntries(tracks), true, nil
+	}
+	e := Entry{ID: catalogID(p.ID), Title: p.Name, Section: section, Open: b.cachedLevel(p.Name, func(ctx context.Context) ([]Entry, error) {
+		tracks, err := b.cat.PlaylistTracksByRef(ctx, p.Ref)
+		if err != nil {
+			return nil, notInLibrary(err)
 		}
 		// Items the sync could not read (Spotify refuses some followed
 		// playlists) are fetched live instead.
@@ -265,10 +374,12 @@ func (b *catalogBrowser) playlistEntry(p catalog.Playlist) Entry {
 			if err != nil {
 				return nil, err
 			}
+			fetchedLive.Store(true)
 			return trackEntries(live), nil
 		}
+		fetchedLive.Store(false)
 		return catalogTrackEntries(tracks), nil
-	})}
+	}, cached)}
 	if p.TrackCount > 0 {
 		e.Detail = fmt.Sprintf("%d tracks", p.TrackCount)
 	}

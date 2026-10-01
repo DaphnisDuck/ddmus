@@ -34,6 +34,12 @@ type libraryState struct {
 	// art is the info view's artwork, nil when off (ddmus: library_info.go).
 	art *libArt
 
+	// ctx is the library's lifetime: foreground work (loads, plays,
+	// artwork) derives its timeouts from it, and quitting cancels it, so
+	// nothing keeps fetching or writing once ddmus is on its way out.
+	ctx  context.Context
+	stop context.CancelFunc
+
 	playGen   uint64
 	authGen   uint64
 	signingIn bool
@@ -141,8 +147,14 @@ type libFrame struct {
 	source string
 	// needs is each row's width, and column the list's detail column
 	// (setEntries, library_layout.go).
-	needs    []int
-	column   int
+	needs  []int
+	column int
+	// rows are the entries as rendered lines (with section headings),
+	// numbers each track's number, and rowOf each entry's line: set with
+	// the entries, so a render costs the lines in view, not the list.
+	rows     []libRow
+	numbers  []int
+	rowOf    []int
 	titleCol int // the title column of rows with a detail, on a wide terminal
 }
 
@@ -152,6 +164,9 @@ type libraryLoadedMsg struct {
 	gen     uint64
 	entries []library.Entry
 	err     error
+	// unchanged: a catalog reread found the rows came from the provider,
+	// so they stay (library.CachedLevel).
+	unchanged bool
 }
 
 type libraryPlayMsg struct {
@@ -173,11 +188,33 @@ type libraryAuthDoneMsg struct {
 func (m *Model) SetLibrary(root library.Level) {
 	entries, err := root.Load(context.Background())
 	m.lib = libraryState{visible: true, stack: []libFrame{{level: root, err: err}}, fits: &libFits{}}
+	m.lib.ctx, m.lib.stop = context.WithCancel(context.Background())
 	m.lib.stack[0].setEntries(entries)
 	m.focus = focusPlaylist
 }
 
 func (m Model) libraryEnabled() bool { return len(m.lib.stack) > 0 }
+
+// libContext is the parent of foreground library work: the library's
+// lifetime, or Background for a model without a library (tests).
+func (m Model) libContext() context.Context {
+	if m.lib.ctx != nil {
+		return m.lib.ctx
+	}
+	return context.Background()
+}
+
+// libStop cancels foreground library work as ddmus quits.
+func (m *Model) libStop() {
+	if m.lib.stop != nil {
+		m.lib.stop()
+	}
+}
+
+// StopLibrary cancels foreground library work once the program has ended.
+// main calls it on every way out: a signal ends the program without the
+// model's own quit.
+func (m Model) StopLibrary() { m.libStop() }
 
 func (m Model) libraryVisible() bool { return m.libraryEnabled() && m.lib.visible }
 
@@ -205,7 +242,7 @@ func (m *Model) libraryLoad() tea.Cmd {
 	if f.cancel != nil {
 		f.cancel()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
+	ctx, cancel := context.WithTimeout(m.libContext(), libraryLoadTimeout)
 	f.gen = nextRequest(&m.lib.gen)
 	f.cancel = cancel
 	f.err = nil
@@ -227,9 +264,57 @@ func (m *Model) libraryPop() tea.Cmd {
 	m.lib.stack = m.lib.stack[:len(m.lib.stack)-1]
 	m.libEndSignIn()
 	if f := m.libTop(); f.stale {
-		return m.libraryRefresh()
+		return m.libraryRefreshTop()
 	}
 	return nil
+}
+
+// libraryRefreshCached rereads the top level from the catalog alone
+// (library.CachedLevel), keeping the cursor on its row, so a sync never sets
+// off the live calls its Load may make.
+func (m *Model) libraryRefreshCached(cl library.CachedLevel) tea.Cmd {
+	f := m.libTop()
+	keep := ""
+	if f.cursor >= 0 && f.cursor < len(f.entries) {
+		keep = f.entries[f.cursor].ID
+	}
+	if f.cancel != nil {
+		f.cancel()
+	}
+	ctx, cancel := context.WithTimeout(m.libContext(), libraryLoadTimeout)
+	f.gen = nextRequest(&m.lib.gen)
+	f.cancel = cancel
+	f.keepID, f.stale = keep, false
+	gen := f.gen
+	return func() tea.Msg {
+		defer cancel()
+		entries, ok, err := cl.LoadCached(ctx)
+		return libraryLoadedMsg{gen: gen, entries: entries, err: err, unchanged: !ok}
+	}
+}
+
+// libraryRereadIfStale rereads frame f, the top, when a sync changed its
+// rows while its load ran.
+func (m *Model) libraryRereadIfStale(f *libFrame) tea.Cmd {
+	if _, ok := f.level.(library.CachedLevel); ok && f.stale && f == m.libTop() {
+		return m.libraryRefreshTop()
+	}
+	return nil
+}
+
+// libraryRefreshTop rereads the top level after a sync changed its rows:
+// a catalog level loads again; a cached level rereads the catalog, or, while
+// its first load (perhaps live) is still running, once that load lands.
+func (m *Model) libraryRefreshTop() tea.Cmd {
+	f := m.libTop()
+	if cl, ok := f.level.(library.CachedLevel); ok {
+		if f.loading() {
+			f.stale = true
+			return nil
+		}
+		return m.libraryRefreshCached(cl)
+	}
+	return m.libraryRefresh()
 }
 
 // libraryRefresh reloads the top level in place: the rows stay on screen
@@ -253,6 +338,9 @@ func (m *Model) libraryCatalogChanged(provider string) tea.Cmd {
 	}
 	// A level of every source (CatalogProvider "") changes with each.
 	isCatalog := func(f *libFrame) bool {
+		if cl, ok := f.level.(library.CachedLevel); ok {
+			return cl.CachedProvider() == provider
+		}
 		cl, ok := f.level.(library.CatalogLevel)
 		return ok && (cl.CatalogProvider() == provider || cl.CatalogProvider() == "")
 	}
@@ -264,7 +352,7 @@ func (m *Model) libraryCatalogChanged(provider string) tea.Cmd {
 	// A load in flight may have read the rows before this sync wrote them;
 	// refreshing supersedes it.
 	if top := m.libTop(); isCatalog(top) {
-		return m.libraryRefresh()
+		return m.libraryRefreshTop()
 	}
 	return nil
 }
@@ -284,6 +372,10 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		f.cancel = nil
+		if msg.unchanged {
+			f.keepID = ""
+			return m.libraryRereadIfStale(f), true
+		}
 		f.err = msg.err
 		if msg.err == nil {
 			f.setEntries(msg.entries)
@@ -301,7 +393,7 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 			}
 		}
 		f.keepID = ""
-		return nil, true
+		return m.libraryRereadIfStale(f), true
 
 	case CatalogSyncMsg:
 		st := m.libSyncState(msg.Provider)
@@ -320,6 +412,10 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 			case !errors.Is(msg.Err, context.Canceled):
 				st.lastErr = msg.Err.Error()
 			}
+			// The sync's final sweep may have deleted rows the collections'
+			// rereads still found; reread after it (failed collections
+			// included: the sweep runs after those too).
+			return m.libraryCatalogChanged(msg.Provider), true
 		}
 		return nil, true
 
@@ -363,12 +459,7 @@ func (m *Model) handleLibraryMsg(msg tea.Msg) (tea.Cmd, bool) {
 // do.
 func (m *Model) librarySkip(next bool) tea.Cmd {
 	refresh := m.scrobbleCurrent()
-	var cmd tea.Cmd
-	if next {
-		cmd = m.nextTrack()
-	} else {
-		cmd = m.prevTrack()
-	}
+	cmd := m.skipByUser(next)
 	m.notifyPlayback()
 	return tea.Batch(refresh, cmd)
 }
@@ -495,9 +586,9 @@ func (m *Model) libraryActivate() tea.Cmd {
 		gen := nextRequest(&m.lib.gen)
 		m.lib.playGen = gen
 		m.status.Showf(statusTTLLong, "Loading %s…", e.Title)
-		play, title := e.Play, e.Title
+		play, title, parent := e.Play, e.Title, m.libContext()
 		return func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), libraryLoadTimeout)
+			ctx, cancel := context.WithTimeout(parent, libraryLoadTimeout)
 			defer cancel()
 			tracks, err := play(ctx)
 			return libraryPlayMsg{gen: gen, title: title, source: source, tracks: tracks, err: err}
@@ -511,6 +602,23 @@ func (m *Model) libraryActivate() tea.Cmd {
 		m.openProviderSearchWith(e.Provider)
 	}
 	return nil
+}
+
+// retireLibraryPlay drops a library play still resolving (an album or a
+// searched track's album loading): a newer intent replaced the queue,
+// stopped playback, or picked a track in the queue, and the old result must
+// not land on top of it. Request generations start at 1, so 0 matches none.
+func (m *Model) retireLibraryPlay() { m.lib.playGen = 0 }
+
+// skipByUser is an explicit next or previous (a key, IPC, MPRIS, a
+// plugin). Unlike the automatic advance at a track's end, it is a newer
+// intent, so it retires a pending library play.
+func (m *Model) skipByUser(next bool) tea.Cmd {
+	m.retireLibraryPlay()
+	if next {
+		return m.nextTrack()
+	}
+	return m.prevTrack()
 }
 
 // libEndSignIn clears the sign-in screen.

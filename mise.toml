@@ -1,2 +1,2 @@
 [tools]
-go = "latest"
+go = "1.27.1" # ddmus: pinned; bump deliberately

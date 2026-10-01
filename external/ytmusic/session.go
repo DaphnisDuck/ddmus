@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time" // ddmus
 
 	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/internal/browser"
@@ -86,13 +87,13 @@ func NewSessionSilent(ctx context.Context, clientID, clientSecret string) (*Sess
 
 // newSessionFromStored creates a session from stored credentials via silent refresh.
 func newSessionFromStored(ctx context.Context, clientID, clientSecret string, creds *storedCreds) (*Session, error) {
-	token, err := silentTokenRefresh(clientID, clientSecret, creds.RefreshToken)
+	token, err := silentTokenRefresh(tokenContext(ctx), clientID, clientSecret, creds.RefreshToken) // ddmus: ctx
 	if err != nil {
 		return nil, fmt.Errorf("ytmusic: silent refresh: %w", err)
 	}
 
 	conf := googleOAuthConfig(clientID, clientSecret)
-	ts := conf.TokenSource(ctx, token)
+	ts := conf.TokenSource(tokenContext(ctx), token) // ddmus: bounded
 
 	svc, err := youtube.NewService(ctx, option.WithTokenSource(ts))
 	if err != nil {
@@ -119,10 +120,20 @@ func newSessionFromStored(ctx context.Context, clientID, clientSecret string, cr
 
 // silentTokenRefresh uses a stored refresh token to get a new access token
 // without opening a browser.
-func silentTokenRefresh(clientID, clientSecret, refreshToken string) (*oauth2.Token, error) {
+func silentTokenRefresh(ctx context.Context, clientID, clientSecret, refreshToken string) (*oauth2.Token, error) { // ddmus: ctx
 	conf := googleOAuthConfig(clientID, clientSecret)
-	src := conf.TokenSource(context.Background(), &oauth2.Token{RefreshToken: refreshToken})
+	src := conf.TokenSource(ctx, &oauth2.Token{RefreshToken: refreshToken})
 	return src.Token()
+}
+
+// ddmus: token requests are bounded and follow the caller's ctx. Without a
+// client in ctx, oauth2 uses http.DefaultClient, which never times out, so
+// a stalled token endpoint held a catalog sync forever.
+var tokenHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
+// tokenContext is ctx carrying the bounded client for oauth2's requests.
+func tokenContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, oauth2.HTTPClient, tokenHTTPClient)
 }
 
 // newInteractiveSession performs an OAuth2 flow to authenticate.

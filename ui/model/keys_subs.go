@@ -219,6 +219,7 @@ func (m *Model) appendSubscriptionTracks(tracks []playlist.Track, mode subsLoadM
 		return nil
 	}
 	if mode == subsLoadPlay {
+		m.retireLibraryPlay() // ddmus: the chosen track wins over an album still loading
 		m.subs.visible = false
 		m.playlist.SetIndex(start)
 		m.plCursor = start

@@ -9,7 +9,7 @@ ddmus keeps your Spotify library and an index of your local music folder in one 
 - **Local:** every audio file under the music folder, grouped into albums, artists and genres. The folder is `initial_directory` in `config.toml`, else `$XDG_MUSIC_DIR`, else `~/Music`.
 - **Radio:** your favorite stations and the built-in and `radios.toml` stations, so [search](search.md) finds them. They are read from local files at every start and whenever you star or unstar a station. Browsing Radio still reads them directly.
 - **Search index:** a full-text index of everything above, kept in step with every change. See [search.md](search.md).
-- **Not in the catalog:** the radio directory, local playlists, and an artist's full Spotify discography. These are always loaded live.
+- **Not in the catalog:** the radio directory, local playlists, and an artist's full Spotify discography. These are always loaded live. A Spotify artist page shows the albums the catalog knows at once; its **Full discography…** row loads the rest from Spotify when you open it.
 
 No account passwords or tokens are stored in the catalog: Spotify and YouTube credentials stay in `~/.config/ddmus/` (`spotify_credentials.json`, `ytmusic_credentials.json`). A radio station's URL is stored as written, so a station URL that carries a password or token puts it in the catalog. The catalog file and its folder are readable only by you.
 

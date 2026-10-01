@@ -36,6 +36,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if nm, ok := next.(Model); ok {
 		nm.dropStalePreload()
 		cmd = nm.libArtworkSync(msg, cmd) // ddmus: the info view's artwork (library_info.go)
+		if nm.quitting {
+			nm.libStop() // ddmus: cancels foreground library work
+		}
 		next = nm
 	}
 	return next, cmd
@@ -1062,13 +1065,13 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case playback.NextMsg:
 		refresh := m.scrobbleCurrent()
-		cmd := m.nextTrack()
+		cmd := m.skipByUser(true) // ddmus: retires a pending library play
 		m.notifyAll()
 		return m, tea.Batch(refresh, cmd)
 
 	case playback.PrevMsg:
 		refresh := m.scrobbleCurrent()
-		cmd := m.prevTrack()
+		cmd := m.skipByUser(false) // ddmus: retires a pending library play
 		m.notifyAll()
 		return m, tea.Batch(refresh, cmd)
 

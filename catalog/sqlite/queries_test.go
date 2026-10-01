@@ -37,6 +37,7 @@ func seed(t *testing.T, s *Store) {
 			(101, 'spotify', 't-m5-1', 'I. Trauermarsch',      'Seiji Ozawa', 10, 1, 1, 780000, 'spotify:track:t-m5-1', 0),
 			(102, 'spotify', 't-loose', 'Loose Single',        'Riccardo Muti, Seiji Ozawa', NULL, 1, 0, 200000, 'spotify:track:t-loose', 0)`,
 		`UPDATE tracks SET album_title = 'Some Single' WHERE id = 102`,
+		`INSERT INTO album_tracks (album_id, track_id) VALUES (10, 100), (10, 101)`,
 		`INSERT INTO track_artists (track_id, artist_id, position) VALUES (100, 1, 0), (101, 1, 0), (102, 2, 0), (102, 1, 1)`,
 		`INSERT INTO playlists (id, provider, provider_id, name, own, track_count, updated_at) VALUES
 			(20, 'spotify', 'pl-theirs', 'Theirs', 0, 0, 0),
@@ -134,9 +135,9 @@ func TestAlbumTracksReadsOneSnapshot(t *testing.T) {
 	id := albums[0].ID
 
 	// A sync caches the album between the flag read and the track read.
-	t.Cleanup(func() { afterAlbumCachedRead = func() {} })
-	afterAlbumCachedRead = func() {
-		afterAlbumCachedRead = func() {}
+	t.Cleanup(func() { betweenReads = func() {} })
+	betweenReads = func() {
+		betweenReads = func() {}
 		err := s.CacheAlbumTracks(ctx, sref("al1"), []catalog.TrackRecord{
 			{Ref: sref("t1"), Title: "I.", Disc: 1, TrackNo: 1, PlayableURI: "spotify:track:t1"},
 		})
@@ -151,6 +152,38 @@ func TestAlbumTracksReadsOneSnapshot(t *testing.T) {
 	tracks, cached, err = s.AlbumTracks(ctx, id)
 	if err != nil || !cached || len(tracks) != 1 {
 		t.Errorf("read after the sync: %d tracks, cached=%v, err=%v; want the cached track", len(tracks), cached, err)
+	}
+}
+
+// Finding an album by ref and reading it happen in one snapshot: a sync
+// that removes the album and gives its ID to another between the two
+// cannot make the read return the other album.
+func TestAlbumTracksByRefReadsOneSnapshot(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	album := func(id string) catalog.Snapshot {
+		al := catalog.AlbumRecord{Ref: sref(id), Title: "Album " + id}
+		return catalog.Snapshot{Collection: "albums", Albums: []catalog.AlbumRecord{al}}
+	}
+	apply(t, s, album("a"))
+	if err := s.CacheAlbumTracks(ctx, sref("a"), []catalog.TrackRecord{{Ref: sref("ta"), Title: "Song A", PlayableURI: "u"}}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { betweenReads = func() {} })
+	betweenReads = func() {
+		betweenReads = func() {}
+		apply(t, s, catalog.Snapshot{Collection: "albums"})
+		sweep(t, s)
+		apply(t, s, album("b"))
+		if err := s.CacheAlbumTracks(ctx, sref("b"), []catalog.TrackRecord{{Ref: sref("tb"), Title: "Song B", PlayableURI: "u"}}); err != nil {
+			t.Error(err)
+		}
+	}
+	if tracks, _, err := s.AlbumTracksByRef(ctx, sref("a")); err != nil || !slices.Equal(titlesOf(tracks), []string{"Song A"}) {
+		t.Errorf("read across the sync = %q, %v; want album a as it was", titlesOf(tracks), err)
+	}
+	if _, _, err := s.AlbumTracksByRef(ctx, sref("a")); !errors.Is(err, catalog.ErrNotFound) {
+		t.Errorf("after the sync = %v, want ErrNotFound", err)
 	}
 }
 

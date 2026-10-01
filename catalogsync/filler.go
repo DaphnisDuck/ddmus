@@ -31,8 +31,10 @@ type AlbumStore interface {
 	// CacheAlbumTracks stores an album's complete track list and marks the
 	// album cached.
 	CacheAlbumTracks(ctx context.Context, album catalog.Ref, tracks []catalog.TrackRecord) error
-	// AlbumTracks reads an album's tracks back, and whether they are cached.
-	AlbumTracks(ctx context.Context, albumID int64) ([]catalog.Track, bool, error)
+	// AlbumTracksByRef reads an album's tracks back, and whether they are
+	// cached, finding the album by ref: its listed ID may be another
+	// album's by now.
+	AlbumTracksByRef(ctx context.Context, album catalog.Ref) ([]catalog.Track, bool, error)
 }
 
 // Pacing is how gently the Filler uses the provider.
@@ -127,7 +129,7 @@ func (f *Filler) FetchAlbumTracks(ctx context.Context, album catalog.Album) ([]c
 	if err := f.store.CacheAlbumTracks(ctx, album.Ref, recs); err != nil {
 		return nil, err
 	}
-	tracks, _, err := f.store.AlbumTracks(ctx, album.ID)
+	tracks, _, err := f.store.AlbumTracksByRef(ctx, album.Ref)
 	return tracks, err
 }
 
@@ -191,7 +193,7 @@ func (f *Filler) fill(ctx context.Context, a catalog.Album, st *fillState) error
 			return err
 		}
 		// A foreground open may have cached it while this run waited.
-		if _, cached, err := f.store.AlbumTracks(ctx, a.ID); errors.Is(err, catalog.ErrNotFound) || (err == nil && cached) {
+		if _, cached, err := f.store.AlbumTracksByRef(ctx, a.Ref); errors.Is(err, catalog.ErrNotFound) || (err == nil && cached) {
 			return nil
 		}
 		recs, err := f.src.AlbumTracksOnce(ctx, a.Ref)

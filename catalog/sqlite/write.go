@@ -589,12 +589,20 @@ func (w *snapWriter) albumTracks(album catalog.Ref, tracks []catalog.TrackRecord
 		return fmt.Errorf("find album: %w", err)
 	}
 	albumID := sql.NullInt64{Int64: id, Valid: true}
+	// The list replaces the stored one whole: a track no longer on it leaves.
+	if err := w.exec(`DELETE FROM album_tracks WHERE album_id = ?`, id); err != nil {
+		return fmt.Errorf("clear album tracks: %w", err)
+	}
 	for _, t := range tracks {
 		if t.Year == 0 {
 			t.Year = year
 		}
-		if _, err := w.writeTrack(t, albumID); err != nil {
+		trackID, err := w.writeTrack(t, albumID)
+		if err != nil {
 			return err
+		}
+		if err := w.exec(`INSERT OR IGNORE INTO album_tracks (album_id, track_id) VALUES (?, ?)`, id, trackID); err != nil {
+			return fmt.Errorf("list album track: %w", err)
 		}
 	}
 	return w.exec(`UPDATE albums SET tracks_cached_at = ?,
@@ -727,6 +735,9 @@ func (s *Store) Sweep(ctx context.Context, provider string) error {
 	}{
 		// An album that left the library drops its cached track list, so
 		// the cache follows the library instead of growing forever.
+		{`DELETE FROM album_tracks WHERE album_id IN (SELECT id FROM albums
+			WHERE provider = ? AND tracks_cached_at IS NOT NULL AND id NOT IN (` + members + `))`,
+			[]any{provider, provider, catalog.KindAlbum}},
 		{`UPDATE albums SET tracks_cached_at = NULL
 			WHERE provider = ? AND tracks_cached_at IS NOT NULL AND id NOT IN (` + members + `)`,
 			[]any{provider, provider, catalog.KindAlbum}},
@@ -736,7 +747,7 @@ func (s *Store) Sweep(ctx context.Context, provider string) error {
 			AND id NOT IN (` + members + `)
 			AND id NOT IN (SELECT track_id FROM playlist_tracks)
 			AND id NOT IN (SELECT track_id FROM local_files WHERE track_id IS NOT NULL)
-			AND (album_id IS NULL OR album_id NOT IN (SELECT id FROM albums WHERE tracks_cached_at IS NOT NULL))`,
+			AND id NOT IN (SELECT track_id FROM album_tracks)`,
 			[]any{provider, provider, catalog.KindTrack}},
 		{`DELETE FROM albums WHERE provider = ?
 			AND id NOT IN (` + members + `)

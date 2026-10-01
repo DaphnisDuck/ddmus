@@ -719,6 +719,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 
 	cat.start(prog) // ddmus: background catalog sync, once the program is about to run
 	finalModel, err := mediactl.Run(prog, svc)
+	m.StopLibrary()                           // ddmus: however the program ended (a signal skips Update)
 	if seq := m.ArtworkCleanup(); seq != "" { // ddmus: an image a signal left behind
 		_, _ = os.Stdout.WriteString(seq)
 	}

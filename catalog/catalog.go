@@ -183,6 +183,15 @@ type Catalog interface {
 	// SyncStatus returns the last sync outcome of each of provider's
 	// collections.
 	SyncStatus(ctx context.Context, provider string) ([]CollectionStatus, error)
+
+	// AlbumTracksByRef, ArtistAlbumsByRef and PlaylistTracksByRef read like
+	// AlbumTracks, ArtistAlbums and PlaylistTracks, finding the entity by
+	// ref within the same read, or failing with ErrNotFound. IDs are not
+	// forever: once a sync removes an entity, a new one may be given its ID,
+	// so an action kept from an earlier listing reads its entity by ref.
+	AlbumTracksByRef(ctx context.Context, ref Ref) (tracks []Track, cached bool, err error)
+	ArtistAlbumsByRef(ctx context.Context, ref Ref) ([]Album, error)
+	PlaylistTracksByRef(ctx context.Context, ref Ref) ([]Track, error)
 }
 
 // AlbumTrackFetcher is an optional capability of a Catalog: fetching an

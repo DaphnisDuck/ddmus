@@ -38,7 +38,7 @@ func libPress(t *testing.T, m Model, key string) Model {
 	return libRun(t, m, cmd)
 }
 
-func libRun(t *testing.T, m Model, cmd tea.Cmd) Model {
+func libRun(t testing.TB, m Model, cmd tea.Cmd) Model {
 	t.Helper()
 	if cmd == nil {
 		return m

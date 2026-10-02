@@ -7,9 +7,10 @@ package config
 import "time"
 
 // Defaults for how old a source's last sync may get before startup syncs
-// again: Spotify's API is cheap, YouTube's reads cost quota or yt-dlp time.
+// again: Spotify rate-limits development-mode apps, YouTube's reads cost
+// quota or yt-dlp time; `r` syncs on demand.
 const (
-	DefaultSpotifyRefresh = 30 * time.Minute
+	DefaultSpotifyRefresh = 2 * time.Hour
 	DefaultYouTubeRefresh = 2 * time.Hour
 )
 

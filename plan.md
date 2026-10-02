@@ -843,6 +843,7 @@ Branch `m10-artwork`.
   - Release blockers: BLOCKER and HIGH block; a MEDIUM is waived only with a written rationale; LOW and NIT never block. Candidates are drafts until automated checks pass; 7-day soak before v1.0.0.
   - Website live no later than v1.0.0; demo recorded with `vhs`; one Kitty screenshot.
   - In cliamp's Spotify search, Enter on an album or track replaces the queue (`a` and `q` unchanged).
+- 2026-10-02: `spotify_refresh` defaults to 2h (was 30m), matching YouTube, to make fewer calls to Spotify's rate-limited development-mode API; `r` still syncs on demand (owner). Syncing only on first use of Spotify was discussed; not built for now.
 
 ## Post-1.0 backlog
 Nothing here is built before 1.0.

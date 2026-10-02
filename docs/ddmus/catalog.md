@@ -17,7 +17,7 @@ No account passwords or tokens are stored in the catalog: Spotify and YouTube cr
 
 | Source | At startup | On `r` | After a failure |
 |---|---|---|---|
-| Spotify | if the last successful sync is older than `spotify_refresh` (30 minutes by default) | yes | retries after 1 minute, doubling up to every 30 minutes |
+| Spotify | if the last successful sync is older than `spotify_refresh` (2 hours by default) | yes | retries after 1 minute, doubling up to every 30 minutes |
 | YouTube Music | if the last successful sync is older than `youtube_refresh` (2 hours by default) | yes | the same retries |
 | Local | always; only files whose size or modification time changed are read again | yes | the same retries |
 
@@ -53,7 +53,7 @@ In `~/.config/ddmus/config.toml`:
 
 ```toml
 [ddmus]
-spotify_refresh = "30m"   # sync Spotify at startup if the last sync is older than this; "0s" syncs every time
+spotify_refresh = "2h"    # sync Spotify at startup if the last sync is older than this; "0s" syncs every time
 youtube_refresh = "2h"    # the same for YouTube Music
 youtube_playlists = []    # other people's YouTube playlists to sync, by link (see youtube.md)
 ```

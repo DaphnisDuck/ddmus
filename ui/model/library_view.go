@@ -19,7 +19,7 @@ import (
 )
 
 // brandTitle heads every screen (renderTitle in view.go).
-var brandTitle = appmeta.DisplayName()
+var brandTitle = "🦆 " + appmeta.DisplayName() // the duck is the TUI's alone; MPRIS keeps the plain name
 
 // libRow is one rendered line: an entry, or a section heading (index < 0).
 type libRow struct {

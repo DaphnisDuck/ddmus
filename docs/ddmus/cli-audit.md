@@ -72,6 +72,8 @@ Inventory taken 2026-10-01 from `ddmus --help`, recursively, at 5597fd0 (`releas
 - cliamp's Spotify search ("Search Spotify for …"): Enter on an album or track replaces the queue (decided); `a` and `q` unchanged.
 - Stop during that screen's album load must cancel it.
 
+Done 2026-10-02: Enter (track or album) plays through `spotSearchPlay` (`ui/model/library_search.go`), which replaces the queue as library plays do; `a` and `q` are unchanged. `stopByUser` also invalidates the overlay's pending album request, whatever its action, so a Stop from a key, IPC or media controls drops it (an album to append would otherwise auto-play into the stopped player). Tests: `ui/model/library_spotsearch_test.go`. The overlay serves every live-searching provider, so YouTube Music's live search behaves the same.
+
 ## Slice 1: the command-line surface (2026-10-01)
 
 Done on `release-1.0`; the runtime removals are slice 2, below.

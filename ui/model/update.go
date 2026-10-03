@@ -945,7 +945,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd := m.queueAlbumNext(album, tracks)
 			return m, cmd
 		default:
-			cmd := m.playAlbumImmediate(album, tracks)
+			cmd := m.spotSearchPlay(tracks) // ddmus: Enter replaces the queue
 			return m, cmd
 		}
 

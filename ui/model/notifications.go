@@ -114,7 +114,8 @@ func (m *Model) notifyPlayback() {
 // stopping, it tells plugins so they can drop any continuation they planned.
 // A queue running out never comes through here.
 func (m *Model) stopByUser() {
-	m.retireLibraryPlay() // ddmus: Stop also stops an album still loading
+	m.retireLibraryPlay()   // ddmus: Stop also stops an album still loading
+	m.stopSpotSearchAlbum() // ddmus: …and one the search overlay is opening
 	m.stopPlayback()
 	m.emitPlugin(luaplugin.EventPlaybackStop, nil)
 }

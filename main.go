@@ -108,6 +108,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 		return fmt.Errorf("config: %w", err)
 	}
 	overrides.Apply(&cfg)
+	hideProviders(&cfg) // ddmus: only 1.0's providers (providers_ddmus.go)
 
 	closeLog, appliedLevel, logErr := initLogging(cfg.LogLevel)
 	defer closeLog()
@@ -476,7 +477,10 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	pluginBroker := ipc.NewBroker()
 	defer pluginBroker.Close()
 
-	luaMgr, luaErr := luaplugin.New(cfg.Plugins, pluginBroker)
+	// ddmus: plugins are not part of 1.0, so none load and every plugin hook
+	// below is skipped.
+	var luaMgr *luaplugin.Manager
+	var luaErr error
 	if luaErr != nil {
 		fmt.Fprintf(os.Stderr, "lua plugins: %v\n", luaErr)
 	}
@@ -485,6 +489,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 		defer luaMgr.Close()
 	}
 
+	providers = supportedOnly(providers) // ddmus: providers_ddmus.go
 	m := model.New(p, pl, providers, defaultProvider, localProv, themes, luaMgr, config.SaveFunc{})
 	m.SetRadioFavorites(radioFavorites)
 	if defaultProvider == "jellyfin" && jellyProv != nil {
@@ -714,6 +719,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 			operations.Unregister("plugin.call", "plugin.commands")
 			ipcSrv.SetOperationRegistry(operations)
 		}
+		ipcSrv.SetOperationRegistry(ddmusOperations()) // ddmus: no mono or plugin operations
 		go publishV2JobEvents(ipcSrv.Done(), ipcSrv.JobStore(), pluginBroker)
 	}
 

@@ -17,14 +17,14 @@ Inventory taken 2026-10-01 from `ddmus --help`, recursively, at 5597fd0 (`releas
 | `queue` | | verified | Appends a file or URL; an unreachable URL is accepted silently (resolved asynchronously) |
 | `theme` `vis` | | verified | `list`, set, and an unknown name fails cleanly ("not found") |
 | `visstream` | | verified | NDJSON frames |
-| `mono` | | **remove** (decided 2026-10-01) | M8 removed mono from the UI. Also the IPC `mono` operation (v1 and v2), so nothing else reaches it |
+| `mono` | | **removed** (slices 1, 2) | M8 removed mono from the UI. Also the IPC `mono` operation (v1 and v2), so nothing else reaches it |
 | `remote` | `state` `capabilities` `call` `job` `cancel` `events` | **fix** | Works. `capabilities` advertises `mono`, `plugin.call`, `plugin.commands` and generic `provider.*` operations that can name hidden providers: remove or restrict them with the decided removals. Replies carry `"id":"cliamp"` (protocol identity; decide whether to keep for compatibility). `lyrics`: keep and verify (decided 2026-10-01; the lyrics view is part of the queue screen). `save` (download the current track): verify against the supported providers, then decide |
 | `playlist` | `list` `create` `rename` `add` `dirs` `show` `remove` `delete` `dedupe` `sort` `doctor` `export` `import` `bookmark` `bookmarks` `enrich` | verified, small **fixes** | All 16 work in isolation, and the playlists appear under Local → Playlists. Fix: `remove --index 9` reports "index 8 out of range"; `delete` of a missing playlist shows a raw filesystem error. `create --ssh` not exercised (needs an SSH host) |
 | `history` | `clear` | verified, small **fix** | Works, `--json` too. `history clear` lists `--limit` and `--json`, which mean nothing to it |
 | `youtube` | `signin` | verified (unconfigured path) | Without a client it points to `docs/ddmus/youtube.md`. The browser flow is the owner's check (scenario F) |
 | `spotify` | `reset` | verified | "No stored Spotify credentials to remove" in isolation |
 | `setup` | | **fix** | Offers 12 providers and never sets up Local; help says it writes `~/.config/cliamp/config.toml`. Rework to Spotify, YouTube Music and the Local folder |
-| `plugins` | `list` `install` `trust` `remove` `call` `commands` | **remove** (decided) | With plugin loading at startup and the IPC plugin operations; existing plugin config stays inert |
+| `plugins` | `list` `install` `trust` `remove` `call` `commands` | **removed** (slices 1, 2) | With plugin loading at startup and the IPC plugin operations; existing plugin config stays inert |
 | `qobuz` | `reset` | **remove** (decided) | Hidden provider |
 | `tidal` | `reset` `probe` | **remove** (decided) | Hidden provider |
 | `open` | | **remove** (decided) | `cliamp://` dispatch; help examples name navidrome and ytmusic |
@@ -38,7 +38,7 @@ Inventory taken 2026-10-01 from `ddmus --help`, recursively, at 5597fd0 (`releas
 | --- | --- | --- |
 | `--help`, `-h` | verified | |
 | `--version`, `-v` | **fix** | Works with `make build`; a plain `go build` has no version and the flag disappears. Every build should answer ("dev" at least) |
-| `--provider` | **fix** | Lists 20 providers, with `cliamp` as the local provider's name; `--provider plex` is accepted silently. `--provider radio` does load a station at startup. Narrow to the supported ones (decided) |
+| `--provider` | **fixed** (slice 2) | Lists 20 providers, with `cliamp` as the local provider's name; `--provider plex` is accepted silently. `--provider radio` does load a station at startup. Narrow to the supported ones (decided) |
 | `--daemon`, `-d` | **remove** (decided) | |
 | `--playlist` | verified | With `--auto-play`, starts the playlist |
 | `--auto-play` `--shuffle` `--repeat` `--vol` `--eq-preset` | to verify | |
@@ -74,7 +74,7 @@ Inventory taken 2026-10-01 from `ddmus --help`, recursively, at 5597fd0 (`releas
 
 ## Slice 1: the command-line surface (2026-10-01)
 
-Done on `release-1.0`; runtime removals (plugin loading, IPC operations, hidden providers, hotkeys, `--provider`) are slice 2.
+Done on `release-1.0`; the runtime removals are slice 2, below.
 
 - `cli_ddmus.go`: `ddmusApp` is upstream's `buildApp` as ddmus ships it. The removed commands (`mono`, `open`, `plugins`, `protocol`, `qobuz`, `radio`, `tidal`) become hidden stubs that say `"mono" is not part of ddmus 1.0`, instead of falling through to the player as a file name. The removed flags (`--daemon`, `--mono`, `--expanded`, `--simplified`) are gone. `--help-bar` is reworded; `history`'s options no longer reach `history clear`; a build without a version answers `--version` with `dev`. Upstream's `buildApp` and its tests are untouched.
 - `testdata/cli-surface.golden` pins every visible command, alias, option, default and scope (`TestCLISurfaceGolden`; regenerate with `DDMUS_UPDATE_GOLDEN=1`).
@@ -82,3 +82,17 @@ Done on `release-1.0`; runtime removals (plugin loading, IPC operations, hidden 
 - `shuffle` and `repeat` reject unknown values, in the CLI and in the player's IPC handler (`ipc.ValidModeName`).
 - `status` prints no `Mono:` line; `playlist remove` reports the index as given; `upgrade`'s refusal points to the package manager and the releases page.
 - The log and socket are `ddmus.log` and `ddmus.sock` (`docs/ddmus/files.md`). The `cliamp://` cleanup note is in `docs/ddmus/files.md`.
+
+## Slice 2: runtime removals (2026-10-02)
+
+What slice 1 took off the command line, slice 2 makes unreachable at runtime (`providers_ddmus.go`, three tagged lines in `main.go`):
+
+- **Providers:** ddmus 1.0's are cliamp radio (`cliamp`), `radio`, `local`, `spotify` and `ytmusic`. `hideProviders` clears the other providers' config in memory right after the config loads, so none is constructed; `config.toml` is never rewritten, so their sections stay as they were. `supportedOnly` then drops what main builds regardless of config: the podcast directory, YouTube's non-music views (`yt`, `youtube`) and servers named by environment variables (`NAVIDROME_*`, `LYRION_*`). With the list narrowed, nothing else can reach them: IPC's `provider.*` operations answer only for these five, and the Shift+letter provider hotkeys (which the library screens already swallow) find nothing to switch to.
+- **`--provider`** accepts `cliamp`, `radio`, `spotify` and `ytmusic` (a validator in `ddmusApp`; upstream never offered `local` as a start provider); a `provider =` in `config.toml` naming another falls back to the default.
+- **Plugins** never load: `luaplugin.New` isn't called, so no plugin file is read and every plugin hook is skipped. `[plugins.*]` config stays inert.
+- **IPC** drops `mono`, `plugin.call` and `plugin.commands` from the operation registry, so `remote capabilities` no longer lists them and calling one answers `unknown_operation`.
+
+Tests: `providers_ddmus_test.go` (`TestHideProvidersTurnsOffUnsupported`, `TestHideProvidersKeepsSupportedDefault`, `TestSupportedOnly`, `TestDDMUSOperationsDropRemoved`, `TestProviderFlagNarrowed`). Live (isolated config with `provider = "plex"`, `[plex]`, `[navidrome]`, `[soundcloud]`, `[qobuz]` and a plugin file): `provider.list` returned cliamp, radio and local; `mono` and `plugin.commands` answered `unknown_operation`; no `plugins.log` was created.
+
+Not done here: setup still offers cliamp's providers (its own slice), and upstream's provider code stays compiled in (deleting it would cost upstream merges).
+

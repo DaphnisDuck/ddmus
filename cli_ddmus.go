@@ -46,6 +46,10 @@ func ddmusApp() *cli.Command {
 		if b, ok := f.(*cli.BoolWithInverseFlag); ok && b.Name == "help-bar" {
 			b.Usage = "show the key bar at the bottom of the screen"
 		}
+		if s, ok := f.(*cli.StringFlag); ok && s.Name == "provider" {
+			s.Usage = "default provider: " + strings.Join(startProviders, ", ") + " (cliamp is cliamp radio)"
+			s.Validator = validProvider // providers_ddmus.go
+		}
 	}
 	// history's options are for listing; "history clear" takes none.
 	if h := app.Command("history"); h != nil {

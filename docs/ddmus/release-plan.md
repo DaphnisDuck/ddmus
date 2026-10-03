@@ -213,6 +213,7 @@ Each gate is a checklist; the next phase starts only when every box is ticked or
 - [ ] AUR recipe builds and installs from a test release
 - [ ] README, `CHANGELOG.md` and `docs/ddmus/` done; website drafted (live no later than v1.0.0)
 - [ ] Fresh-user scenarios A–D, G and H pass in isolation and a clean container or VM; E and F pass with you
+- [ ] Upstream fix triage (decided 2026-10-02): upstream's fix commits up to the cutoff: upstream's latest release tag if one newer than v2.3.0 exists when the session starts, else `9d9e55ab` (2026-10-02); the triage doesn't wait for a release, checked against ddmus's code in one session. Plugin fixes apply only if plugins are reachable, which the 1.0 decision rules out; the triage confirms that rather than porting them. Severity is set from evidence that the defect exists and is reachable in ddmus, not from commit titles. Accepted fixes are ported (with their prerequisites) to one integration branch, each with a regression test that fails without it, then `make check`, `-race` and one Codex round. Log: `docs/ddmus/upstream-triage.md`, a row per plausibly relevant fix (commit, area, behaviour, applies (evidence), severity, decision). Not a full merge. A serious upstream fix during the soak is assessed on its own; accepting it means a new candidate
 
 **Gate C: v1.0.0-rc.1.** The candidate is built as a draft and published as a prerelease only after the checks marked "before publishing" pass; the audit and your own use follow publication:
 
@@ -253,6 +254,7 @@ Nothing here is built before 1.0. It moves into a "Post-1.0 backlog" section of 
 | Linux arm64, macOS, Homebrew, `.deb`/`.rpm` | Once someone can test them |
 | Replace `xlab/vorbis-go` (no license file) | Feasibility study: Spotify playback decodes through it inside go-librespot. Candidate: `jfreymuth/oggvorbis` (MIT, pure Go, already in `go.mod` for local Ogg files). Likely needs a go-librespot change upstream or a maintained patch |
 | `go install` | Needs the module renamed, which would make upstream merges costly |
+| Full upstream merge | The first 1.1 work: a `sync/upstream-YYYYMMDD` merge of upstream's latest release tag, never `main`. Fixes ported before 1.0 were cherry-picked, which gives no merge ancestry: the triage log says which conflicts keep ours |
 
 ## Decisions that are yours
 

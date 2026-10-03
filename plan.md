@@ -765,7 +765,7 @@ Branch `m10-artwork`.
 - [x] Live check (2026-10-01, the owner in Kitty, real config): a searched track's album load interrupted by Stop and by `n`; track info while the queue changes underneath it; an artist page (cached albums first, Full discography…); the TUI after the renderer update (resizes, queue, info view). Nothing unexpected. Found on the way, and inherited: cliamp's own Spotify search ("Search Spotify for …") appends an album to the queue instead of replacing it, and its album load may not be cancelled by Stop. Both go to the 1.0 inherited-surface audit.
 - [ ] 1.0 release (plan approved 2026-10-01, branch `release-1.0`, see `docs/ddmus/release-plan.md`):
   - [x] Gate A, clean baseline: `review-fixes` merged (9084b3a) after the owner's Kitty checks.
-  - [ ] Release preparation: CLI audit, packaging and licensing, README, website, fresh-user tests (Gate B).
+  - [ ] Release preparation: CLI audit, packaging and licensing, README, website, fresh-user tests, upstream fix triage (Gate B).
   - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
   - [ ] v1.0.0 (Gate D).
 
@@ -844,6 +844,7 @@ Branch `m10-artwork`.
   - Website live no later than v1.0.0; demo recorded with `vhs`; one Kitty screenshot.
   - In cliamp's Spotify search, Enter on an album or track replaces the queue (`a` and `q` unchanged).
 - 2026-10-02: `spotify_refresh` defaults to 2h (was 30m), matching YouTube, to make fewer calls to Spotify's rate-limited development-mode API; `r` still syncs on demand (owner). Syncing only on first use of Spotify was discussed; not built for now.
+- 2026-10-02: Upstream fixes are triaged before the release candidate, without a full upstream merge (owner; Claude and Codex agreed). Cutoff: upstream's latest release tag if newer than v2.3.0 when the session starts, else `9d9e55ab` (no waiting for a release); one session; plugin fixes only if plugins turn out reachable (1.0 removes them); severity from evidence in ddmus's code; accepted fixes ported with regression tests; log in `docs/ddmus/upstream-triage.md`. The full merge is the first 1.1 work, and merges upstream's latest release tag, never `main`.
 
 ## Post-1.0 backlog
 Nothing here is built before 1.0.
@@ -859,6 +860,7 @@ Nothing here is built before 1.0.
 - Broad-prefix search speed (P3), only if it becomes a complaint.
 - Linux arm64, macOS, Homebrew, `.deb`/`.rpm`, once someone can test them.
 - `go install` (needs the module renamed, which makes upstream merges costly).
+- Full upstream merge (`sync/upstream-YYYYMMDD`) of upstream's latest release tag, never `main`, as the first 1.1 work; the pre-1.0 triage log says which conflicts keep ours.
 - Replace `xlab/vorbis-go` with a properly licensed decoder: a feasibility study (candidate `jfreymuth/oggvorbis`, MIT, already in `go.mod`; likely needs a go-librespot change or a maintained patch).
 
 ## Open questions

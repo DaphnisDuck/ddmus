@@ -113,6 +113,8 @@ ddmus reads `~/.config/ddmus/config.toml`. Set `DDMUS_CONFIG_DIR` to use another
 rsync -a --exclude='*.log' --exclude='*.sock' ~/.config/cliamp/ ~/.config/ddmus/
 ```
 
+`ddmus setup` walks through Spotify, YouTube Music and your Local music folder. It changes only the keys it asks about and keeps the rest of your `config.toml`.
+
 - **Spotify:** run `ddmus setup` and choose Spotify, or follow [docs/spotify.md](docs/spotify.md), reading `~/.config/ddmus` wherever it says `~/.config/cliamp`. A Spotify Premium account is required. The first time you open Spotify in the library, press `Enter` to sign in. Your library then syncs in the background: at startup when the last sync is older than 2 hours, and whenever you press `r`. To change the interval:
 
   ```toml
@@ -120,7 +122,7 @@ rsync -a --exclude='*.log' --exclude='*.sock' ~/.config/cliamp/ ~/.config/ddmus/
   spotify_refresh = "30m"  # "0s" syncs at every start
   ```
 
-- **Local music:** Local → Albums, Artists and Genres come from an index of a single directory, updated at startup (only changed files are reread). It is `initial_directory` in `config.toml`, else `$XDG_MUSIC_DIR`, else `~/Music`:
+- **Local music:** Local → Albums, Artists and Genres come from an index of a single directory, updated at startup (only changed files are reread). It is `initial_directory` in `config.toml` (`ddmus setup` → Local music folder sets it), else `$XDG_MUSIC_DIR`, else `~/Music`:
 
   ```toml
   initial_directory = "~/Music"

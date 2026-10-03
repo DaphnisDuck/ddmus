@@ -39,7 +39,7 @@ import (
 
 // Setup launches the interactive wizard. Returns nil on clean exit.
 func Setup() error {
-	prog := tea.NewProgram(newSetupModel())
+	prog := tea.NewProgram(newDdmusSetupModel()) // ddmus: setup_ddmus.go
 	_, err := prog.Run()
 	return err
 }
@@ -72,6 +72,12 @@ type providerSpec struct {
 	// extraValidate runs after the form before validate, e.g. to enforce
 	// "token OR (user+password)" for Jellyfin.
 	extraValidate func(map[string]string) error
+	// save, when set, writes the values itself and returns the result line
+	// (ddmus: setup_ddmus.go).
+	save func(map[string]string) (string, error)
+	// strict, when set, makes a failed validate final: no "save anyway"
+	// (ddmus: the Local folder must be readable).
+	strict bool
 }
 
 // pickerSpec is an optional radio choice shown before the fields. The
@@ -995,7 +1001,7 @@ func (m *setupModel) onValidateDone(err error) (tea.Model, tea.Cmd) {
 		return m, m.persistAndDone(false)
 	}
 	m.resultErr = err
-	m.awaitingSave = true
+	m.awaitingSave = !m.provs[m.pidx].strict // ddmus
 	m.stage = stageResult
 	return m, nil
 }
@@ -1004,8 +1010,8 @@ func (m *setupModel) onValidateDone(err error) (tea.Model, tea.Cmd) {
 // indicates the user opted to save despite a failed probe.
 func (m *setupModel) persistAndDone(warn bool) tea.Cmd {
 	spec := m.provs[m.pidx]
-	body := spec.body(m.values)
-	if err := saveSection(spec.section, body); err != nil {
+	text, err := m.persist(spec) // ddmus: setup_ddmus.go
+	if err != nil {
 		m.saveFailed = err
 		m.stage = stageResult
 		m.awaitingSave = false
@@ -1015,7 +1021,7 @@ func (m *setupModel) persistAndDone(warn bool) tea.Cmd {
 	m.awaitingSave = false
 	m.resultErr = nil
 	m.resultWarning = warn
-	m.resultText = fmt.Sprintf("Saved [%s] section.", spec.section)
+	m.resultText = text // ddmus
 	return nil
 }
 
@@ -1086,8 +1092,8 @@ var (
 
 const (
 	maxCardWidth = 78
-	logoLine1    = "  cliamp setup"
-	logoLine2    = "  configure remote providers"
+	logoLine1    = "  " + appdir.Name + " setup"    // ddmus
+	logoLine2    = "  configure your music sources" // ddmus
 )
 
 func (m *setupModel) View() tea.View {

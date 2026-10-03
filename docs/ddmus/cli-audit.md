@@ -23,7 +23,7 @@ Inventory taken 2026-10-01 from `ddmus --help`, recursively, at 5597fd0 (`releas
 | `history` | `clear` | verified, small **fix** | Works, `--json` too. `history clear` lists `--limit` and `--json`, which mean nothing to it |
 | `youtube` | `signin` | verified (unconfigured path) | Without a client it points to `docs/ddmus/youtube.md`. The browser flow is the owner's check (scenario F) |
 | `spotify` | `reset` | verified | "No stored Spotify credentials to remove" in isolation |
-| `setup` | | **fix** | Offers 12 providers and never sets up Local; help says it writes `~/.config/cliamp/config.toml`. Rework to Spotify, YouTube Music and the Local folder |
+| `setup` | | **fixed** (2026-10-02, see Setup below) | Offers 12 providers and never sets up Local; help says it writes `~/.config/cliamp/config.toml`. Rework to Spotify, YouTube Music and the Local folder |
 | `plugins` | `list` `install` `trust` `remove` `call` `commands` | **removed** (slices 1, 2) | With plugin loading at startup and the IPC plugin operations; existing plugin config stays inert |
 | `qobuz` | `reset` | **remove** (decided) | Hidden provider |
 | `tidal` | `reset` `probe` | **remove** (decided) | Hidden provider |
@@ -96,5 +96,16 @@ What slice 1 took off the command line, slice 2 makes unreachable at runtime (`p
 
 Tests: `providers_ddmus_test.go` (`TestHideProvidersTurnsOffUnsupported`, `TestHideProvidersKeepsSupportedDefault`, `TestSupportedOnly`, `TestDDMUSOperationsDropRemoved`, `TestProviderFlagNarrowed`). Live (isolated config with `provider = "plex"`, `[plex]`, `[navidrome]`, `[soundcloud]`, `[qobuz]` and a plugin file): `provider.list` returned cliamp, radio and local; `mono` and `plugin.commands` answered `unknown_operation`; no `plugins.log` was created.
 
-Not done here: setup still offers cliamp's providers (its own slice), and upstream's provider code stays compiled in (deleting it would cost upstream merges).
+Not done here: upstream's provider code stays compiled in (deleting it would cost upstream merges).
+
+## Setup (2026-10-02)
+
+`ddmus setup` offers Spotify, YouTube Music and the Local music folder (`cmd/setup_ddmus.go`; upstream's wizard and provider list stay whole, reached through tagged lines in `cmd/setup.go`). Help names ddmus's config path.
+
+- **Spotify:** upstream's choice of an own Developer app or the shared client_id, reworded; the own app is recommended (the shared one is rate-limited more often). Sign-in stays on first open in the library.
+- **YouTube Music:** cookies, OAuth or off, as upstream; the intro names the keyring suffix, and an OAuth save says to run `ddmus youtube signin`.
+- **Local music folder:** blank keeps the folder ddmus uses now (`local.MusicDir`, shared with the player); `~` expands. The folder is checked in the background like a server (exists, is a folder, one entry readable), and a failed check is final: no "save anyway". Saved as the top-level `initial_directory`, after the last top-level line, between plain quotes: `config.toml`'s reader strips quotes and decodes no escapes, so a name with a line break or ending in a quote is refused.
+- **Saving** (owner, 2026-10-02: keep the other keys): only the wizard's keys change (its fields and what it writes); a managed key it no longer writes (client_id after switching to the shared client) is removed; other keys, comments and sections stay. YouTube Music's `[yt]` and `[youtube]` count as its section: each loses the managed keys, and the values go in the last one, which `config.Load` reads last (a header alone turns YouTube Music on). Every write replaces the file atomically (a symlinked `config.toml` stays a link).
+
+Scenarios (`cmd/setup_ddmus_test.go`): fresh, existing config and rerun (both directions), missing credentials, local-only (and the default and `~`), Ctrl+C, invalid input (missing folder, a file, a bad bitrate), malformed config (unparseable lines survive), unwritable config folder, symlinked config, and the top-level key placement. Live: an isolated config with `[yt]` was updated in place, and `~/Music` saved under the existing top-level key.
 

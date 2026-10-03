@@ -769,6 +769,7 @@ Branch `m10-artwork`.
     - [x] CLI audit slice 1, the command-line surface (c82650c0).
     - [x] CLI audit slice 2, runtime removals (2026-10-02): only cliamp radio, Radio, Local, Spotify and YouTube Music are constructed or reachable (`providers_ddmus.go`); `--provider` narrowed; plugins never load; IPC without `mono` and the plugin operations. See `docs/ddmus/cli-audit.md`.
     - [x] Inherited search hardening (2026-10-02): in cliamp's live search ("Search Spotify for …", also YouTube Music), Enter replaces the queue; Stop cancels an album still opening.
+    - [x] Setup onboards ddmus (2026-10-02): Spotify, YouTube Music, Local music folder; reruns keep other keys; atomic writes. See `docs/ddmus/cli-audit.md`.
   - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
   - [ ] v1.0.0 (Gate D).
 

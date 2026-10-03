@@ -13,6 +13,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/ipc"
 )
@@ -50,6 +51,10 @@ func ddmusApp() *cli.Command {
 			s.Usage = "default provider: " + strings.Join(startProviders, ", ") + " (cliamp is cliamp radio)"
 			s.Validator = validProvider // providers_ddmus.go
 		}
+	}
+	if c := app.Command("setup"); c != nil {
+		c.Usage = "set up Spotify, YouTube Music and your Local music folder"
+		c.Description = "Writes ~/.config/" + appdir.Name + "/config.toml, keeping what else is in it."
 	}
 	// history's options are for listing; "history clear" takes none.
 	if h := app.Command("history"); h != nil {

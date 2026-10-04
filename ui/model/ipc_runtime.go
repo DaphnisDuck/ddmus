@@ -366,7 +366,7 @@ func (m *Model) handleV2Theme(jobs *ipc.JobStore, jobID string, request ipc.Requ
 
 func (m *Model) handleV2Visualizer(jobs *ipc.JobStore, jobID string, request ipc.Request) tea.Cmd {
 	if strings.EqualFold(request.Name, "list") {
-		m.completeV2Job(jobs, jobID, ipc.Response{OK: true, Items: ui.VisModeNames()})
+		m.completeV2Job(jobs, jobID, ipc.Response{OK: true, Items: ui.PublicVisModeNames()}) // ddmus: without the hidden modes
 		return nil
 	}
 	if m.vis == nil {

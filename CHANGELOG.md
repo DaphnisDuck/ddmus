@@ -25,6 +25,7 @@ The first release for people who don't build from source. 1.0 adds no features t
 ### Removed
 - Lua plugins: none is loaded, and the `plugins` command and its IPC operations are gone. Plugin files and `[plugins.*]` config stay where they are, unused.
 - `--daemon` (headless mode), `--mono`, `--expanded`, `--simplified`, and the `mono`, `open`, `protocol`, `qobuz`, `radio` and `tidal` commands. `cliamp://` links are neither registered nor handled; see [docs/ddmus/files.md](docs/ddmus/files.md) if an earlier ddmus registered them.
+- The Logo visualizer, which draws cliamp's name. A config that names it starts with the default visualizer.
 
 ### Fixed
 - Two quick volume changes from a desktop media control could freeze ddmus; a dropped session bus could crash it.

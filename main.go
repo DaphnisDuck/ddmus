@@ -597,8 +597,9 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	if cfg.Theme != "" {
 		m.SetTheme(cfg.Theme)
 	}
-	if cfg.Visualizer != "" {
-		m.SetVisualizer(cfg.Visualizer)
+	if cfg.Visualizer != "" && !m.SetVisualizer(cfg.Visualizer) {
+		// ddmus: say so. A config may name a mode ddmus does not offer (Logo).
+		applog.Info("visualizer %q is not available in %s; using the default", cfg.Visualizer, appmeta.ClientName())
 	}
 	if cfg.AutoPlay && !restoredJellyfinChoice {
 		m.SetAutoPlay(true)

@@ -928,7 +928,7 @@ func visCommand() *cli.Command {
 				} else {
 					fmt.Fprintf(os.Stderr, "(%s not running — active marker unavailable)\n", appmeta.ClientName()) // ddmus
 				}
-				for _, name := range ui.VisModeNames() {
+				for _, name := range ui.PublicVisModeNames() { // ddmus: without the hidden modes
 					marker := "  "
 					if strings.EqualFold(name, active) {
 						marker = "* "

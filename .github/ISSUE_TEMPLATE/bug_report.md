@@ -18,7 +18,7 @@ labels: bug
 
 ## Environment
 
-- cliamp version (`cliamp --version`):
-- OS:
+- ddmus version (`ddmus --version`):
+- OS and terminal:
 - Audio backend (PipeWire / PulseAudio / ALSA):
-- Provider(s) involved:
+- Source(s) involved (Spotify, YouTube Music, Local, Radio):

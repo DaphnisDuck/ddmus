@@ -13,4 +13,4 @@
 ## Checklist
 
 - [ ] `make check` passes
-- [ ] `docs/` and `site/index.html` updated for user-facing changes
+- [ ] `docs/ddmus/`, `README.md` and `CHANGELOG.md` updated for user-facing changes

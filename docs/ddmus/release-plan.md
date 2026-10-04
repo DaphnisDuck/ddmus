@@ -91,7 +91,7 @@ I propose three ways to install 1.0, all on Linux x86-64, because that is the on
 | `.deb`, `.rpm` | No | Easy to generate, but we can't test them | No | Medium |
 | Flatpak, Snap | No | Sandboxing fights a terminal app that needs ALSA, `yt-dlp` and the browser cookie stores | No | High |
 | Windows | No | Untested; upstream supports it, ddmus doesn't claim to | No | High |
-| Nix flake (in the repo) | Remove or park | It builds this checkout, but as `cliamp` (package, executable and desktop names), and nobody tests it | No | Medium |
+| Nix flake (in the repo) | Removed (2026-10-04) | It built this checkout, but as `cliamp` (package, executable and desktop names), and nobody tested it | No | — |
 
 **What a Linux install involves**
 

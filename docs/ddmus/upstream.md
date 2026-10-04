@@ -37,5 +37,18 @@ When a merge conflicts, start by searching for `// ddmus:` markers. Every ddmus 
 - Keep the Go module path `github.com/bjarneo/cliamp`. ddmus keeps its own files; see [files.md](files.md).
 - Put new behavior in new files or packages: `library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`.
 - Keep each necessary edit to an upstream file small and tag it with `// ddmus:` (or `# ddmus:` in Makefiles and TOML).
-- ddmus docs go in `docs/ddmus/`. Leave upstream `docs/` and `site/` alone.
+- ddmus docs go in `docs/ddmus/`. Leave upstream `docs/` alone.
 - Don't reformat or reorganize upstream code opportunistically.
+
+## Upstream files ddmus removed
+
+These build, install or present cliamp, so ddmus deleted them rather than carry them (2026-10-04):
+
+- `site/`: cliamp's website and its `install.sh`, which downloads cliamp.
+- `flake.nix`, `flake.lock`, `nix/`: the Nix package, which builds this checkout as `cliamp`. ddmus has no Nix package.
+- `cliamp.desktop`, `Cliamp.png`, `Cliamp.svg`, `Cliamp.ico`, `cliamp_windows.rc`, `logo.txt`: cliamp's launcher, logo and Windows icon resource.
+- `CNAME`.
+
+When upstream changes one of them, the merge reports a modify/delete conflict. Keep it deleted (`git rm <path>`); a file upstream adds under these paths is deleted the same way. ddmus's own website, icon or launcher, when they exist, are new files under ddmus's names.
+
+The `protocol` and `open` commands' code (`cmd/protocol*.go`, with its `cliamp-url-handler.desktop` template) stays: it is upstream Go code that ddmus's command line doesn't reach (`cli_ddmus.go`).

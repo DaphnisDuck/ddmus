@@ -114,7 +114,7 @@ Done when:
 - Keep the Go module path `github.com/bjarneo/cliamp`. ddmus has its own config, data, downloads and MPRIS name so it runs beside cliamp (see `docs/ddmus/files.md`).
 - Put new code in new files and packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`).
 - Keep each unavoidable edit to an upstream file small, and tag it with a `// ddmus:` comment.
-- ddmus docs live in `docs/ddmus/`. Upstream's `docs/` and `site/` are left untouched to avoid conflicts, so the CLAUDE.md rule "keep site in sync" applies to upstream-style changes only.
+- ddmus docs live in `docs/ddmus/`. Upstream's `docs/` is left untouched to avoid conflicts. Upstream's `site/`, Nix files and branding assets were removed on 2026-10-04 (`docs/ddmus/upstream.md`), so the CLAUDE.md rule "keep site in sync" no longer applies.
 
 ## M2 implementation plan
 
@@ -777,7 +777,8 @@ Branch `m10-artwork`.
     - [x] Documentation and release hygiene (2026-10-04, branch `cleanup-1.0`): the messages a user sees name ddmus (not running, already running, the Spotify reset advice, the no-audio hint); `config.toml.example` is ddmus's; `SECURITY.md` says no binaries exist yet; `files.md` and the templates no longer mention plugins or cliamp; `CNAME` removed; `docs/README.md` sorts cliamp's 35 inherited pages into what applies and what does not (index only, by the owner's decision; no page deleted). Found on the way: `config.toml` has no inline comments (a `# …` after a value becomes part of it), which several docs examples use. Left for separate changes: the CLIAMP Logo visualizer, the `cliamp` User-Agent, the Nix files, `site/`, the MP3's provenance.
     - [x] Pre-RC1 items (2026-10-04, branch `pre-rc1`): the inherited Logo visualizer is hidden (not listed, cycled to or selectable; a config naming it starts with the default; `ui/vis_ddmus.go`); ddmus names itself in the HTTP requests it makes, from one function, `appmeta.UserAgent()` (`ddmus/<version>`), at all six reachable call sites; cliamp's MP3 fixture, whose origin and license are not recorded, is replaced by a generated tone (`player/testdata/README.md`).
     - [x] RC1 gate work (2026-10-04, branch `rc1-prep`): scenarios C, D, G and H passed in isolated homes; the release workflow ran on GitHub for the first time on the test tag `v1.0.0-test.1` (draft pre-release, attestation verified, byte-identical to a local build, installs on Debian 13, `ddmus-bin` builds and installs from it); README and SECURITY.md word releases so they stay true before and after one is published; the record is `docs/ddmus/releases/v1.0.0-rc.1.md`. The website draft is waived to before 1.0 (owner). The owner's YouTube Music check passed; the Spotify check failed (a track stuck on Buffering), which blocked the candidate: session setup had no time limit, the half of upstream `deb2f447` the earlier port missed. Fixed in `3fcf2447` (one 30-second budget for the access-point connection and the first token refresh; Codex, two rounds). The owner's Spotify check on the fixed build passed (2026-10-04), the last gate before `v1.0.0-rc.1`.
-    - [ ] Still open for Gate B: branding (site, `CNAME`, Nix flake, `.desktop`, icons, the MP3), README refresh, `docs/ddmus/` pass, website draft, fresh-user scenarios A–H.
+    - [x] Inherited branding and packaging removed (2026-10-04, branch `branding-1.0`): cliamp's `site/` (website and `install.sh`), the Nix flake and `nix/`, `cliamp.desktop`, `Cliamp.png`/`.svg`/`.ico`, `cliamp_windows.rc` and `logo.txt`. None reached a user through the release archive or `ddmus-bin`; the flake and the installer built or installed cliamp. Nix could not be tested here, so it is removed, not rebranded. ddmus 1.0 has no desktop entry and no icon until the owner approves one. `cmd/protocol*.go` stays, unreachable. `docs/ddmus/upstream.md` lists the removed paths for the next sync.
+    - [ ] Still open for Gate B: an owner-approved ddmus icon (and, with it, whether ddmus ships a desktop entry), README refresh, `docs/ddmus/` pass, website draft, fresh-user scenarios A–H.
   - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
     - [x] `v1.0.0-rc.1` tagged at `73b97a5b` and published as a pre-release (2026-10-04); record in `docs/ddmus/releases/v1.0.0-rc.1.md`. Open: the Codex high-effort audit, the owner's use, and the rest of Gate C; then the website, the AUR package and v1.0.0.
   - [ ] v1.0.0 (Gate D).
@@ -857,6 +858,7 @@ Branch `m10-artwork`.
   - Website live no later than v1.0.0; demo recorded with `vhs`; one Kitty screenshot.
   - In cliamp's Spotify search, Enter on an album or track replaces the queue (`a` and `q` unchanged).
 - 2026-10-02: `spotify_refresh` defaults to 2h (was 30m), matching YouTube, to make fewer calls to Spotify's rate-limited development-mode API; `r` still syncs on demand (owner). Syncing only on first use of Spotify was discussed; not built for now.
+- 2026-10-04: Inherited cliamp branding and packaging is removed, not rebranded: `site/`, the Nix flake, the desktop entry, the icons, the Windows resource file and `logo.txt`. A ddmus icon is the owner's design decision and is not invented here; a desktop entry waits for it. No `ddmus://` links. `v1.0.0-rc.1` stays as published.
 - 2026-10-02: Upstream fixes are triaged before the release candidate, without a full upstream merge (owner; Claude and Codex agreed). Cutoff: upstream's latest release tag if newer than v2.3.0 when the session starts, else `9d9e55ab` (no waiting for a release); one session; plugin fixes only if plugins turn out reachable (1.0 removes them); severity from evidence in ddmus's code; accepted fixes ported with regression tests; log in `docs/ddmus/upstream-triage.md`. The full merge is the first 1.1 work, and merges upstream's latest release tag, never `main`.
 
 ## Post-1.0 backlog
@@ -876,7 +878,7 @@ Nothing here is built before 1.0.
 - Full upstream merge (`sync/upstream-YYYYMMDD`) of upstream's latest release tag, never `main`, as the first 1.1 work; the pre-1.0 triage log says which conflicts keep ours.
 - Comments after a value in `config.toml` (`artwork = false  # Disable artwork`): the loader takes the comment as part of the value today, so the docs keep each comment on its own line. Investigate and support normal TOML inline comments; the loader is upstream's file.
 - A ddmus visualizer of its own (an ASCII duck) in place of the hidden Logo mode.
-- Nix packaging (`flake.nix`, `nix/` still build the package as cliamp; parked, not on the RC path).
+- Nix packaging: a ddmus package written and tested on Nix (upstream's flake, which built the package as cliamp, was removed on 2026-10-04).
 - Replace `xlab/vorbis-go` with a properly licensed decoder: a feasibility study (candidate `jfreymuth/oggvorbis`, MIT, already in `go.mod`; likely needs a go-librespot change or a maintained patch).
 
 ## Open questions

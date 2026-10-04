@@ -10,7 +10,7 @@ Fork rules (keep upstream merges cheap):
 - `upstream` = `https://github.com/bjarneo/cliamp.git`; sync by merging `upstream/main` on a `sync/upstream-YYYYMMDD` branch.
 - Module path stays `github.com/bjarneo/cliamp`. The binary, UI branding, and on-disk/runtime identity are ddmus: config `~/.config/ddmus` (`DDMUS_CONFIG_DIR` overrides; `CLIAMP_CONFIG_DIR` is checked first for upstream test isolation), data `~/.local/share/ddmus`, downloads `~/Music/ddmus`, MPRIS `org.mpris.MediaPlayer2.ddmus`, all derived from `internal/appdir.Name` and `internal/appmeta`. See `docs/ddmus/files.md`.
 - New code goes in new files/packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`). Unavoidable edits to upstream files stay small and are tagged `// ddmus:`.
-- ddmus docs live in `docs/ddmus/`. Don't edit upstream `docs/` or `site/` for ddmus-only changes — the "keep docs/ and site/ in sync" rule below applies to upstream-style changes only.
+- ddmus docs live in `docs/ddmus/`. Don't edit upstream `docs/` for ddmus-only changes. ddmus removed upstream's `site/`, Nix files and branding assets (`docs/ddmus/upstream.md` lists them; a sync keeps them deleted), so the `site/` rules below are upstream's and don't apply here.
 
 ## Extended context
 

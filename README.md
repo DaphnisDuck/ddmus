@@ -1,12 +1,12 @@
 # ddmus
 
-**DaphnisDuck's Music Player** is a terminal music player built around your library. Your Spotify library, your YouTube Music playlists, the music on your disk and internet radio sit in one hierarchy that browses instantly, searches as you type and keeps working offline.
+**DaphnisDuck's Music Player** is a fast, terminal-first music player for Spotify, YouTube Music, local music and internet radio. It keeps a local catalog of your libraries, so browsing and search are instant and work offline, and it brings playback, the queue, lyrics, artwork, an equalizer and visualizers for all of them into one terminal interface.
 
 ddmus is a fork of [cliamp](https://github.com/bjarneo/cliamp), the Winamp-inspired terminal player by Bjarne Øverli. It keeps cliamp's audio engine, equalizer and visualizers, and changes how you find your music.
 
 ```
 Music
-├── All Music      Albums · Artists (every source together)
+├── All Music      Albums · Artists (Spotify, YouTube Music and Local together)
 ├── Spotify        Albums · Artists · Playlists · Liked Songs
 ├── YouTube Music  Albums · Artists · Playlists · Liked Music
 ├── Local          Albums · Artists · Genres · Folders · Playlists
@@ -14,11 +14,13 @@ Music
 └── Search
 ```
 
+Each source has its own entry. All Music lists the albums and artists of Spotify, YouTube Music and Local together, each row labelled with its source.
+
 ## Why ddmus
 
-- **One library, not a list of services.** You browse albums and artists; where a track comes from is a label on the row.
+- **Your music in one terminal.** Browse Spotify, YouTube Music, local music and internet radio without leaving ddmus.
 - **Instant and offline.** Your libraries are kept in a local catalog and synced in the background, so lists open at once and browsing and search work without a network. ([catalog](docs/ddmus/catalog.md))
-- **Search everything as you type.** `/` searches every source at once, with operators such as `artist:`, `album:` and `source:local`. ([search](docs/ddmus/search.md))
+- **Search as you type.** `/` searches your Spotify and YouTube Music libraries, your local music and your radio stations at once, with operators such as `artist:`, `album:` and `source:local`. Rows at the end of the results search Spotify itself or the radio station directory. ([search](docs/ddmus/search.md))
 - **Keyboard all the way.** Vim-style movement, consistent navigation keys, and a bar at the bottom that lists exactly the keys that work where you are. ([navigation](docs/ddmus/navigation.md))
 - **A real player underneath.** Gapless playback, a 10-band equalizer with presets, spectrum visualizers, themes, lyrics, playback speed, shuffle and repeat, all inherited from cliamp.
 - **Fits your desktop.** Media keys and desktop widgets work through MPRIS, and `ddmus pause`, `ddmus next`, `ddmus status` and friends control the running player from a script or a keybinding.
@@ -92,7 +94,7 @@ In the library:
 | `l` `Enter` | Open, or play |
 | `h` `Esc` | Back (never quits) |
 | `g` `G` | Top, bottom |
-| `/` | Search everything |
+| `/` | Search |
 | `Space` | Play or pause |
 | `p` `n` | Previous, next track |
 | `Tab` | Switch between the library and the queue |

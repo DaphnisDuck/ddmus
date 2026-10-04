@@ -1,14 +1,8 @@
-# DaphnisDuck's Music Player
+# ddmus
 
-**Version 0.6**
+**DaphnisDuck's Music Player** is a terminal music player built around your library. Your Spotify library, your YouTube Music playlists, the music on your disk and internet radio sit in one hierarchy that browses instantly, searches as you type and keeps working offline.
 
-DaphnisDuck's Music Player (`ddmus`) is a retro terminal music player built around your library rather than around providers. It is a fork of [cliamp](https://github.com/bjarneo/cliamp) by Bjarne Øverli, made with love and a lot of respect for the original.
-
-cliamp is a wonderful Winamp-inspired player: spectrum visualizer, parametric EQ, Lua plugins, and support for an impressive list of streaming services and media servers. ddmus keeps all of that playback machinery and changes how you *find* your music.
-
-## What we're building
-
-You shouldn't have to remember where your music lives. ddmus organises everything as one hierarchy:
+ddmus is a fork of [cliamp](https://github.com/bjarneo/cliamp), the Winamp-inspired terminal player by Bjarne Øverli. It keeps cliamp's audio engine, equalizer and visualizers, and changes how you find your music.
 
 ```
 Music
@@ -20,150 +14,155 @@ Music
 └── Search
 ```
 
-The application owns navigation; providers own content and playback. The roadmap:
+## Why ddmus
 
-1. **Library navigation** (v0.1): the hierarchy above for Spotify, local files and internet radio, with vim-style keys, sitting above cliamp's existing now-playing, queue, EQ and visualizer.
-2. **Persistent catalog** (v0.2): a local SQLite catalog of your Spotify library and music folder that syncs in the background, so browsing a large library is instant and works offline.
-3. **Unified search** (v0.3): search-as-you-type across Spotify, local files and your radio stations at once, offline, plus an All Music menu that lists every source's albums and artists together.
-4. **More providers**, one per release: **YouTube Music** (v0.4) syncs your playlists and Liked Music, with albums and artists read in the background; Plex, Jellyfin, Navidrome and cliamp's other providers can follow.
+- **One library, not a list of services.** You browse albums and artists; where a track comes from is a label on the row.
+- **Instant and offline.** Your libraries are kept in a local catalog and synced in the background, so lists open at once and browsing and search work without a network. ([catalog](docs/ddmus/catalog.md))
+- **Search everything as you type.** `/` searches every source at once, with operators such as `artist:`, `album:` and `source:local`. ([search](docs/ddmus/search.md))
+- **Keyboard all the way.** Vim-style movement, consistent navigation keys, and a bar at the bottom that lists exactly the keys that work where you are. ([navigation](docs/ddmus/navigation.md))
+- **A real player underneath.** Gapless playback, a 10-band equalizer with presets, spectrum visualizers, themes, lyrics, playback speed, shuffle and repeat, all inherited from cliamp.
+- **Fits your desktop.** Media keys and desktop widgets work through MPRIS, and `ddmus pause`, `ddmus next`, `ddmus status` and friends control the running player from a script or a keybinding.
+- **Album artwork** beside a track's details, in Kitty and Ghostty. ([artwork](docs/ddmus/artwork.md))
 
-v0.10 shows album artwork in the track info view (`i` in the queue) in Kitty and Ghostty, from Spotify covers and local files. v0.9 makes ddmus fill the terminal: a taller window lists more rows on every screen, a wide one lines rows up as a table instead of stretching them, resizing reflows at once, and a border frames the screen (`border = false` under `[ddmus]` turns it off). v0.8 cleans up the keys: `q` quits from any screen, `Esc` only ever goes back, `p` and `n` skip tracks everywhere, and the key bar no longer uses `/` except for search; it also stops Spotify's long rate-limit blocks from hanging album opens, and waits them out across restarts. v0.7 makes the queue view work under the library: shuffle, repeat, play next, track info, queue editing, lyrics and the sound keys are back, the settings panel's SRC names the playing track's source, and every view lists its keys in a bar at the bottom. v0.6 renamed the player: omatunes is now DaphnisDuck's Music Player, `ddmus` for short (omatunes is another player's name); to keep your settings and library, move your folders once as shown in [docs/ddmus/files.md](docs/ddmus/files.md#moving-from-omatunes-before-v06). v0.5 was a cleanup release: faster, quieter syncs, sturdier YouTube enrichment, and a keymap that shows only the keys that work.
+## What it plays
 
-The full plan lives in [plan.md](plan.md).
+| Source | What you get | What it needs |
+| --- | --- | --- |
+| **Spotify** | Saved albums, followed artists, playlists, Liked Songs, and Spotify's own search | A Spotify Premium account |
+| **YouTube Music** | Your playlists and Liked Music, with albums and artists read from their tracks | [yt-dlp](https://github.com/yt-dlp/yt-dlp), and a browser you are signed in to or your own Google OAuth client |
+| **Local files** | Albums, artists and genres from the tags in your music folder, a folder browser, and saved playlists | Nothing; [ffmpeg](https://ffmpeg.org/) for AAC, ALAC, Opus and WMA files |
+| **Internet radio** | Your favorite stations, the [Radio Browser](https://www.radio-browser.info/) directory by country or tag, cliamp's radio channels, and stations you add yourself | Nothing |
 
-## Status
+Local files and radio need no account at all. cliamp's other sources (Navidrome, Plex, Jellyfin, SoundCloud, podcasts and more) and its Lua plugins are not part of ddmus 1.0.
 
-v0.10 is an early release for people comfortable building from source.
+## Requirements
 
-- **In the Music hierarchy:** Spotify, YouTube Music, local files and internet radio.
-- **YouTube Music:** your music playlists and Liked Music sync into the catalog (browser cookies or your own Google OAuth client, as in cliamp), and each track's artist, album and year is read in the background, giving YouTube Albums and Artists too. See [docs/ddmus/youtube.md](docs/ddmus/youtube.md).
-- **Catalog:** Spotify and Local browsing read from a local catalog, so lists open instantly and work offline. Spotify syncs in the background, and album track lists are cached as you open albums and, gradually, for the rest of your saved albums. A sync writes only what changed, and skips rereading your saved albums and liked songs when their count and newest item are unchanged. The local music folder is re-indexed at every start, rereading only changed files. See [docs/ddmus/catalog.md](docs/ddmus/catalog.md).
-- **Search:** `/` from anywhere searches the whole catalog as you type, with operators like `artist:`, `album:` and `source:local`. Enter on a track plays its album from that track, and rows at the end run a source's own live search or a radio-directory search. See [docs/ddmus/search.md](docs/ddmus/search.md).
-- **All Music:** Music → All Music lists albums and artists from Spotify, YouTube Music and Local together, each labelled with its source. Albums sort by title; `o` sorts them by artist.
-- **Not in ddmus:** cliamp's other providers (podcasts, non-music YouTube, SoundCloud, Mixcloud, Navidrome, Plex, Jellyfin, Emby, Qobuz, Tidal, and more) and its Lua plugins. Their code is still there, but ddmus loads none of them; their sections in `config.toml` are left alone and ignored.
-- **The queue:** `Tab` shows what's playing, with shuffle, repeat, play next, remove and reorder, track info, lyrics, EQ presets and speed. `p` and `n` skip back and forward everywhere. The settings panel's SRC shows where the playing track comes from.
-- **Artwork:** `i` in the queue shows the album's artwork beside the track's details, in Kitty and Ghostty, from Spotify covers and local files' embedded pictures or cover files. See [docs/ddmus/artwork.md](docs/ddmus/artwork.md).
-- **Layout:** ddmus fills the terminal: a taller window lists more rows on every screen, a wide one shows long titles whole with rows lined up as a table, and resizing reflows at once. See [docs/ddmus/layout.md](docs/ddmus/layout.md).
-- **Key bar:** each view lists every key that works there at the bottom, wrapping onto more lines as needed (`Ctrl+G` hides it). Most of cliamp's jump keys (provider switching, theme and visualizer pickers and similar) stay off while the new navigation settles. See [docs/ddmus/navigation.md](docs/ddmus/navigation.md).
-- **Runs alongside cliamp:** ddmus keeps its own config, data and media-key (MPRIS) name, so you can install both. See [docs/ddmus/files.md](docs/ddmus/files.md).
+- **Linux on x86-64.** ddmus is developed and used on Arch, and built and tested on Ubuntu in CI. macOS builds and passes its tests there but is untested in use; Windows is not supported.
+- **Sound** through ALSA. On PipeWire or PulseAudio, install `pipewire-alsa` or `pulseaudio-alsa` (`libasound2-plugins` on Debian).
+- **Optional:** `ffmpeg` and `yt-dlp`, as in the table above.
+- **Terminal:** any modern terminal. Artwork needs Kitty or Ghostty; everywhere else, and inside tmux, ddmus works the same without it.
 
-## Build and install
+## Install
 
-**Prerequisites**
+ddmus is installed from source for now.
 
-- [Go](https://go.dev/dl/) 1.26.6 or later
-- On Linux, ALSA and codec development headers:
+You need [Go](https://go.dev/dl/) 1.26.6 or later (ddmus is built and tested with 1.27.1), a C compiler, `pkg-config`, and the ALSA and codec headers:
 
 ```sh
 # Debian/Ubuntu
-sudo apt install libasound2-dev libflac-dev libvorbis-dev libogg-dev libmpg123-dev
-# Fedora
-sudo dnf install alsa-lib-devel flac-devel libvorbis-devel libogg-devel mpg123-devel
+sudo apt install build-essential pkg-config libasound2-dev libflac-dev libvorbis-dev libogg-dev libmpg123-dev
 # Arch
-sudo pacman -S alsa-lib flac libvorbis libogg mpg123
+sudo pacman -S base-devel alsa-lib flac libvorbis libogg mpg123
 ```
-
-- On macOS: `brew install flac libvorbis libogg mpg123 pkg-config`
-
-**Build**
 
 ```sh
 git clone https://github.com/DaphnisDuck/ddmus.git
 cd ddmus
-make && make install   # builds ./ddmus and installs it to ~/.local/bin/ddmus
+make install            # builds ./ddmus and installs it to ~/.local/bin/ddmus
 ```
 
-Without Make: `go build -o ddmus .`
+To update, `git pull && make install`. ddmus does not update itself.
 
-**Optional runtime dependencies**
-
-- [ffmpeg](https://ffmpeg.org/) for AAC, ALAC, Opus and WMA playback
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for YouTube Music
-
-Windows builds follow cliamp's instructions, which need MSYS2 and CGO for Spotify; see cliamp's README. They are untested for ddmus.
+**Packages.** No prebuilt binaries are published yet. The 1.0 release is planned to add a prebuilt Linux x86-64 build on this repository's Releases page and an AUR package, `ddmus-bin`, made from it; this section will say how to use them once they exist.
 
 ## Quick start
 
 ```sh
-ddmus                          # open the Music library
-ddmus ~/Music/some-album       # load a directory into the queue (Tab shows it)
+ddmus setup             # Spotify, YouTube Music and your music folder; each is optional
+ddmus                   # open the library
 ```
 
+With nothing set up, ddmus still opens with Local (your `~/Music` folder) and Radio. Opening Spotify for the first time asks you to press `Enter` and sign in in your browser.
+
+In the library:
+
 | Key | Action |
-|---|---|
-| `j` `k` | Move down / up |
+| --- | --- |
+| `j` `k` | Move down, up |
 | `l` `Enter` | Open, or play |
 | `h` `Esc` | Back (never quits) |
-| `g` `G` | Top / bottom |
-| `/` | Search everything (see [docs/ddmus/search.md](docs/ddmus/search.md)) |
-| `o` | In an Albums list, sort by title or by artist |
-| `r` | Sync the source you're browsing now |
-| `Space` | Play / pause |
+| `g` `G` | Top, bottom |
+| `/` | Search everything |
+| `Space` | Play or pause |
+| `p` `n` | Previous, next track |
 | `Tab` | Switch between the library and the queue |
+| `r` | Sync the source you're browsing |
 | `q` | Quit, from any screen |
-| `Ctrl+G` | Hide or show the key bar |
 
-Selecting a track replaces the queue with its album or playlist and starts playing there. The bar at the bottom lists the keys of the view you're in; the full lists, the queue's included, are in [docs/ddmus/navigation.md](docs/ddmus/navigation.md).
+Choosing a track plays its album or playlist from that track. `Tab` shows the queue, where you can shuffle, repeat, reorder, open track info (`i`) and lyrics (`y`), and change the equalizer, visualizer and speed. In the queue, Enter plays the selected track, `/` filters, and `r` cycles repeat. Where you are typing (search, the queue filter), letters such as `q` are text. Every screen lists its keys at the bottom; the complete tables are in [docs/ddmus/navigation.md](docs/ddmus/navigation.md).
+
+You can also start with files: `ddmus ~/Music/some-album` loads a folder into the queue.
 
 ## Configuration
 
-ddmus reads `~/.config/ddmus/config.toml`. Set `DDMUS_CONFIG_DIR` to use another directory. Coming from omatunes, this player's name before v0.6? Move your folders once as shown in [docs/ddmus/files.md](docs/ddmus/files.md#moving-from-omatunes-before-v06). It starts empty, so to carry over your cliamp settings, copy them once:
+ddmus reads `~/.config/ddmus/config.toml`. `ddmus setup` writes the parts it asks about and leaves the rest of the file alone.
 
-```sh
-rsync -a --exclude='*.log' --exclude='*.sock' ~/.config/cliamp/ ~/.config/ddmus/
-```
-
-`ddmus setup` walks through Spotify, YouTube Music and your Local music folder. It changes only the keys it asks about and keeps the rest of your `config.toml`.
-
-- **Spotify:** run `ddmus setup` and choose Spotify, or follow [docs/spotify.md](docs/spotify.md), reading `~/.config/ddmus` wherever it says `~/.config/cliamp`. A Spotify Premium account is required. The first time you open Spotify in the library, press `Enter` to sign in. Your library then syncs in the background: at startup when the last sync is older than 2 hours, and whenever you press `r`. To change the interval:
+- **Spotify:** `ddmus setup` offers a choice between your own Spotify Developer app, which is recommended, and a shared client that is rate-limited more often. [docs/spotify.md](docs/spotify.md) shows how to create the app. `ddmus spotify reset` signs you out.
+- **YouTube Music:** browser cookies or your own Google OAuth client; see [docs/ddmus/youtube.md](docs/ddmus/youtube.md).
+- **Local music:** one folder is indexed: `initial_directory` in `config.toml`, else `$XDG_MUSIC_DIR`, else `~/Music`. Only changed files are reread at each start.
+- **Radio:** add your own stations in `~/.config/ddmus/radios.toml`; see [Custom Radio Stations](docs/configuration.md#custom-radio-stations).
+- **How often sources sync, artwork and the border:**
 
   ```toml
   [ddmus]
-  spotify_refresh = "30m"  # "0s" syncs at every start
+  spotify_refresh = "2h"   # also youtube_refresh; "0s" syncs at every start
+  artwork = true
+  border = true
   ```
 
-- **Local music:** Local → Albums, Artists and Genres come from an index of a single directory, updated at startup (only changed files are reread). It is `initial_directory` in `config.toml` (`ddmus setup` → Local music folder sets it), else `$XDG_MUSIC_DIR`, else `~/Music`:
+## Documentation
 
-  ```toml
-  initial_directory = "~/Music"
-  ```
+| Topic | Where |
+| --- | --- |
+| Navigation and every key | [docs/ddmus/navigation.md](docs/ddmus/navigation.md) |
+| Search and its query language | [docs/ddmus/search.md](docs/ddmus/search.md) |
+| The catalog: what is stored, when it syncs, Spotify rate limits | [docs/ddmus/catalog.md](docs/ddmus/catalog.md) |
+| YouTube Music setup | [docs/ddmus/youtube.md](docs/ddmus/youtube.md) |
+| Album artwork and terminals | [docs/ddmus/artwork.md](docs/ddmus/artwork.md) |
+| How ddmus uses the window | [docs/ddmus/layout.md](docs/ddmus/layout.md) |
+| Files and folders, running beside cliamp, moving from omatunes | [docs/ddmus/files.md](docs/ddmus/files.md) |
+| Release history | [CHANGELOG.md](CHANGELOG.md) |
+| Reporting a security problem | [SECURITY.md](SECURITY.md) |
 
-- **Catalog:** the catalog lives in `~/.local/share/ddmus/library.db` and holds no passwords or tokens. Delete it (with its `-wal` and `-shm` files) to rebuild it from scratch at the next start.
-- **Radio:** Radio → Browse Stations covers the [Radio Browser](https://www.radio-browser.info/) directory (about 58,000 stations) by country or tag, plus the cliamp radio channels. Add your own stations in `~/.config/ddmus/radios.toml`; see [docs/configuration.md](docs/configuration.md#custom-radio-stations).
+`ddmus --help` lists every command and option.
 
-cliamp's other documentation in [docs/](docs/) still describes the engine, EQ, themes, plugins and configuration keys accurately. Its keybinding and provider-pane sections describe cliamp's interface rather than ddmus'.
+The other files in [docs/](docs/) are cliamp's own documentation, not yet adapted to ddmus. Read `ddmus` and `~/.config/ddmus` where they say `cliamp` and `~/.config/cliamp`. Some still apply in part:
 
-> **Updating:** `ddmus upgrade` is disabled, because cliamp's self-updater would install cliamp over ddmus. Update by pulling and rebuilding: `git pull && make install`.
+- [Audio settings](docs/audio-quality.md).
+- [Themes](docs/themes.md): the theme files and settings apply. Choose a theme with `--start-theme` or `ddmus theme`; the `t` picker described there is not in ddmus.
+- [Local playlists](docs/playlists.md): the file format and the `ddmus playlist` commands apply. The playlist-manager keys described there do not.
+- [Remote control](docs/remote-control.md): applies, except the `mono` operation and the plugin operations, which ddmus does not have.
+
+Their pages on other providers, plugins, headless mode and keybindings describe cliamp, not ddmus.
 
 ## Troubleshooting
 
-**No audio output**
+- **"audio output unavailable":** ALSA cannot reach your sound server. Install `pipewire-alsa` or `pulseaudio-alsa`.
+- **Some local files won't play:** AAC, ALAC, Opus and WMA need `ffmpeg`.
+- **YouTube Music is empty or won't play:** it needs `yt-dlp` and a working sign-in; [docs/ddmus/youtube.md](docs/ddmus/youtube.md) covers the usual causes.
+- **Spotify says "rate limited until …":** Spotify has blocked the client for a while; ddmus waits it out and retries by itself. See [docs/ddmus/catalog.md](docs/ddmus/catalog.md).
+- **The log** is `~/.config/ddmus/ddmus.log`; `--log-level debug` says more.
 
-"audio output unavailable" means the ALSA backend cannot reach your sound server. Install the bridge package:
+## Project status
 
-- **PipeWire:** `pipewire-alsa`
-- **PulseAudio:** `pulseaudio-alsa` (`libasound2-plugins` on Debian/Ubuntu, including WSL2)
+ddmus is feature-complete for 1.0, its first stable release, which is being prepared: no features are being added, and [CHANGELOG.md](CHANGELOG.md) lists what 1.0 changes. From 1.0 on, a newer 1.x opens the config and catalog of an older one; going back to an older version is not supported. The catalog (`~/.local/share/ddmus/library.db`) can always be deleted and rebuilt by a sync; your sign-ins and settings live in `~/.config/ddmus`.
 
-On WSL2, also see [WSL2 setup](docs/configuration.md#wsl2-windows-subsystem-for-linux).
+ddmus is maintained by one person. Bug reports are welcome in [Issues](https://github.com/DaphnisDuck/ddmus/issues).
 
-## Staying close to upstream
+## Lineage and thanks
 
-ddmus tracks cliamp and regularly merges its improvements. Fork changes live in new files where possible, and every edit to an upstream file is marked `// ddmus:`. See [docs/ddmus/upstream.md](docs/ddmus/upstream.md).
+ddmus would not exist without **[Bjarne Øverli](https://github.com/bjarneo)**, who created [cliamp](https://github.com/bjarneo/cliamp), and everyone who has [contributed to it](https://github.com/bjarneo/cliamp/graphs/contributors). Nearly everything that makes ddmus sound good is their work: the audio engine, the equalizer, the visualizers and the provider integrations. If you enjoy ddmus, please star, use and support cliamp, and visit [cliamp.stream](https://cliamp.stream).
 
-## Thanks
+ddmus adds the library, the catalog, search and the layout on top, and follows cliamp's development: see [docs/ddmus/upstream.md](docs/ddmus/upstream.md). It keeps its own config, data and media-key name, so both can be installed side by side.
 
-ddmus would not exist without **[Bjarne Øverli](https://github.com/bjarneo)** ([x.com/iamdothash](https://x.com/iamdothash)), who created cliamp, and everyone who has [contributed to it](https://github.com/bjarneo/cliamp/graphs/contributors). Nearly everything that makes ddmus sound good is their work: the audio engine, the EQ, the visualizers, the provider integrations and the plugin system. If you enjoy ddmus, please go and star, use and support [cliamp](https://github.com/bjarneo/cliamp) and visit [cliamp.stream](https://cliamp.stream).
-
-cliamp in turn builds on [Bubbletea](https://github.com/charmbracelet/bubbletea), [Lip Gloss](https://github.com/charmbracelet/lipgloss), [Beep](https://github.com/gopxl/beep) and [go-librespot](https://github.com/devgianlu/go-librespot). ddmus' catalog uses [modernc.org/sqlite](https://gitlab.com/cznic/sqlite).
+Both build on [Bubble Tea](https://github.com/charmbracelet/bubbletea), [Lip Gloss](https://github.com/charmbracelet/lipgloss), [Beep](https://github.com/gopxl/beep) and [go-librespot](https://github.com/devgianlu/go-librespot); the catalog uses [modernc.org/sqlite](https://gitlab.com/cznic/sqlite).
 
 ## License
 
 ddmus's source code is MIT-licensed, the same as cliamp: see [LICENSE](LICENSE). The original copyright belongs to Bjarne Øverli.
 
-The `ddmus` executable is a different matter. It links [go-librespot](https://github.com/devgianlu/go-librespot), which is GPL-3.0, so the executable as a whole is distributed under **GPL-3.0** ([LICENSE-GPL-3.0](LICENSE-GPL-3.0)). Every release carries the complete corresponding source for its build (`ddmus-<version>-source.tar.gz`) and a `THIRD_PARTY_NOTICES` file listing everything linked in, with its license.
+The `ddmus` executable is a different matter. It links [go-librespot](https://github.com/devgianlu/go-librespot), which is GPL-3.0, so the executable as a whole is distributed under **GPL-3.0** ([LICENSE-GPL-3.0](LICENSE-GPL-3.0)). The release build ([docs/ddmus/releasing.md](docs/ddmus/releasing.md)) produces the complete corresponding source for each binary (`ddmus-<version>-source.tar.gz`) and a `THIRD_PARTY_NOTICES` file listing everything linked in, with its license.
 
-The official binaries are the ones on this repository's [Releases](https://github.com/DaphnisDuck/ddmus/releases) page and the AUR package `ddmus-bin` built from them. If you distribute a modified ddmus, please give it another name.
+No binaries are published yet. When they are, the official ones will be those on this repository's Releases page and the AUR package `ddmus-bin` built from them. If you distribute a modified ddmus, please give it another name.
 
-## Disclaimer
-
-Use this software at your own risk. The authors are not responsible for damage or issues that result from its use.
+ddmus comes with no warranty; use it at your own risk.

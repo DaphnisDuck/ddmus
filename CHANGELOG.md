@@ -4,7 +4,7 @@ Notable changes to ddmus (DaphnisDuck's Music Player). The format follows [Keep 
 
 ddmus is a fork of [cliamp](https://github.com/bjarneo/cliamp). Versions before 0.6 were released as omatunes.
 
-## [1.0.0] - Unreleased
+## [1.0.0] - not yet released
 
 The first release for people who don't build from source. 1.0 adds no features to 0.10: it settles the command line, removes what ddmus doesn't support, and ships a tested Linux build.
 
@@ -12,19 +12,19 @@ The first release for people who don't build from source. 1.0 adds no features t
 - A release build for Linux x86-64 with checksums, third-party notices, an SBOM, a build attestation and the complete corresponding source; an AUR package, `ddmus-bin`.
 - `ddmus setup` sets up Spotify, YouTube Music and the Local music folder, and keeps every other line of an existing `config.toml`.
 - `--version` answers in every build.
-- Spotify syncs every 2 hours by default.
 
 ### Changed
 - ddmus 1.0 supports Spotify, YouTube Music, local files and internet radio. cliamp's other providers (Navidrome, Plex, Jellyfin, SoundCloud and the rest) are not offered: `--provider` and `setup` no longer list them, and their sections in `config.toml` are left untouched but have no effect.
 - The log and the IPC socket are named `ddmus.log` and `ddmus.sock` (they kept cliamp's names before). A script that opens the socket by path needs the new name.
 - In "Search Spotify for …" and its YouTube Music twin, Enter replaces the queue, as playing from the library does.
+- By default, Spotify syncs at startup when its last successful sync is more than two hours old (it was 30 minutes).
 - `shuffle` and `repeat` reject values they don't know.
+- `ddmus upgrade`, which has never updated ddmus, now points to the package manager and the releases page.
 - The executable is distributed under GPL-3.0, because it links go-librespot; ddmus's own source stays MIT.
 
 ### Removed
 - Lua plugins: none is loaded, and the `plugins` command and its IPC operations are gone. Plugin files and `[plugins.*]` config stay where they are, unused.
 - `--daemon` (headless mode), `--mono`, `--expanded`, `--simplified`, and the `mono`, `open`, `protocol`, `qobuz`, `radio` and `tidal` commands. `cliamp://` links are neither registered nor handled; see [docs/ddmus/files.md](docs/ddmus/files.md) if an earlier ddmus registered them.
-- `ddmus upgrade`: update with your package manager or from the releases page.
 
 ### Fixed
 - Two quick volume changes from a desktop media control could freeze ddmus; a dropped session bus could crash it.
@@ -34,35 +34,98 @@ The first release for people who don't build from source. 1.0 adds no features t
 - A YouTube Music sign-in made inside ddmus stopped working about an hour later, until a restart.
 - A stalled Spotify request could hold a library sync until quit.
 - Stop now cancels an album that is still opening from search.
+- A sync requested while another ran could run twice, and a sync that had just finished could cancel the retry of a newer one that failed, leaving that source unsynced until the next refresh.
 - Hardening from an independent review of playback, catalog identity and sync.
 
 ## [0.10.0] - 2026-09-30
-- Album artwork in the track info view (`i` in the queue) in Kitty and Ghostty, from Spotify covers and local files.
+
+### Added
+- Album artwork in the track info view (`i` in the queue), in Kitty and Ghostty, from Spotify covers and from local files' embedded pictures or cover files. Other terminals show the info view as before.
 
 ## [0.9.0] - 2026-09-30
-- ddmus fills the terminal: taller windows list more rows, wide ones line rows up as a table, and resizing reflows at once. A border frames the screen (`border = false` under `[ddmus]` turns it off).
+
+### Changed
+- ddmus fills the terminal: a taller window lists more rows on every screen, a wide one lines rows up as a table instead of stretching them, and resizing reflows at once.
+- A border frames the screen; `border = false` under `[ddmus]` turns it off.
 
 ## [0.8.0] - 2026-09-30
-- One set of keys everywhere: `q` quits from any screen, `Esc` only goes back, `p` and `n` skip tracks, and `/` is only ever search.
-- Spotify's long rate-limit blocks no longer hang album opens, and are waited out across restarts.
+
+### Changed
+- One set of keys on every screen: `q` quits from anywhere, `Esc` only ever goes back, `p` and `n` skip tracks, and `/` is only ever search (the filter, in the queue).
+- The key bar's labels no longer use `/` to join keys.
+
+### Removed
+- The mono key, and the far seek outside the queue.
+
+### Fixed
+- Spotify's long rate-limit blocks no longer hang album opens. While a block lasts ddmus sends Spotify nothing, and it waits the block out across restarts.
 
 ## [0.7.0] - 2026-09-30
-- The queue view works under the library: shuffle, repeat, play next, track info, queue editing, lyrics and the sound keys. Every view lists its keys in a bar at the bottom.
+
+### Added
+- The queue view works under the library: shuffle, repeat, play next, track info, queue editing, lyrics, EQ presets, speed and jump to a time.
+- The settings panel's SRC names the playing track's source.
+- Every view lists the keys that work there in a bar at the bottom, replacing cliamp's keymap overlay.
+
+### Removed
+- Favorite (`n`) in the queue.
 
 ## [0.6.0] - 2026-09-30
-- Renamed from omatunes to DaphnisDuck's Music Player, `ddmus`. Settings and library move once, by hand: see [docs/ddmus/files.md](docs/ddmus/files.md).
+
+### Changed
+- Renamed from omatunes to DaphnisDuck's Music Player, `ddmus` for short, because omatunes is another player's name. The binary, the config and data folders, the config section (`[ddmus]`), the media-key name and the GitHub repository all changed. Settings and library move once, by hand: see [docs/ddmus/files.md](docs/ddmus/files.md#moving-from-omatunes-before-v06).
 
 ## [0.5.0] - 2026-09-29
-- Faster, quieter syncs, sturdier YouTube enrichment, and a keymap that shows only the keys that work.
+
+Released as omatunes. A cleanup release with no new sources.
+
+### Changed
+- Syncs are faster and quieter: a sync writes only what changed, and skips rereading saved albums and liked songs when their count and newest item are unchanged.
+- The keymap shows only the keys that work.
+
+### Fixed
+- YouTube Music enrichment no longer stops for good at one track it cannot read, and a playlist whose sampled videos all refuse keeps its synced tracks.
 
 ## [0.4.0] - 2026-09-29
-- YouTube Music: playlists and Liked Music sync into the catalog; albums and artists are read in the background.
+
+Released as omatunes.
+
+### Added
+- YouTube Music: your playlists and Liked Music sync into the catalog, signed in through browser cookies or your own Google OAuth client. Each track's artist, album and year is read in the background, giving YouTube Music its own Albums and Artists.
 
 ## [0.3.0] - 2026-09-29
-- Search-as-you-type across Spotify, local files and radio stations, offline; an All Music menu.
+
+Released as omatunes.
+
+### Added
+- Search as you type across Spotify, local files and radio stations, offline, with operators such as `artist:` and `source:`.
+- All Music: every source's albums and artists in one list each.
 
 ## [0.2.0] - 2026-09-29
-- A local catalog of the Spotify library and the music folder, synced in the background, so browsing is instant and works offline.
+
+Released as omatunes.
+
+### Added
+- A local SQLite catalog of the Spotify library and the music folder, synced in the background, so browsing a large library is instant and works offline. `r` syncs by hand.
 
 ## [0.1.0] - 2026-09-29
-- Library navigation (Music → Spotify, Local, Radio) above cliamp's player, queue, EQ and visualizer.
+
+Released as omatunes. The first release of the fork, based on cliamp just after its v2.3.0.
+
+### Added
+- Library navigation: Music → Spotify, Local, Radio and Search, with vim-style keys, above cliamp's player, queue, equalizer and visualizer.
+
+### Removed
+- cliamp's self-updater: `upgrade` refuses to run, because it would install cliamp over the fork.
+
+[1.0.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.10.0...main
+[0.10.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/DaphnisDuck/ddmus/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/DaphnisDuck/ddmus/releases/tag/v0.1.0

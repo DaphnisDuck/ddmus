@@ -345,6 +345,96 @@ func TestQuietSyncMidRunRequestStartsNoSecondSync(t *testing.T) {
 	}
 }
 
+// failingSecondSource succeeds on its first Fetch and fails from then on.
+type failingSecondSource struct {
+	namedSource
+	mu    sync.Mutex
+	calls int
+}
+
+func (s *failingSecondSource) Fetch(context.Context, string, catalogsync.Known) (catalog.Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	if s.calls == 1 {
+		return catalog.Snapshot{}, catalogsync.ErrUnchanged
+	}
+	return catalog.Snapshot{}, errors.New("second sync failed")
+}
+
+// slowReleaseWorker is a worker whose first Hold's release announces itself
+// and then blocks until unblock is closed: the first sync, done syncing,
+// pauses there before it finishes.
+type slowReleaseWorker struct {
+	mu        sync.Mutex
+	holds     int
+	releasing chan struct{}
+	unblock   chan struct{}
+	ran       chan struct{}
+}
+
+func (w *slowReleaseWorker) Hold() func() {
+	w.mu.Lock()
+	w.holds++
+	first := w.holds == 1
+	w.mu.Unlock()
+	return func() {
+		if first {
+			close(w.releasing)
+			<-w.unblock
+		}
+	}
+}
+
+func (w *slowReleaseWorker) Run(context.Context) error {
+	w.ran <- struct{}{}
+	return nil
+}
+
+// A sync that succeeded and is still finishing must not cancel the retry of
+// a newer sync that failed meanwhile: the provider would stay failed until
+// its next refresh or a restart.
+func TestOlderSyncKeepsNewerSyncsRetry(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	await := func(what string, ch <-chan struct{}) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for %s", what)
+		}
+	}
+	retryArmed := func(rt *catalogRuntime) bool {
+		rt.mu.Lock()
+		defer rt.mu.Unlock()
+		return rt.providers[catalog.Spotify].retry != nil
+	}
+	w := &slowReleaseWorker{releasing: make(chan struct{}), unblock: make(chan struct{}), ran: make(chan struct{}, 4)}
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}, retryMin: time.Hour, retryMax: time.Hour}
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
+	rt.setSources(source{Source: &failingSecondSource{namedSource: namedSource{catalog.Spotify}}, worker: w})
+	t.Cleanup(rt.close)
+	var unblock sync.Once
+	defer unblock.Do(func() { close(w.unblock) })
+
+	rt.sync(catalog.Spotify)
+	await("the first sync to finish syncing", w.releasing)
+	rt.sync(catalog.Spotify) // the provider is free: a second sync, which fails
+	await("the second sync to finish", w.ran)
+	if !retryArmed(rt) {
+		t.Fatal("the failed second sync armed no retry")
+	}
+
+	unblock.Do(func() { close(w.unblock) }) // the first sync finishes now
+	rt.wg.Wait()
+	if !retryArmed(rt) {
+		t.Fatal("the older, successful sync cancelled the newer failed sync's retry")
+	}
+}
+
 // fakePlayer is a minimal provider for wiring tests.
 type fakePlayer struct{ name string }
 

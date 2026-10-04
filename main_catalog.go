@@ -347,7 +347,15 @@ func (rt *catalogRuntime) sync(provider string) {
 			// a request is either seen here or starts its own sync.
 			rt.mu.Lock()
 			again := ps.quiet && err == nil && ps.requests != seen && !rt.closed
+			// The running sync, or quitting, owns what happens next.
+			owned := errors.Is(err, catalogsync.ErrRunning) || rt.ctx.Err() != nil
 			if !again {
+				// The retry is settled before the provider is given up:
+				// settled later, this sync's result could undo the retry
+				// of a newer sync that failed meanwhile.
+				if !owned {
+					rt.scheduleRetryLocked(ps, provider, err)
+				}
 				ps.running = false
 			}
 			rt.mu.Unlock()
@@ -357,12 +365,11 @@ func (rt *catalogRuntime) sync(provider string) {
 		}
 		release()
 		if errors.Is(err, catalogsync.ErrRunning) || rt.ctx.Err() != nil {
-			return // the running sync, or quitting, owns what happens next
+			return
 		}
 		if err != nil {
 			applog.Info("catalog sync: %v", err)
 		}
-		rt.scheduleRetry(provider, err)
 		if ps.worker != nil {
 			rt.runWorker(provider, ps.worker)
 		}
@@ -380,6 +387,11 @@ func (rt *catalogRuntime) scheduleRetry(provider string, err error) time.Duratio
 	if ps == nil {
 		return 0
 	}
+	return rt.scheduleRetryLocked(ps, provider, err)
+}
+
+// scheduleRetryLocked is scheduleRetry for a caller holding rt.mu.
+func (rt *catalogRuntime) scheduleRetryLocked(ps *providerSync, provider string, err error) time.Duration {
 	if ps.retry != nil {
 		ps.retry.Stop()
 		ps.retry = nil

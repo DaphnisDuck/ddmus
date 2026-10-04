@@ -2,7 +2,7 @@
 
 ## tone-440hz.mp3
 
-A two-second 440 Hz sine tone, stereo, 44.1 kHz, 64 kbit/s MP3, 16,508 bytes. It is generated, not recorded: it contains no music, speech or sampled material, and nobody else's work. ddmus made it for these tests, and it is covered by the repository's MIT license like the rest of ddmus's source.
+A two-second 440 Hz sine tone, stereo, 44.1 kHz, 64 kbit/s MP3, 16,508 bytes. It was generated specifically for ddmus's tests, with the command below. It is synthesized, not recorded, and contains no third-party sampled, musical or spoken material.
 
 `nav_length_test.go` serves it over HTTP as "a real encoded MP3 both decoders accept": the built-in MP3 decoder and ffmpeg.
 

@@ -31,7 +31,7 @@ Each describes a part ddmus shares with cliamp. The key presses they mention are
 | [themes.md](themes.md) | The theme files and settings apply. Choose a theme with `--start-theme` or `ddmus theme`; the `t` picker is not in ddmus |
 | [playlists.md](playlists.md) | The playlist file format and the `ddmus playlist` commands apply. The playlist-manager keys do not |
 | [lyrics.md](lyrics.md) | Lyrics open with `y` in the queue |
-| [history.md](history.md) | `ddmus history` applies. Browsing history inside the player is cliamp's |
+| [history.md](history.md) | `ddmus history` applies. In ddmus the history is at Local → Playlists → Recently Played |
 | [mediactl.md](mediactl.md) | Media keys and desktop controls apply; ddmus's MPRIS name is `org.mpris.MediaPlayer2.ddmus` |
 | [remote-control.md](remote-control.md), [upgrading-ipc-v2.md](upgrading-ipc-v2.md) | The socket API applies, except the `mono` operation and the plugin operations, which ddmus does not have |
 | [cli.md](cli.md) | Many commands are the same, but `--daemon`, `--mono`, `upgrade`, `protocol`, `open` and `plugins` are not in ddmus. `ddmus --help` is the accurate list |

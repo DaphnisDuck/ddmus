@@ -3,15 +3,18 @@ package main
 // ddmus: the messages a user sees name ddmus, not cliamp.
 
 import (
-	"strings"
+	"fmt"
 	"testing"
 
 	"github.com/bjarneo/cliamp/ipc"
 )
 
 func TestNotRunningNamesDdmus(t *testing.T) {
-	msg := userIPCError(ipc.ErrNotRunning).Error()
-	if !strings.HasPrefix(msg, "ddmus is not running") || strings.Contains(msg, "cliamp") {
-		t.Fatalf("userIPCError = %q, want it to name ddmus", msg)
+	// The socket path comes from the environment and may contain any name;
+	// only the player's name in the message is under test.
+	got := userIPCError(ipc.ErrNotRunning).Error()
+	want := fmt.Sprintf("ddmus is not running (no socket at %s)", ipc.DefaultSocketPath())
+	if got != want {
+		t.Fatalf("userIPCError = %q, want %q", got, want)
 	}
 }

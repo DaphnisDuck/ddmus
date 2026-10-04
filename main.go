@@ -312,7 +312,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 
 	if len(positional) > 0 && (positional[0] == "search" || positional[0] == "search-sc") {
 		if len(positional) == 1 {
-			return fmt.Errorf("search requires a query string (e.g. cliamp search \"never gonna give you up\")")
+			return fmt.Errorf("search requires a query string (e.g. %s search \"never gonna give you up\")", appmeta.ClientName()) // ddmus
 		}
 		prefix := "ytsearch1:"
 		if positional[0] == "search-sc" {

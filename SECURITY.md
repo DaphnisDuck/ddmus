@@ -10,13 +10,13 @@ Say what you found, the ddmus version (`ddmus --version`), and how to reproduce 
 
 ## What is supported
 
-Until 1.0 is released: the `main` branch. After that: the latest 1.x release. Fixes are not ported to older versions.
+The latest release. Before 1.0 is released, that is the `main` branch and the latest release candidate. Fixes are not ported to older versions.
 
 ## Official builds
 
-No binaries are published yet; ddmus is built from source (see the [README](README.md#install)).
+The only official binaries are the files published on this repository's [Releases](https://github.com/DaphnisDuck/ddmus/releases) page (release candidates are marked "Pre-release"), and the AUR package `ddmus-bin`, which installs those files, once it exists. Anything else is someone else's build; ddmus can always be built from source (see the [README](README.md#install)).
 
-From 1.0, the official binaries will be the files on this repository's Releases page and the AUR package `ddmus-bin`, which installs those files. Each release will carry `SHA256SUMS` and a build attestation, to check a download with:
+Each release carries `SHA256SUMS` and a build attestation, to check a download with:
 
 ```sh
 sha256sum -c --ignore-missing SHA256SUMS
@@ -27,4 +27,4 @@ A vulnerability in cliamp, which ddmus is forked from, should also go to [cliamp
 
 ## If ddmus stops being maintained
 
-The repository will be archived with a notice saying so, and `ddmus-bin`, once it exists, will be handed to a named co-maintainer or deleted from the AUR on request. It won't be left orphaned for someone else to adopt silently.
+The repository will be archived with a notice saying so, and `ddmus-bin`, if it exists by then, will be handed to a named co-maintainer or deleted from the AUR on request. It won't be left orphaned for someone else to adopt silently.

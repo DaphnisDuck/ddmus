@@ -44,7 +44,7 @@ Local files and radio need no account at all. cliamp's other sources (Navidrome,
 
 ## Install
 
-ddmus is installed from source for now.
+**From source**
 
 You need [Go](https://go.dev/dl/) 1.26.6 or later (ddmus is built and tested with 1.27.1), a C compiler, `pkg-config`, and the ALSA and codec headers:
 
@@ -63,7 +63,17 @@ make install            # builds ./ddmus and installs it to ~/.local/bin/ddmus
 
 To update, `git pull && make install`. ddmus does not update itself.
 
-**Packages.** No prebuilt binaries are published yet. The 1.0 release is planned to add a prebuilt Linux x86-64 build on this repository's Releases page and an AUR package, `ddmus-bin`, made from it; this section will say how to use them once they exist.
+**Release builds**
+
+Published releases are on the [Releases](https://github.com/DaphnisDuck/ddmus/releases) page; release candidates are marked "Pre-release" there. If the page lists none, none has been published yet, and source is the way to install. Each release has a build for Linux x86-64 (glibc 2.36 or newer; it needs only ALSA and glibc from your system) and a `SHA256SUMS` file:
+
+```sh
+sha256sum -c --ignore-missing SHA256SUMS
+tar -xzf ddmus-*-linux-amd64.tar.gz
+install -Dm755 ddmus-*-linux-amd64/ddmus ~/.local/bin/ddmus
+```
+
+An AUR package, `ddmus-bin`, is planned for the stable 1.0 release; it is not in the AUR yet.
 
 ## Quick start
 
@@ -149,7 +159,7 @@ Their pages on other providers, plugins, headless mode and keybindings describe 
 
 ## Project status
 
-ddmus is feature-complete for 1.0, its first stable release, which is being prepared: no features are being added, and [CHANGELOG.md](CHANGELOG.md) lists what 1.0 changes. From 1.0 on, a newer 1.x opens the config and catalog of an older one; going back to an older version is not supported. The catalog (`~/.local/share/ddmus/library.db`) can always be deleted and rebuilt by a sync; your sign-ins and settings live in `~/.config/ddmus`.
+ddmus is feature-complete for 1.0, its first stable release: no features are being added before it. Release candidates and releases are listed on the [Releases](https://github.com/DaphnisDuck/ddmus/releases) page, and [CHANGELOG.md](CHANGELOG.md) says what each changes. From 1.0 on, a newer 1.x opens the config and catalog of an older one; going back to an older version is not supported. The catalog (`~/.local/share/ddmus/library.db`) can always be deleted and rebuilt by a sync; your sign-ins and settings live in `~/.config/ddmus`.
 
 ddmus is maintained by one person. Bug reports are welcome in [Issues](https://github.com/DaphnisDuck/ddmus/issues).
 
@@ -167,6 +177,6 @@ ddmus's source code is MIT-licensed, the same as cliamp: see [LICENSE](LICENSE).
 
 The `ddmus` executable is a different matter. It links [go-librespot](https://github.com/devgianlu/go-librespot), which is GPL-3.0, so the executable as a whole is distributed under **GPL-3.0** ([LICENSE-GPL-3.0](LICENSE-GPL-3.0)). The release build ([docs/ddmus/releasing.md](docs/ddmus/releasing.md)) produces the complete corresponding source for each binary (`ddmus-<version>-source.tar.gz`) and a `THIRD_PARTY_NOTICES` file listing everything linked in, with its license.
 
-No binaries are published yet. When they are, the official ones will be those on this repository's Releases page and the AUR package `ddmus-bin` built from them. If you distribute a modified ddmus, please give it another name.
+The only official binaries are those published on this repository's [Releases](https://github.com/DaphnisDuck/ddmus/releases) page, and the AUR package `ddmus-bin` built from them once it exists. If you distribute a modified ddmus, please give it another name.
 
 ddmus comes with no warranty; use it at your own risk.

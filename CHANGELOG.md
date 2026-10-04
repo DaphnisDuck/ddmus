@@ -9,7 +9,7 @@ ddmus is a fork of [cliamp](https://github.com/bjarneo/cliamp). Versions before 
 The first release for people who don't build from source. 1.0 adds no features to 0.10: it settles the command line, removes what ddmus doesn't support, and ships a tested Linux build.
 
 ### Added
-- A release build for Linux x86-64 with checksums, third-party notices, an SBOM, a build attestation and the complete corresponding source; an AUR package, `ddmus-bin`.
+- A release build for Linux x86-64 with checksums, third-party notices, an SBOM, a build attestation and the complete corresponding source. An AUR package, `ddmus-bin`, follows with the stable release.
 - `ddmus setup` sets up Spotify, YouTube Music and the Local music folder, and keeps every other line of an existing `config.toml`.
 - `--version` answers in every build.
 

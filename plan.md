@@ -779,6 +779,7 @@ Branch `m10-artwork`.
     - [x] RC1 gate work (2026-10-04, branch `rc1-prep`): scenarios C, D, G and H passed in isolated homes; the release workflow ran on GitHub for the first time on the test tag `v1.0.0-test.1` (draft pre-release, attestation verified, byte-identical to a local build, installs on Debian 13, `ddmus-bin` builds and installs from it); README and SECURITY.md word releases so they stay true before and after one is published; the record is `docs/ddmus/releases/v1.0.0-rc.1.md`. The website draft is waived to before 1.0 (owner). The owner's YouTube Music check passed; the Spotify check failed (a track stuck on Buffering), which blocked the candidate: session setup had no time limit, the half of upstream `deb2f447` the earlier port missed. Fixed in `3fcf2447` (one 30-second budget for the access-point connection and the first token refresh; Codex, two rounds). The owner's Spotify check on the fixed build passed (2026-10-04), the last gate before `v1.0.0-rc.1`.
     - [ ] Still open for Gate B: branding (site, `CNAME`, Nix flake, `.desktop`, icons, the MP3), README refresh, `docs/ddmus/` pass, website draft, fresh-user scenarios A–H.
   - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
+    - [x] `v1.0.0-rc.1` tagged at `73b97a5b` and published as a pre-release (2026-10-04); record in `docs/ddmus/releases/v1.0.0-rc.1.md`. Open: the Codex high-effort audit, the owner's use, and the rest of Gate C; then the website, the AUR package and v1.0.0.
   - [ ] v1.0.0 (Gate D).
 
 ## Decisions log

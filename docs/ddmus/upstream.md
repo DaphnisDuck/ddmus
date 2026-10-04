@@ -10,11 +10,15 @@ git remote -v
 # upstream  https://github.com/bjarneo/cliamp.git
 ```
 
-If `upstream` is missing, add it:
+If `upstream` is missing, add it, and keep cliamp's tags out of your tag list:
 
 ```sh
 git remote add upstream https://github.com/bjarneo/cliamp.git
+git config remote.upstream.tagOpt --no-tags
+git config --add remote.upstream.fetch '+refs/tags/*:refs/upstream-tags/*'
 ```
+
+cliamp's release tags (`v1.0.0` to `v2.3.0` and later) share names with ddmus's own, and their release workflow has no repository check: pushed to ddmus's GitHub, each would publish a cliamp release there. With the two settings above, a fetch files them under `refs/upstream-tags/` (`git log refs/upstream-tags/v2.3.0`), where `git tag` doesn't list them and `git push --tags` doesn't send them. A clone that already has them as tags can drop them with `git tag -d` after the next fetch. GitHub also refuses new tags unless the tag ruleset is switched off for a release; see [releasing.md](releasing.md).
 
 ## Sync workflow
 

@@ -17,13 +17,15 @@ yt-dlp borrows the YouTube session of a browser you are signed in to:
 ```toml
 [ytmusic]
 enabled = true
-cookies_from = "firefox"   # or chrome, chromium, brave, edge, opera, safari
+# or chrome, chromium, brave, edge, opera, safari
+cookies_from = "firefox"
 ```
 
 On Linux, Chrome-family browsers encrypt their cookies with the desktop keyring. Name it after a `+`, and install the keyring support yt-dlp needs:
 
 ```toml
-cookies_from = "brave+gnomekeyring"   # or "chromium+kwallet", …
+# or "chromium+kwallet", …
+cookies_from = "brave+gnomekeyring"
 ```
 
 On Arch, the GNOME keyring needs `python-secretstorage` (`sudo pacman -S python-secretstorage`). Without it yt-dlp reports `cannot decrypt v11 cookies` and YouTube treats you as signed out.

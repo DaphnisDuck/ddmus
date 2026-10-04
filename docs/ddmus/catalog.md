@@ -53,10 +53,15 @@ In `~/.config/ddmus/config.toml`:
 
 ```toml
 [ddmus]
-spotify_refresh = "2h"    # sync Spotify at startup if the last sync is older than this; "0s" syncs every time
-youtube_refresh = "2h"    # the same for YouTube Music
-youtube_playlists = []    # other people's YouTube playlists to sync, by link (see youtube.md)
+# sync Spotify at startup if the last sync is older than this; "0s" syncs every time
+spotify_refresh = "2h"
+# the same for YouTube Music
+youtube_refresh = "2h"
+# other people's YouTube playlists to sync, by link (see youtube.md)
+youtube_playlists = []
 ```
+
+Keep each comment on a line of its own, as here: ddmus does not read a comment that follows a value.
 
 Durations use Go's format: `90s`, `30m`, `2h`. An invalid value keeps the default.
 

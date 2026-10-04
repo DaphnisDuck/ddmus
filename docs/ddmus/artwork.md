@@ -28,7 +28,8 @@ The artwork sits left of the metadata and keeps its shape: its size in cells com
 
 ```toml
 [ddmus]
-artwork = false   # never show artwork (default: true, in terminals that can)
+# never show artwork (default: true, in terminals that can)
+artwork = false
 ```
 
 ## For contributors

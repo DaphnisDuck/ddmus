@@ -105,10 +105,14 @@ ddmus reads `~/.config/ddmus/config.toml`. `ddmus setup` writes the parts it ask
 
   ```toml
   [ddmus]
-  spotify_refresh = "2h"   # also youtube_refresh; "0s" syncs at every start
+  # how old the last sync may get before the next start syncs again; "0s" is every start
+  spotify_refresh = "2h"
+  youtube_refresh = "2h"
   artwork = true
   border = true
   ```
+
+  A comment needs a line of its own: ddmus does not read one that follows a value.
 
 ## Documentation
 

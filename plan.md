@@ -770,6 +770,7 @@ Branch `m10-artwork`.
     - [x] CLI audit slice 2, runtime removals (2026-10-02): only cliamp radio, Radio, Local, Spotify and YouTube Music are constructed or reachable (`providers_ddmus.go`); `--provider` narrowed; plugins never load; IPC without `mono` and the plugin operations. See `docs/ddmus/cli-audit.md`.
     - [x] Inherited search hardening (2026-10-02): in cliamp's live search ("Search Spotify for …", also YouTube Music), Enter replaces the queue; Stop cancels an album still opening.
     - [x] Setup onboards ddmus (2026-10-02): Spotify, YouTube Music, Local music folder; reruns keep other keys; atomic writes. See `docs/ddmus/cli-audit.md`.
+    - [x] Upstream fix triage (2026-10-02, cutoff `9d9e55ab`): log in `docs/ddmus/upstream-triage.md`. Seven to take before 1.0 (MPRIS deadlock and panic, the yt-dlp stall freeze, YouTube token refresh after a TUI sign-in, Spotify Web API timeouts; and, raised by the Codex review and taken on the owner's decision 2026-10-03, the Spotify stream open on the UI goroutine and the duplicate-track loss on a Local playlist save); the rest wait for the 1.1 merge. Ported on `upstream-fixes`: `9556f9e2` and `245e72e9` cherry-picked; `23c66b70`, `70e5f79e`, `85a0f120`, `deb2f447`, `5450f73c` and the stream-open part of `095a56ec` by hand (tagged `ddmus: upstream <sha>`), each with a regression test confirmed to fail without it. The yt-dlp prefetch ends a finished track with a short read, so gapless transitions keep no gap.
   - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
   - [ ] v1.0.0 (Gate D).
 

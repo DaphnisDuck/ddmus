@@ -12,6 +12,7 @@ import (
 	"github.com/godbus/dbus/v5/introspect"
 	"github.com/godbus/dbus/v5/prop"
 
+	"github.com/bjarneo/cliamp/applog"
 	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/internal/playback"
 )
@@ -25,6 +26,12 @@ type Service struct {
 	props *prop.Properties
 	send  func(tea.Msg)
 	mu    sync.Mutex
+
+	queueMu   sync.Mutex
+	queue     []tea.Msg     // messages that wait for forwardMessages
+	wake      chan struct{} // tells forwardMessages that queue has messages
+	done      chan struct{} // closed by Close to stop forwardMessages
+	closeOnce sync.Once
 
 	lastStatus  playback.Status
 	lastTrack   playback.Track
@@ -76,44 +83,44 @@ type root struct{ svc *Service }
 
 func (r root) Raise() *dbus.Error { return nil }
 func (r root) Quit() *dbus.Error {
-	r.svc.send(playback.QuitMsg{})
+	r.svc.dispatch(playback.QuitMsg{})
 	return nil
 }
 
 type playerIface struct{ svc *Service }
 
 func (p playerIface) Next() *dbus.Error {
-	p.svc.send(playback.NextMsg{})
+	p.svc.dispatch(playback.NextMsg{})
 	return nil
 }
 
 func (p playerIface) Previous() *dbus.Error {
-	p.svc.send(playback.PrevMsg{})
+	p.svc.dispatch(playback.PrevMsg{})
 	return nil
 }
 
 func (p playerIface) Pause() *dbus.Error {
-	p.svc.send(playback.PauseMsg{})
+	p.svc.dispatch(playback.PauseMsg{})
 	return nil
 }
 
 func (p playerIface) PlayPause() *dbus.Error {
-	p.svc.send(playback.PlayPauseMsg{})
+	p.svc.dispatch(playback.PlayPauseMsg{})
 	return nil
 }
 
 func (p playerIface) Stop() *dbus.Error {
-	p.svc.send(playback.StopMsg{})
+	p.svc.dispatch(playback.StopMsg{})
 	return nil
 }
 
 func (p playerIface) Play() *dbus.Error {
-	p.svc.send(playback.PlayMsg{})
+	p.svc.dispatch(playback.PlayMsg{})
 	return nil
 }
 
 func (p playerIface) DoSeek(offset int64) *dbus.Error {
-	p.svc.send(playback.SeekMsg{Offset: time.Duration(offset) * time.Microsecond})
+	p.svc.dispatch(playback.SeekMsg{Offset: time.Duration(offset) * time.Microsecond})
 	return nil
 }
 
@@ -126,7 +133,7 @@ func (p playerIface) SetPosition(trackID dbus.ObjectPath, position int64) *dbus.
 	if trackID != cur {
 		return nil
 	}
-	p.svc.send(playback.SetPositionMsg{Position: time.Duration(position) * time.Microsecond})
+	p.svc.dispatch(playback.SetPositionMsg{Position: time.Duration(position) * time.Microsecond})
 	return nil
 }
 
@@ -147,22 +154,37 @@ func New(send func(tea.Msg)) (*Service, error) {
 		return nil, fmt.Errorf("mpris: name already taken")
 	}
 
-	svc := &Service{conn: conn, send: send, trackSeq: 1, trackID: trackPath(1)}
+	svc, err := newService(conn, send)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return svc, nil
+}
+
+// newService exports the MPRIS objects and properties on conn. It starts
+// the goroutine that forwards the queued messages to send.
+func newService(conn *dbus.Conn, send func(tea.Msg)) (*Service, error) {
+	svc := &Service{
+		conn:     conn,
+		send:     send,
+		wake:     make(chan struct{}, 1),
+		done:     make(chan struct{}),
+		trackSeq: 1,
+		trackID:  trackPath(1),
+	}
 	path := dbus.ObjectPath("/org/mpris/MediaPlayer2")
 
 	if err := conn.Export(root{svc}, path, "org.mpris.MediaPlayer2"); err != nil {
-		conn.Close()
 		return nil, fmt.Errorf("mpris: export root: %w", err)
 	}
 	if err := conn.ExportWithMap(playerIface{svc}, map[string]string{
 		"DoSeek": "Seek",
 	}, path, "org.mpris.MediaPlayer2.Player"); err != nil {
-		conn.Close()
 		return nil, fmt.Errorf("mpris: export player: %w", err)
 	}
 	if err := conn.Export(introspect.Introspectable(introspectXML), path,
 		"org.freedesktop.DBus.Introspectable"); err != nil {
-		conn.Close()
 		return nil, fmt.Errorf("mpris: export introspect: %w", err)
 	}
 
@@ -189,10 +211,12 @@ func New(send func(tea.Msg)) (*Service, error) {
 				if v > 1 {
 					v = 1
 				}
-				// Send synchronously: an extra goroutine per change lets rapid
-				// volume updates apply out of order. send (prog.Send) is already
-				// goroutine-safe and non-blocking.
-				svc.send(playback.SetVolumeMsg{VolumeDB: linearToDb(v)})
+				// godbus holds the Properties lock while it runs this callback,
+				// and Update needs that lock on the event loop. prog.Send blocks
+				// until the event loop reads the message, so a direct send can
+				// deadlock the TUI. dispatch only queues the message. The queue
+				// is filled under the lock, so it keeps the order of the changes.
+				svc.dispatch(playback.SetVolumeMsg{VolumeDB: linearToDb(v)})
 				return nil
 			}},
 			"Position":      {Value: int64(0), Writable: false, Emit: prop.EmitFalse},
@@ -210,12 +234,56 @@ func New(send func(tea.Msg)) (*Service, error) {
 
 	props, err := prop.Export(conn, path, propsSpec)
 	if err != nil {
-		conn.Close()
 		return nil, fmt.Errorf("mpris: export props: %w", err)
 	}
 	svc.props = props
 
+	go svc.forwardMessages()
 	return svc, nil
+}
+
+// dispatch queues msg for send and returns at once. D-Bus handlers use it
+// so that no handler waits for the event loop.
+func (s *Service) dispatch(msg tea.Msg) {
+	s.queueMu.Lock()
+	s.queue = append(s.queue, msg)
+	s.queueMu.Unlock()
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
+}
+
+// forwardMessages calls send for each queued message on one goroutine, in
+// the order that dispatch queued them.
+func (s *Service) forwardMessages() {
+	for {
+		select {
+		case <-s.done:
+			return
+		case <-s.wake:
+		}
+		s.queueMu.Lock()
+		msgs := s.queue
+		s.queue = nil
+		s.queueMu.Unlock()
+		for _, msg := range msgs {
+			s.send(msg)
+		}
+	}
+}
+
+// publish sets a Player property. SetMust panics when the emit fails, for
+// example after the bus connection drops. Update runs on the event loop, and
+// a panic there ends the process and leaves the terminal in raw mode, so
+// publish logs the failure. (Upstream 23c66b70.)
+func (s *Service) publish(name string, v any) {
+	defer func() {
+		if r := recover(); r != nil {
+			applog.Warn("mpris: publish %s: %v", name, r)
+		}
+	}()
+	s.props.SetMust("org.mpris.MediaPlayer2.Player", name, v)
 }
 
 func (s *Service) Update(state playback.State) {
@@ -224,34 +292,33 @@ func (s *Service) Update(state playback.State) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.props == nil {
+	// A dropped bus connection does not come back, so every emit would fail.
+	if s.props == nil || (s.conn != nil && !s.conn.Connected()) {
 		return
 	}
 
-	iface := "org.mpris.MediaPlayer2.Player"
-
 	if state.Status != s.lastStatus {
-		s.props.SetMust(iface, "PlaybackStatus", string(state.Status))
+		s.publish("PlaybackStatus", string(state.Status))
 		s.lastStatus = state.Status
 	}
 
 	if state.Track != s.lastTrack {
 		s.trackSeq++
 		s.trackID = trackPath(s.trackSeq)
-		s.props.SetMust(iface, "Metadata", makeMetadata(state.Track, s.trackID))
+		s.publish("Metadata", makeMetadata(state.Track, s.trackID))
 		s.lastTrack = state.Track
 	}
 
 	vol := dbToLinear(state.VolumeDB)
 	if vol != s.lastVol {
-		s.props.SetMust(iface, "Volume", vol)
+		s.publish("Volume", vol)
 		s.lastVol = vol
 	}
 
-	s.props.SetMust(iface, "Position", state.Position.Microseconds())
+	s.publish("Position", state.Position.Microseconds())
 
 	if state.Seekable != s.lastCanSeek {
-		s.props.SetMust(iface, "CanSeek", state.Seekable)
+		s.publish("CanSeek", state.Seekable)
 		s.lastCanSeek = state.Seekable
 	}
 }
@@ -276,6 +343,7 @@ func (s *Service) Close() {
 	if s == nil {
 		return
 	}
+	s.closeOnce.Do(func() { close(s.done) })
 	if s.conn != nil {
 		s.conn.Close()
 	}

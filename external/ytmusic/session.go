@@ -92,8 +92,7 @@ func newSessionFromStored(ctx context.Context, clientID, clientSecret string, cr
 		return nil, fmt.Errorf("ytmusic: silent refresh: %w", err)
 	}
 
-	conf := googleOAuthConfig(clientID, clientSecret)
-	ts := conf.TokenSource(tokenContext(ctx), token) // ddmus: bounded
+	ts := sessionTokenSource(ctx, googleOAuthConfig(clientID, clientSecret), token) // ddmus: bounded, outlives ctx
 
 	svc, err := youtube.NewService(ctx, option.WithTokenSource(ts))
 	if err != nil {
@@ -136,6 +135,15 @@ func tokenContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, oauth2.HTTPClient, tokenHTTPClient)
 }
 
+// sessionTokenSource is a session's token source. oauth2 refreshes with the
+// context it was built with for as long as the session lives, so it must not
+// be the sign-in's: that one ends with the sign-in, and the first refresh,
+// about an hour later, failed with "context canceled" until a restart
+// (ddmus: upstream 85a0f120).
+func sessionTokenSource(ctx context.Context, conf *oauth2.Config, token *oauth2.Token) oauth2.TokenSource {
+	return conf.TokenSource(tokenContext(context.WithoutCancel(ctx)), token)
+}
+
 // newInteractiveSession performs an OAuth2 flow to authenticate.
 func newInteractiveSession(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*Session, error) { // ddmus: opts
 	token, err := doOAuth(ctx, clientID, clientSecret, opts...)
@@ -143,8 +151,7 @@ func newInteractiveSession(ctx context.Context, clientID, clientSecret string, o
 		return nil, err
 	}
 
-	conf := googleOAuthConfig(clientID, clientSecret)
-	ts := conf.TokenSource(ctx, token)
+	ts := sessionTokenSource(ctx, googleOAuthConfig(clientID, clientSecret), token) // ddmus: outlives the sign-in's ctx
 
 	svc, err := youtube.NewService(ctx, option.WithTokenSource(ts))
 	if err != nil {
@@ -203,7 +210,7 @@ func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.
 		return nil, fmt.Errorf("ytmusic: authentication cancelled: %w", ctx.Err())
 	}
 
-	token, err := oauthConf.Exchange(ctx, code, oauth2.VerifierOption(verifier))
+	token, err := oauthConf.Exchange(tokenContext(ctx), code, oauth2.VerifierOption(verifier)) // ddmus: bounded
 	if err != nil {
 		return nil, fmt.Errorf("ytmusic: token exchange: %w", err)
 	}

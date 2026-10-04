@@ -308,6 +308,11 @@ func silentTokenRefresh(clientID, refreshToken string) (*oauth2.Token, error) {
 // session start, and every Web API call after the token expired, forever.
 var tokenHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
+// webHTTPClient sends Web API and lyrics requests. http.DefaultClient never
+// times out, so a stalled connection held a catalog sync until quit, and r
+// was dropped while it ran (ddmus: upstream deb2f447).
+var webHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
 // tokenContext carries the bounded client to oauth2's requests. ddmus
 func tokenContext() context.Context {
 	return context.WithValue(context.Background(), oauth2.HTTPClient, tokenHTTPClient)
@@ -675,7 +680,7 @@ func (s *Session) webApiWithBody(ctx context.Context, method, path string, query
 		req.Header.Set("Content-Type", contentType)
 	}
 
-	return http.DefaultClient.Do(req)
+	return webHTTPClient.Do(req) // ddmus: bounded
 }
 
 // Close releases all session and player resources.

@@ -775,6 +775,7 @@ Branch `m10-artwork`.
     - [x] CI on GitHub (2026-10-03/04): Actions enabled behind a tag ruleset; Linux (`make ci`) and macOS jobs; no Windows job (unsupported in 1.0). First runs found a timing-dependent test: a sync requested while a quiet (Radio) sync ran started its own goroutine, and both could serve the request. `catalogRuntime.sync` now records a running sync under its lock, so a mid-run request only counts (`TestQuietSyncMidRunRequestStartsNoSecondSync`). Its review found a second, older race: a sync that had succeeded and was still finishing could cancel the retry of a newer sync that failed meanwhile, ending automatic recovery until the next refresh. The retry is now settled in the same locked step that gives the provider up (`TestOlderSyncKeepsNewerSyncsRetry`).
     - [x] README and CHANGELOG for 1.0 (2026-10-04, `8c170b1b`): the README is the front door (sources, install from source, quick start, documentation index); version history moved to `CHANGELOG.md`. Reviewed by Codex in three rounds.
     - [x] Documentation and release hygiene (2026-10-04, branch `cleanup-1.0`): the messages a user sees name ddmus (not running, already running, the Spotify reset advice, the no-audio hint); `config.toml.example` is ddmus's; `SECURITY.md` says no binaries exist yet; `files.md` and the templates no longer mention plugins or cliamp; `CNAME` removed; `docs/README.md` sorts cliamp's 35 inherited pages into what applies and what does not (index only, by the owner's decision; no page deleted). Found on the way: `config.toml` has no inline comments (a `# …` after a value becomes part of it), which several docs examples use. Left for separate changes: the CLIAMP Logo visualizer, the `cliamp` User-Agent, the Nix files, `site/`, the MP3's provenance.
+    - [x] Pre-RC1 items (2026-10-04, branch `pre-rc1`): the inherited Logo visualizer is hidden (not listed, cycled to or selectable; a config naming it starts with the default; `ui/vis_ddmus.go`); ddmus names itself in the HTTP requests it makes, from one function, `appmeta.UserAgent()` (`ddmus/<version>`), at all six reachable call sites; cliamp's MP3 fixture, whose origin and license are not recorded, is replaced by a generated tone (`player/testdata/README.md`).
     - [ ] Still open for Gate B: branding (site, `CNAME`, Nix flake, `.desktop`, icons, the MP3), README refresh, `docs/ddmus/` pass, website draft, fresh-user scenarios A–H.
   - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
   - [ ] v1.0.0 (Gate D).
@@ -871,6 +872,9 @@ Nothing here is built before 1.0.
 - Linux arm64, macOS, Homebrew, `.deb`/`.rpm`, once someone can test them.
 - `go install` (needs the module renamed, which makes upstream merges costly).
 - Full upstream merge (`sync/upstream-YYYYMMDD`) of upstream's latest release tag, never `main`, as the first 1.1 work; the pre-1.0 triage log says which conflicts keep ours.
+- Comments after a value in `config.toml` (`artwork = false  # Disable artwork`): the loader takes the comment as part of the value today, so the docs keep each comment on its own line. Investigate and support normal TOML inline comments; the loader is upstream's file.
+- A ddmus visualizer of its own (an ASCII duck) in place of the hidden Logo mode.
+- Nix packaging (`flake.nix`, `nix/` still build the package as cliamp; parked, not on the RC path).
 - Replace `xlab/vorbis-go` with a properly licensed decoder: a feasibility study (candidate `jfreymuth/oggvorbis`, MIT, already in `go.mod`; likely needs a go-librespot change or a maintained patch).
 
 ## Open questions

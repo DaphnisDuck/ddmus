@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/bjarneo/cliamp/artwork"
@@ -27,7 +26,7 @@ import (
 // providers stay constructed (playback, resume and IPC still use them) but
 // have no root entry until each gets its own release.
 func librarySources(providers []model.ProviderEntry, initialDir string, rt *catalogRuntime) library.Sources {
-	src := library.Sources{MusicDir: musicDir(initialDir), Catalog: rt.catalog()}
+	src := library.Sources{MusicDir: local.MusicDir(initialDir), Catalog: rt.catalog()}
 	var youtube playlist.Provider
 	for _, p := range providers {
 		switch p.Key {
@@ -55,21 +54,6 @@ func librarySources(providers []model.ProviderEntry, initialDir string, rt *cata
 			LikedTitle: "Liked Music", PartialAlbums: true})
 	}
 	return src
-}
-
-// musicDir is the directory Local's Albums/Artists/Genres are scanned from:
-// the configured initial_directory, else $XDG_MUSIC_DIR, else ~/Music.
-func musicDir(initialDir string) string {
-	if dir := local.ExpandPath(strings.TrimSpace(initialDir)); dir != "" {
-		return dir
-	}
-	if dir := local.ExpandPath(os.Getenv("XDG_MUSIC_DIR")); dir != "" {
-		return dir
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, "Music")
-	}
-	return ""
 }
 
 // artworkLoader loads album artwork for the track info view, or is nil when

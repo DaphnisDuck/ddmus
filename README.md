@@ -40,7 +40,7 @@ v0.10 is an early release for people comfortable building from source.
 - **Catalog:** Spotify and Local browsing read from a local catalog, so lists open instantly and work offline. Spotify syncs in the background, and album track lists are cached as you open albums and, gradually, for the rest of your saved albums. A sync writes only what changed, and skips rereading your saved albums and liked songs when their count and newest item are unchanged. The local music folder is re-indexed at every start, rereading only changed files. See [docs/ddmus/catalog.md](docs/ddmus/catalog.md).
 - **Search:** `/` from anywhere searches the whole catalog as you type, with operators like `artist:`, `album:` and `source:local`. Enter on a track plays its album from that track, and rows at the end run a source's own live search or a radio-directory search. See [docs/ddmus/search.md](docs/ddmus/search.md).
 - **All Music:** Music → All Music lists albums and artists from Spotify, YouTube Music and Local together, each labelled with its source. Albums sort by title; `o` sorts them by artist.
-- **Hidden for now:** cliamp's other providers (podcasts, non-music YouTube, SoundCloud, Mixcloud, Navidrome, Plex, Jellyfin, Emby, Qobuz, Tidal, and more) are still in the code but have no entry in the menu yet. They come back one per release.
+- **Not in ddmus:** cliamp's other providers (podcasts, non-music YouTube, SoundCloud, Mixcloud, Navidrome, Plex, Jellyfin, Emby, Qobuz, Tidal, and more) and its Lua plugins. Their code is still there, but ddmus loads none of them; their sections in `config.toml` are left alone and ignored.
 - **The queue:** `Tab` shows what's playing, with shuffle, repeat, play next, remove and reorder, track info, lyrics, EQ presets and speed. `p` and `n` skip back and forward everywhere. The settings panel's SRC shows where the playing track comes from.
 - **Artwork:** `i` in the queue shows the album's artwork beside the track's details, in Kitty and Ghostty, from Spotify covers and local files' embedded pictures or cover files. See [docs/ddmus/artwork.md](docs/ddmus/artwork.md).
 - **Layout:** ddmus fills the terminal: a taller window lists more rows on every screen, a wide one shows long titles whole with rows lined up as a table, and resizing reflows at once. See [docs/ddmus/layout.md](docs/ddmus/layout.md).
@@ -113,14 +113,16 @@ ddmus reads `~/.config/ddmus/config.toml`. Set `DDMUS_CONFIG_DIR` to use another
 rsync -a --exclude='*.log' --exclude='*.sock' ~/.config/cliamp/ ~/.config/ddmus/
 ```
 
-- **Spotify:** run `ddmus setup` and choose Spotify, or follow [docs/spotify.md](docs/spotify.md), reading `~/.config/ddmus` wherever it says `~/.config/cliamp`. A Spotify Premium account is required. The first time you open Spotify in the library, press `Enter` to sign in. Your library then syncs in the background: at startup when the last sync is older than 30 minutes, and whenever you press `r`. To change the interval:
+`ddmus setup` walks through Spotify, YouTube Music and your Local music folder. It changes only the keys it asks about and keeps the rest of your `config.toml`.
+
+- **Spotify:** run `ddmus setup` and choose Spotify, or follow [docs/spotify.md](docs/spotify.md), reading `~/.config/ddmus` wherever it says `~/.config/cliamp`. A Spotify Premium account is required. The first time you open Spotify in the library, press `Enter` to sign in. Your library then syncs in the background: at startup when the last sync is older than 2 hours, and whenever you press `r`. To change the interval:
 
   ```toml
   [ddmus]
-  spotify_refresh = "2h"   # "0s" syncs at every start
+  spotify_refresh = "30m"  # "0s" syncs at every start
   ```
 
-- **Local music:** Local → Albums, Artists and Genres come from an index of a single directory, updated at startup (only changed files are reread). It is `initial_directory` in `config.toml`, else `$XDG_MUSIC_DIR`, else `~/Music`:
+- **Local music:** Local → Albums, Artists and Genres come from an index of a single directory, updated at startup (only changed files are reread). It is `initial_directory` in `config.toml` (`ddmus setup` → Local music folder sets it), else `$XDG_MUSIC_DIR`, else `~/Music`:
 
   ```toml
   initial_directory = "~/Music"

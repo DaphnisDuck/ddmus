@@ -16,7 +16,7 @@ func TestLoadDdmusSection(t *testing.T) {
 		want time.Duration
 	}{
 		{"default without the section", "volume = -3\n", DefaultSpotifyRefresh},
-		{"quoted duration", "[ddmus]\nspotify_refresh = \"2h\"\n", 2 * time.Hour},
+		{"quoted duration", "[ddmus]\nspotify_refresh = \"45m\"\n", 45 * time.Minute},
 		{"bare duration", "[ddmus]\nspotify_refresh = 90s\n", 90 * time.Second},
 		{"zero syncs every startup", "[ddmus]\nspotify_refresh = \"0s\"\n", 0},
 		{"invalid keeps the default", "[ddmus]\nspotify_refresh = \"soon\"\n", DefaultSpotifyRefresh},

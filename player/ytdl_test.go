@@ -86,7 +86,7 @@ func TestBuildYTDLPipelineRetriesTransient403(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildYTDLPipeline() error = %v", err)
 	}
-	defer pipeline.decoder.Close()
+	defer pipeline.close()
 	if got := fixtureLineCount(t, attemptsPath); got != 2 {
 		t.Fatalf("yt-dlp attempts = %d, want 2", got)
 	}

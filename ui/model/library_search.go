@@ -178,3 +178,20 @@ var libSearchHint = []string{
 	"  artist:  album:  title:  genre:  source:spotify|local|radio",
 	"  type:artist|album|track|playlist|station   \"exact phrase\"",
 }
+
+// spotSearchPlay plays what Enter picked in a provider's own search
+// ("Search Spotify for …"): it replaces the queue, as playing from the
+// library does (owner, 2026-10-01). a and q still append and queue next.
+func (m *Model) spotSearchPlay(tracks []playlist.Track) tea.Cmd {
+	return m.libraryPlayTracks(tracks, 0, "")
+}
+
+// stopSpotSearchAlbum drops an album the search overlay is still opening,
+// for Stop: an album to append would otherwise start the stopped player. The
+// overlay's other requests (a text search, a playlist add) share its cancel
+// slot, so it acts only while an album is loading.
+func (m *Model) stopSpotSearchAlbum() {
+	if m.spotSearch.albumLoading {
+		m.invalidateSpotAlbumRequest()
+	}
+}

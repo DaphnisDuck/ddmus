@@ -239,7 +239,7 @@ func TestDaemonClearsHistory(t *testing.T) {
 // The ipc package returns a bare sentinel; the CLI wording is added here.
 func TestUserIPCErrorRendersNotRunning(t *testing.T) {
 	rendered := userIPCError(fmt.Errorf("dial: %w", ipc.ErrNotRunning))
-	want := fmt.Sprintf("cliamp is not running (no socket at %s)", ipc.DefaultSocketPath())
+	want := fmt.Sprintf("ddmus is not running (no socket at %s)", ipc.DefaultSocketPath()) // ddmus
 	if rendered.Error() != want {
 		t.Errorf("rendered = %q, want %q", rendered.Error(), want)
 	}

@@ -18,6 +18,7 @@ import (
 	"time" // ddmus
 
 	"github.com/bjarneo/cliamp/applog"
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
 	"github.com/bjarneo/cliamp/internal/browser"
 	"github.com/bjarneo/cliamp/internal/fileutil"
 	"github.com/bjarneo/cliamp/playlist"
@@ -204,7 +205,7 @@ func newSessionFromStored(ctx context.Context, clientID string, creds *storedCre
 		if silentOnly {
 			// Continue without a token source — already-loaded tracks still stream
 			// via spclient; new Web API calls will return ErrNeedsAuth.
-			applog.UserError("spotify: stored auth no longer valid; run 'cliamp spotify reset' or sign in again to fix")
+			applog.UserError("spotify: stored auth no longer valid; run '%s spotify reset' or sign in again to fix", appmeta.ClientName()) // ddmus
 			s := &Session{sess: sess, devID: devID, clientID: clientID}
 			if err := saveCreds(&storedCreds{
 				Username:     sess.Username(),
@@ -656,7 +657,7 @@ func (s *Session) webApiWithBody(ctx context.Context, method, path string, query
 	s.mu.RUnlock()
 
 	if ts == nil {
-		return nil, fmt.Errorf("spotify: web api token unavailable, run 'cliamp spotify reset' and sign in again: %w", playlist.ErrNeedsAuth)
+		return nil, fmt.Errorf("spotify: web api token unavailable, run '%s spotify reset' and sign in again: %w", appmeta.ClientName(), playlist.ErrNeedsAuth) // ddmus
 	}
 	tok, err := ts.Token()
 	if err != nil {

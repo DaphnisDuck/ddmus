@@ -116,7 +116,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 		fmt.Fprintf(os.Stderr, "logging: %v (continuing without file log)\n", logErr)
 		applog.Status("logging: %v", logErr)
 	} else {
-		applog.Info("cliamp starting (version=%s level=%s)", appmeta.Version(), appliedLevel)
+		applog.Info("%s starting (version=%s level=%s)", appmeta.ClientName(), appmeta.Version(), appliedLevel) // ddmus
 	}
 
 	// Public providers are always available; account providers register when configured.
@@ -876,7 +876,7 @@ func wireMediaCtl(prog *tea.Program) (*mediactl.Service, error) {
 // package returns a bare sentinel, so all CLI copy stays in the command layer.
 func userIPCError(err error) error {
 	if errors.Is(err, ipc.ErrNotRunning) {
-		return fmt.Errorf("cliamp is not running (no socket at %s)", ipc.DefaultSocketPath())
+		return fmt.Errorf("%s is not running (no socket at %s)", appmeta.ClientName(), ipc.DefaultSocketPath()) // ddmus
 	}
 	return err
 }

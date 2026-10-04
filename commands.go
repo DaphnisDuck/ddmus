@@ -482,7 +482,7 @@ func providerCredsCommand(key, display string, credsPath func() (string, error),
 						return nil
 					}
 					fmt.Printf("Removed %s\n", path)
-					fmt.Printf("Restart cliamp and select %s to sign in again.\n", display)
+					fmt.Printf("Restart %s and open %s to sign in again.\n", appmeta.ClientName(), display) // ddmus
 					return nil
 				},
 			},
@@ -926,7 +926,7 @@ func visCommand() *cli.Command {
 				if snapshot, err := ipcState(); err == nil {
 					active = snapshot.Visualizer
 				} else {
-					fmt.Fprintln(os.Stderr, "(cliamp not running — active marker unavailable)")
+					fmt.Fprintf(os.Stderr, "(%s not running — active marker unavailable)\n", appmeta.ClientName()) // ddmus
 				}
 				for _, name := range ui.VisModeNames() {
 					marker := "  "

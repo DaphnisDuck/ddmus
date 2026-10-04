@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
 	"github.com/bjarneo/cliamp/lyrics"
 	"github.com/bjarneo/cliamp/playlist"
 )
@@ -55,7 +56,7 @@ func (s *Session) trackLyrics(ctx context.Context, trackID string) ([]lyrics.Lin
 	ts := s.tokenSource
 	s.mu.RUnlock()
 	if ts == nil {
-		return nil, fmt.Errorf("spotify: web api token unavailable, run 'cliamp spotify reset' and sign in again: %w", playlist.ErrNeedsAuth)
+		return nil, fmt.Errorf("spotify: web api token unavailable, run '%s spotify reset' and sign in again: %w", appmeta.ClientName(), playlist.ErrNeedsAuth) // ddmus
 	}
 	tok, err := ts.Token()
 	if err != nil {

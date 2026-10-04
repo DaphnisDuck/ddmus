@@ -1,6 +1,10 @@
 package appmeta
 
-import "github.com/bjarneo/cliamp/internal/appdir"
+import (
+	"strings"
+
+	"github.com/bjarneo/cliamp/internal/appdir"
+)
 
 var (
 	clientName = appdir.Name // ddmus: identifies this fork to servers and MPRIS
@@ -23,3 +27,13 @@ func DisplayName() string { return "DaphnisDuck's Music Player" }
 func DeviceName() string { return deviceName }
 
 func Version() string { return version }
+
+// projectURL is where a server's operator can find out what this client is.
+const projectURL = "https://github.com/DaphnisDuck/ddmus"
+
+// UserAgent is how ddmus names itself in the HTTP requests it makes, as
+// "ddmus/<version> (<project URL>)". It is the one place that string is
+// built: every request that names its client calls this. ddmus.
+func UserAgent() string {
+	return clientName + "/" + strings.TrimPrefix(version, "v") + " (" + projectURL + ")"
+}

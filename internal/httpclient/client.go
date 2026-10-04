@@ -13,11 +13,16 @@ import (
 
 	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/proxy"
+
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
 )
 
 // UserAgent is shared by API and stream requests so Navidrome identifies them
 // as the same player when applying per-player settings.
-const UserAgent = "cliamp/1.0 (https://github.com/bjarneo/cliamp)"
+//
+// ddmus: a function, not cliamp's constant: the identity is ddmus's and
+// carries the version, which is set at startup (appmeta.UserAgent).
+func UserAgent() string { return appmeta.UserAgent() }
 
 // Streaming is a shared HTTP client for audio streaming connections.
 // It sets a generous header timeout but no overall timeout, so infinite

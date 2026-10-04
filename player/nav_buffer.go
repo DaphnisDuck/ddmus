@@ -110,7 +110,7 @@ func navBufferGet(ctx context.Context, rawURL string) (*http.Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("nav buffer request: %w", err)
 	}
-	req.Header.Set("User-Agent", httpclient.UserAgent)
+	req.Header.Set("User-Agent", httpclient.UserAgent()) // ddmus: now a function
 
 	resp, err := httpClient.Do(req)
 	if err != nil {

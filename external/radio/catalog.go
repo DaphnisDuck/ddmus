@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
 )
 
 const radioBrowserBase = "https://de1.api.radio-browser.info/json"
@@ -270,14 +272,14 @@ func getJSON(client *http.Client, u string, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-// get performs one GET as cliamp and fails on any status but 200. Callers
+// get performs one GET as ddmus and fails on any status but 200. Callers
 // close the body.
 func get(ctx context.Context, client *http.Client, u string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "cliamp/1.0")
+	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddmus
 
 	resp, err := client.Do(req)
 	if err != nil {

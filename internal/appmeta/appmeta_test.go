@@ -31,3 +31,20 @@ func TestSetVersionEmpty(t *testing.T) {
 		t.Fatalf("empty SetVersion should be no-op, got %q", got)
 	}
 }
+
+// ddmus: the one User-Agent every request uses names ddmus, its version
+// without the tag's "v", and the project, never cliamp.
+func TestUserAgent(t *testing.T) {
+	old := version
+	t.Cleanup(func() { version = old })
+	for _, tt := range []struct{ version, want string }{
+		{"dev", "ddmus/dev (https://github.com/DaphnisDuck/ddmus)"},
+		{"v1.0.0", "ddmus/1.0.0 (https://github.com/DaphnisDuck/ddmus)"},
+		{"v1.0.0-rc.1", "ddmus/1.0.0-rc.1 (https://github.com/DaphnisDuck/ddmus)"},
+	} {
+		version = tt.version
+		if got := UserAgent(); got != tt.want {
+			t.Errorf("UserAgent() with version %q = %q, want %q", tt.version, got, tt.want)
+		}
+	}
+}

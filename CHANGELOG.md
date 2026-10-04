@@ -18,6 +18,7 @@ The first release for people who don't build from source. 1.0 adds no features t
 - The log and the IPC socket are named `ddmus.log` and `ddmus.sock` (they kept cliamp's names before). A script that opens the socket by path needs the new name.
 - In "Search Spotify for …" and its YouTube Music twin, Enter replaces the queue, as playing from the library does.
 - By default, Spotify syncs at startup when its last successful sync is more than two hours old (it was 30 minutes).
+- ddmus names itself, not cliamp, in the HTTP requests it makes (radio streams, the station directory, lyrics): `ddmus/<version>`.
 - `shuffle` and `repeat` reject values they don't know.
 - `ddmus upgrade`, which has never updated ddmus, now points to the package manager and the releases page.
 - The executable is distributed under GPL-3.0, because it links go-librespot; ddmus's own source stays MIT.

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
 )
 
 // ErrNotFound is returned when no lyrics could be found from any source.
@@ -137,7 +139,7 @@ func fetchLRCLIB(query string) ([]Line, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "cliamp")
+	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddmus
 
 	resp, err := httpClient.Do(req)
 	if err != nil {

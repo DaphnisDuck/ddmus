@@ -217,7 +217,7 @@ func (c *NavidromeClient) httpGet(rawURL string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", httpclient.UserAgent)
+	req.Header.Set("User-Agent", httpclient.UserAgent()) // ddmus: now a function
 	return httpClient.Do(req)
 }
 

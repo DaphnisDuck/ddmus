@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bjarneo/cliamp/config"
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/provider"
 )
@@ -547,7 +548,7 @@ func TestAPIUserAgent(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				const want = "cliamp/1.0 (https://github.com/bjarneo/cliamp)"
+				want := appmeta.UserAgent() // ddmus: ddmus's identity
 				if got := r.UserAgent(); got != want {
 					t.Errorf("User-Agent = %q, want %q", got, want)
 				}

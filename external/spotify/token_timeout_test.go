@@ -3,6 +3,7 @@
 package spotify
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func TestSilentTokenRefreshIsBounded(t *testing.T) {
 	tokenHTTPClient = &http.Client{Timeout: 50 * time.Millisecond}
 	done := make(chan error, 1)
 	go func() {
-		_, err := silentTokenRefresh("id", "rt")
+		_, err := silentTokenRefresh(context.Background(), "id", "rt") // ddmus: takes the caller's context
 		done <- err
 	}()
 	select {

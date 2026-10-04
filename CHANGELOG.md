@@ -35,6 +35,7 @@ The first release for people who don't build from source. 1.0 adds no features t
 - A Local playlist that lists a track more than once lost a copy on every save.
 - A YouTube Music sign-in made inside ddmus stopped working about an hour later, until a restart.
 - A stalled Spotify request could hold a library sync until quit.
+- A Spotify connection that stalled while starting up held every Spotify action behind it: a track stayed on "Buffering" and the sync never finished. Setting up the session now gives up after 30 seconds, and the next action tries again.
 - Stop now cancels an album that is still opening from search.
 - A sync requested while another ran could run twice, and a sync that had just finished could cancel the retry of a newer one that failed, leaving that source unsynced until the next refresh.
 - Hardening from an independent review of playback, catalog identity and sync.

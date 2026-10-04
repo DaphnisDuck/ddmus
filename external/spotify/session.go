@@ -184,12 +184,19 @@ func newSessionFromStored(ctx context.Context, clientID string, creds *storedCre
 	var oauthToken *oauth2.Token
 	var refreshErr error
 	if creds.RefreshToken != "" {
-		token, err := silentTokenRefresh(clientID, creds.RefreshToken)
+		// ddmus: upstream deb2f447. The refresh shares the setup's deadline.
+		token, err := silentTokenRefresh(ctx, clientID, creds.RefreshToken)
 		if err == nil {
 			oauthToken = token
 		} else {
 			refreshErr = err
 		}
+	}
+	// ddmus: a refresh cut short by the setup's deadline says nothing about
+	// the sign-in. The setup failed for now; the next call tries again.
+	if err := setupExpired(ctx, refreshErr); err != nil {
+		sess.Close()
+		return nil, err
 	}
 	// Dead refresh tokens (invalid_grant) never recover — clear so we don't
 	// repeat the same failure on every launch.
@@ -298,9 +305,13 @@ func spotifyOAuthConfig(clientID string, scopes []string) *oauth2.Config {
 
 // silentTokenRefresh uses a stored refresh token to get a new access token
 // without opening a browser.
-func silentTokenRefresh(clientID, refreshToken string) (*oauth2.Token, error) {
+//
+// ddmus: upstream deb2f447. The request ends with ctx, so a refresh made
+// during session setup cannot outlast the setup's deadline; a caller with no
+// deadline of its own still has the bounded client's.
+func silentTokenRefresh(ctx context.Context, clientID, refreshToken string) (*oauth2.Token, error) {
 	conf := spotifyOAuthConfig(clientID, oauthScopes)
-	src := conf.TokenSource(tokenContext(), &oauth2.Token{RefreshToken: refreshToken}) // ddmus: bounded
+	src := conf.TokenSource(tokenContextFrom(ctx), &oauth2.Token{RefreshToken: refreshToken})
 	return src.Token()
 }
 
@@ -316,7 +327,13 @@ var webHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 // tokenContext carries the bounded client to oauth2's requests. ddmus
 func tokenContext() context.Context {
-	return context.WithValue(context.Background(), oauth2.HTTPClient, tokenHTTPClient)
+	return tokenContextFrom(context.Background())
+}
+
+// tokenContextFrom is tokenContext within ctx: the requests also end when
+// ctx does. ddmus
+func tokenContextFrom(ctx context.Context) context.Context {
+	return context.WithValue(ctx, oauth2.HTTPClient, tokenHTTPClient)
 }
 
 // persistingTokenSource saves refresh-token rotations without making a usable

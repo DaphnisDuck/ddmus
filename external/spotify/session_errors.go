@@ -11,6 +11,7 @@
 package spotify
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -97,7 +98,9 @@ func (s *Session) restoreWebAPIToken() error {
 	if err != nil || creds.RefreshToken == "" {
 		return playlist.ErrNeedsAuth
 	}
-	token, err := silentTokenRefresh(s.clientID, creds.RefreshToken)
+	// A refresh during the session's life: no setup deadline applies, and
+	// the bounded client ends a stalled request.
+	token, err := silentTokenRefresh(context.Background(), s.clientID, creds.RefreshToken)
 	if isInvalidGrant(err) {
 		return playlist.ErrNeedsAuth
 	}

@@ -109,7 +109,11 @@ func (p *SpotifyProvider) ensureSession() error {
 	if clientID == "" {
 		return fmt.Errorf("spotify: no client ID available")
 	}
-	sess, err := NewSessionSilent(context.Background(), clientID)
+	// ddmus: upstream deb2f447. Bounded, so a stalled setup ends and gives
+	// sessionMu up (session_setup_ddmus.go).
+	ctx, cancel := context.WithTimeout(context.Background(), sessionSetupTimeout)
+	defer cancel()
+	sess, err := newSessionSilent(ctx, clientID)
 	if err != nil {
 		return silentSessionError(err) // ddmus: only credential failures need sign-in
 	}

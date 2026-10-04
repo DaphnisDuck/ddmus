@@ -158,7 +158,11 @@ cliamp in turn builds on [Bubbletea](https://github.com/charmbracelet/bubbletea)
 
 ## License
 
-MIT, the same as cliamp. See [LICENSE](LICENSE). The original copyright belongs to Bjarne Øverli.
+ddmus's source code is MIT-licensed, the same as cliamp: see [LICENSE](LICENSE). The original copyright belongs to Bjarne Øverli.
+
+The `ddmus` executable is a different matter. It links [go-librespot](https://github.com/devgianlu/go-librespot), which is GPL-3.0, so the executable as a whole is distributed under **GPL-3.0** ([LICENSE-GPL-3.0](LICENSE-GPL-3.0)). Every release carries the complete corresponding source for its build (`ddmus-<version>-source.tar.gz`) and a `THIRD_PARTY_NOTICES` file listing everything linked in, with its license.
+
+The official binaries are the ones on this repository's [Releases](https://github.com/DaphnisDuck/ddmus/releases) page and the AUR package `ddmus-bin` built from them. If you distribute a modified ddmus, please give it another name.
 
 ## Disclaimer
 

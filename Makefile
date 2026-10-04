@@ -38,7 +38,7 @@ security:
 ci: fmt-check vet staticcheck security
 	go test -count=1 -race ./...
 	$(MAKE) coverage
-	shellcheck site/install.sh
+	shellcheck site/install.sh packaging/*.sh
 	git diff --exit-code
 
 check: fmt vet test

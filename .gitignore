@@ -21,3 +21,4 @@ coverage.out
 
 # Local project brief, kept out of the repo
 /prompt.txt
+/dist/

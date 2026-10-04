@@ -279,6 +279,72 @@ func TestQuietSyncRequestedMidRunRunsAgain(t *testing.T) {
 	}
 }
 
+// lateWorker is a worker whose Hold blocks from its second call on, until
+// late is closed, and which reports each Run.
+type lateWorker struct {
+	mu    sync.Mutex
+	holds int
+	late  chan struct{}
+	ran   chan struct{}
+}
+
+func (w *lateWorker) Hold() func() {
+	w.mu.Lock()
+	w.holds++
+	wait := w.holds > 1
+	w.mu.Unlock()
+	if wait {
+		<-w.late
+	}
+	return func() {}
+}
+
+func (w *lateWorker) Run(context.Context) error {
+	w.ran <- struct{}{}
+	return nil
+}
+
+// A request made while a quiet sync runs is counted by that sync and starts
+// nothing of its own. Were it to start its own, and get there only after the
+// running sync had finished, both would serve it: a third run.
+func TestQuietSyncMidRunRequestStartsNoSecondSync(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := &gatedSource{namedSource: namedSource{catalog.Radio}, started: make(chan struct{}, 4), release: make(chan struct{})}
+	w := &lateWorker{late: make(chan struct{}), ran: make(chan struct{}, 4)}
+	rt := &catalogRuntime{store: store, providers: map[string]*providerSync{}}
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
+	rt.setSources(source{Source: src, quiet: true, worker: w})
+	t.Cleanup(rt.close)
+
+	rt.sync(catalog.Radio)
+	<-src.started          // the first run is fetching
+	rt.sync(catalog.Radio) // requested mid-run
+	src.release <- struct{}{}
+	<-src.started // the running sync ran again
+	src.release <- struct{}{}
+	<-w.ran // the running sync is done: it started its worker
+
+	// Anything the mid-run request started gets to its sync only now.
+	close(w.late)
+	done := make(chan struct{})
+	go func() { rt.wg.Wait(); close(done) }()
+	select {
+	case <-src.started:
+		src.release <- struct{}{}
+		<-done
+		t.Fatal("the mid-run request ran a sync of its own: 3 runs, want 2")
+	case <-done:
+	}
+	src.mu.Lock()
+	defer src.mu.Unlock()
+	if src.runs != 2 {
+		t.Errorf("runs = %d, want 2", src.runs)
+	}
+}
+
 // fakePlayer is a minimal provider for wiring tests.
 type fakePlayer struct{ name string }
 

@@ -104,6 +104,9 @@ type providerSync struct {
 	// requests counts sync requests. A quiet source's running sync that
 	// sees it grow runs once more, serving requests made while it ran.
 	requests int
+	// running is set from a request starting a sync until that sync
+	// decides not to run again. A request made meanwhile only counts.
+	running bool
 }
 
 // openCatalog opens the catalog with a sync source for Spotify and YouTube
@@ -312,7 +315,7 @@ func (rt *catalogRuntime) refresh(provider string) {
 // it covers what the sync brought. A sync already running makes it a
 // no-op, except for a quiet source: its sync is instant and follows a
 // local change (a favorite toggled), so the running sync runs once more
-// to include it.
+// to include it. Requests made during one sync share that one more run.
 func (rt *catalogRuntime) sync(provider string) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
@@ -321,6 +324,12 @@ func (rt *catalogRuntime) sync(provider string) {
 		return
 	}
 	ps.requests++
+	if ps.running {
+		// The running sync owns the provider. Starting another here would
+		// race it: arriving after its Sync returned, both would run.
+		return
+	}
+	ps.running = true
 	rt.wg.Add(1)
 	go func() {
 		defer rt.wg.Done()
@@ -333,11 +342,14 @@ func (rt *catalogRuntime) sync(provider string) {
 			rt.mu.Lock()
 			seen := ps.requests
 			rt.mu.Unlock()
-			// A request whose Sync finds one running (ErrRunning) returns
-			// below; the running one sees its count and runs again.
 			err = rt.engine.Sync(rt.ctx, provider)
+			// Deciding to stop and giving the provider up are one step, so
+			// a request is either seen here or starts its own sync.
 			rt.mu.Lock()
 			again := ps.quiet && err == nil && ps.requests != seen && !rt.closed
+			if !again {
+				ps.running = false
+			}
 			rt.mu.Unlock()
 			if !again {
 				break

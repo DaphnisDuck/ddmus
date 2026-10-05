@@ -1,8 +1,6 @@
 <p align="center"><img src="assets/branding/ddsonic-logo-horizontal.png" alt="ddsonic: music for your terminal" width="720"></p>
 
-<!-- Screenshot, once the owner supplies it: docs/ddsonic/images/library.png, the Track Info view in Kitty with a track playing, its album artwork, the spectrum visualizer and the EQ. Uncomment:
 <p align="center"><img src="docs/ddsonic/images/library.png" alt="ddsonic playing a track: its details and album artwork, the spectrum visualizer and the equalizer" width="900"></p>
--->
 
 # ddsonic
 

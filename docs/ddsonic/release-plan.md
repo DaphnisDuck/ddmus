@@ -140,7 +140,7 @@ Today's README reads as a development diary. Its first screen is the fork's hist
 **First screenful, in order**
 
 1. Name and a one-line thesis. Your "library, not services" idea, worded only after you approve it.
-2. One screenshot: the Track Info view in Kitty with a track playing, album artwork, the spectrum visualizer and the EQ (owner, 2026-10-05; it replaces "the library with a search open and artwork showing"). Taken from a clean committed build, so the header shows no `-dirty` version. Search, the queue and navigation are left to the demo.
+2. One screenshot: the Track Info view in Kitty with a track playing, album artwork, the spectrum visualizer and the EQ (owner, 2026-10-05; it replaces "the library with a search open and artwork showing"). Taken from a clean committed build, so the header shows no `-dirty` version. Search, the queue and navigation are left to the demo. In the README since 2026-10-05: `docs/ddsonic/images/library.png`, from a build of `2bcd0e5`.
 3. Three or four lines on why it is different: one library across Spotify, YouTube Music, local files and radio, keyboard-first, and fast because it reads a local catalog.
 4. Install: the AUR line and the release download, two commands at most.
 

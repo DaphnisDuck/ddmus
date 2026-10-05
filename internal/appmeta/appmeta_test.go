@@ -60,3 +60,9 @@ func TestDisplayNameIsTheProductName(t *testing.T) {
 		t.Errorf("DisplayName() = %q, want the product name %q", got, appdir.Name)
 	}
 }
+
+func TestDesktopEntry(t *testing.T) {
+	if got := DesktopEntry(); got != "ddsonic" {
+		t.Fatalf("DesktopEntry() = %q, want %q", got, "ddsonic")
+	}
+}

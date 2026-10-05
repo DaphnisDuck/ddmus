@@ -2,12 +2,18 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/bjarneo/cliamp/internal/appmeta"
 )
 
 // TestDesktopInstall runs packaging/desktop.sh as the release build, the AUR
@@ -106,5 +112,65 @@ func TestMakeNamesTheBinary(t *testing.T) {
 	}
 	if !installed {
 		t.Errorf("make does not install ~/.local/bin/ddsonic:\n%s", out)
+	}
+}
+
+// TestBrandingMatchesItsManifest holds assets/branding to the package as it
+// was delivered: every file is the one manifest.json lists, and nothing has
+// been added or removed. The artwork is the owner's and is never edited here.
+func TestBrandingMatchesItsManifest(t *testing.T) {
+	dir := filepath.Join("assets", "branding")
+	raw, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Files []struct {
+			Path   string `json:"path"`
+			SHA256 string `json:"sha256"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Files) == 0 {
+		t.Fatal("the manifest lists no files")
+	}
+
+	listed := map[string]bool{"manifest.json": true}
+	for _, f := range manifest.Files {
+		listed[f.Path] = true
+		data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(f.Path)))
+		if err != nil {
+			t.Errorf("%s: %v", f.Path, err)
+			continue
+		}
+		if sum := sha256.Sum256(data); hex.EncodeToString(sum[:]) != f.SHA256 {
+			t.Errorf("%s differs from the delivered file", f.Path)
+		}
+	}
+	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		if !listed[filepath.ToSlash(rel)] {
+			t.Errorf("%s is not in the manifest", filepath.ToSlash(rel))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The MPRIS DesktopEntry names a launcher entry that is really installed.
+func TestMPRISDesktopEntryIsTheInstalledOne(t *testing.T) {
+	entry := filepath.Join("packaging", "linux", appmeta.DesktopEntry()+".desktop")
+	if _, err := os.Stat(entry); err != nil {
+		t.Errorf("appmeta.DesktopEntry() names no launcher entry: %v", err)
 	}
 }

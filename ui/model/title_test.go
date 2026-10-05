@@ -91,6 +91,7 @@ func TestRenderTerminalTitle(t *testing.T) {
 }
 
 func TestTerminalTitleIntroSequence(t *testing.T) {
+	withTitleIntro(t, testTitleIntro) // ddsonic: ddsonic has no intro (title_ddsonic_test.go)
 	state := initialTerminalTitleState()
 	frames := []string{currentTerminalTitle(state, 0, terminalTitleStateValues(false, false))}
 
@@ -102,10 +103,10 @@ func TestTerminalTitleIntroSequence(t *testing.T) {
 		}
 	}
 
-	if got, want := frames[0], strings.Repeat(" ", titleIntroViewportDefault-4)+"It r"; got != want {
+	if got, want := frames[0], strings.Repeat(" ", titleIntroViewportDefault-4)+testTitleIntro[:4]; got != want {
 		t.Fatalf("first intro frame = %q, want %q", got, want)
 	}
-	if got, wantSuffix := frames[1], "It rea"; !strings.HasSuffix(got, wantSuffix) {
+	if got, wantSuffix := frames[1], testTitleIntro[:6]; !strings.HasSuffix(got, wantSuffix) {
 		t.Fatalf("second intro frame = %q, want suffix %q", got, wantSuffix)
 	}
 	if got, want := frames[len(frames)-2], strings.Repeat(" ", titleIntroViewportDefault); got != want {
@@ -149,6 +150,7 @@ func TestCurrentTerminalTitleSanitizesRenderedTitle(t *testing.T) {
 }
 
 func TestTitleIntroViewportForWidth(t *testing.T) {
+	withTitleIntro(t, testTitleIntro) // ddsonic
 	tests := []struct {
 		width    int
 		introLen int

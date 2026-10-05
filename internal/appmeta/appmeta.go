@@ -24,6 +24,11 @@ func ClientName() string { return clientName }
 // MPRIS Identity): the product's name. ddsonic.
 func DisplayName() string { return appdir.Name }
 
+// DesktopEntry is the name of the launcher entry ddsonic installs, without
+// ".desktop" (packaging/linux): the MPRIS DesktopEntry, by which a desktop's
+// media controls find the player's icon. ddsonic.
+func DesktopEntry() string { return appdir.Name }
+
 func DeviceName() string { return deviceName }
 
 func Version() string { return version }

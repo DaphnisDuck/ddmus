@@ -1,5 +1,9 @@
 <p align="center"><img src="assets/branding/ddsonic-logo-horizontal.png" alt="ddsonic: music for your terminal" width="720"></p>
 
+<!-- Screenshot, once the owner supplies it: docs/ddsonic/images/library.png, the Track Info view in Kitty with a track playing, its album artwork, the spectrum visualizer and the EQ. Uncomment:
+<p align="center"><img src="docs/ddsonic/images/library.png" alt="ddsonic playing a track: its details and album artwork, the spectrum visualizer and the equalizer" width="900"></p>
+-->
+
 # ddsonic
 
 **DaphnisDuck's Music Player** is a fast, terminal-first music player for Spotify, YouTube Music, local music and internet radio. It keeps a local catalog of your libraries, so browsing and search are instant and work offline, and it brings playback, the queue, lyrics, artwork, an equalizer and visualizers for all of them into one terminal interface.
@@ -197,5 +201,7 @@ ddsonic's source code is MIT-licensed, the same as cliamp: see [LICENSE](LICENSE
 The `ddsonic` executable is a different matter. It links [go-librespot](https://github.com/devgianlu/go-librespot), which is GPL-3.0, so the executable as a whole is distributed under **GPL-3.0** ([LICENSE-GPL-3.0](LICENSE-GPL-3.0)). The release build ([docs/ddsonic/releasing.md](docs/ddsonic/releasing.md)) produces the complete corresponding source for each binary (`ddsonic-<version>-source.tar.gz`) and a `THIRD_PARTY_NOTICES` file listing everything linked in, with its license.
 
 The only official binaries are those published on this repository's [Releases](https://github.com/DaphnisDuck/ddsonic/releases) page, and the AUR package `ddsonic-bin` built from them once it exists. If you distribute a modified ddsonic, please give it another name.
+
+**Name and artwork.** The software licenses above apply to ddsonic's code, not to the ddsonic name, logo, or icon artwork. The branding assets may be redistributed with ddsonic and with packages or distributions of ddsonic, including technical transformations such as resizing, format conversion, and optimization required for packaging or presentation. This permission does not grant permission to use the ddsonic name, logo, or icons to identify a modified or unrelated project. The script that assembles the artwork, [`assets/branding/source/build.py`](assets/branding/source/build.py), is code and is MIT-licensed like the rest.
 
 ddsonic comes with no warranty; use it at your own risk.

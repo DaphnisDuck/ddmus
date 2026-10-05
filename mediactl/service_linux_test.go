@@ -4,12 +4,14 @@ package mediactl
 
 import (
 	"io"
+	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/godbus/dbus/v5"
 
+	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/internal/playback"
 )
 
@@ -195,4 +197,21 @@ func TestServicePublishAfterConnectionLoss(t *testing.T) {
 		}
 	}()
 	svc.publish("PlaybackStatus", string(playback.StatusPlaying))
+}
+
+// TestServiceNamesItsDesktopEntry checks the property a desktop's media
+// controls read to find the player's launcher entry and icon. ddsonic.
+func TestServiceNamesItsDesktopEntry(t *testing.T) {
+	svc := newTestService(t, func(tea.Msg) {})
+
+	v, err := svc.props.Get("org.mpris.MediaPlayer2", "DesktopEntry")
+	if err != nil {
+		t.Fatalf("Get(DesktopEntry) error = %v", err)
+	}
+	if got, want := v.Value(), any(appmeta.DesktopEntry()); got != want {
+		t.Errorf("DesktopEntry = %v, want %v", got, want)
+	}
+	if !strings.Contains(introspectXML, `<property name="DesktopEntry" type="s" access="read"/>`) {
+		t.Error("the introspection data does not declare DesktopEntry")
+	}
 }

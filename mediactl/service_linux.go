@@ -47,6 +47,7 @@ const introspectXML = `
     <method name="Raise"/>
     <method name="Quit"/>
     <property name="Identity" type="s" access="read"/>
+    <property name="DesktopEntry" type="s" access="read"/>
     <property name="CanQuit" type="b" access="read"/>
     <property name="CanRaise" type="b" access="read"/>
     <property name="HasTrackList" type="b" access="read"/>
@@ -190,7 +191,8 @@ func newService(conn *dbus.Conn, send func(tea.Msg)) (*Service, error) {
 
 	propsSpec := map[string]map[string]*prop.Prop{
 		"org.mpris.MediaPlayer2": {
-			"Identity":            {Value: appmeta.DisplayName(), Writable: false, Emit: prop.EmitTrue}, // ddsonic
+			"Identity":            {Value: appmeta.DisplayName(), Writable: false, Emit: prop.EmitTrue},  // ddsonic
+			"DesktopEntry":        {Value: appmeta.DesktopEntry(), Writable: false, Emit: prop.EmitTrue}, // ddsonic: the launcher entry, for its icon
 			"CanQuit":             {Value: true, Writable: false, Emit: prop.EmitTrue},
 			"CanRaise":            {Value: false, Writable: false, Emit: prop.EmitTrue},
 			"HasTrackList":        {Value: false, Writable: false, Emit: prop.EmitTrue},

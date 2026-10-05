@@ -29,6 +29,7 @@ var (
 // ddsonicApp is buildApp as ddsonic ships it.
 func ddsonicApp() *cli.Command {
 	app := buildApp()
+	app.Usage = "music for your terminal" // the logo's tagline, in place of cliamp's
 	// A plain go build has no version; urfave hides --version when it's empty.
 	if app.Version == "" {
 		app.Version = "dev"
@@ -48,7 +49,7 @@ func ddsonicApp() *cli.Command {
 			b.Usage = "show the key bar at the bottom of the screen"
 		}
 		if s, ok := f.(*cli.StringFlag); ok && s.Name == "provider" {
-			s.Usage = "default provider: " + strings.Join(startProviders, ", ") + " (cliamp is cliamp radio)"
+			s.Usage = "default provider: " + strings.Join(startProviders, ", ") + " (cliamp is the legacy provider key for Internet Radio)"
 			s.Validator = validProvider // providers_ddsonic.go
 		}
 	}

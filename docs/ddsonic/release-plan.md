@@ -140,7 +140,7 @@ Today's README reads as a development diary. Its first screen is the fork's hist
 **First screenful, in order**
 
 1. Name and a one-line thesis. Your "library, not services" idea, worded only after you approve it.
-2. One screenshot: the library with a search open and artwork showing.
+2. One screenshot: the Track Info view in Kitty with a track playing, album artwork, the spectrum visualizer and the EQ (owner, 2026-10-05; it replaces "the library with a search open and artwork showing"). Taken from a clean committed build, so the header shows no `-dirty` version. Search, the queue and navigation are left to the demo.
 3. Three or four lines on why it is different: one library across Spotify, YouTube Music, local files and radio, keyboard-first, and fast because it reads a local catalog.
 4. Install: the AUR line and the release download, two commands at most.
 
@@ -167,7 +167,7 @@ The smallest useful site is one hand-written HTML page on GitHub Pages, no gener
 - **No install script:** AUR and the release download cover 1.0, and a `curl | sh` installer is one more thing to secure and test.
 - **Deployment trigger:** replace `pages.yml`'s trigger, which deploys after any successful Release run (release candidates included), with a deploy from the exact approved stable tag. Removing its upstream-only guard alone would publish RCs to the site.
 - **Upkeep:** the page changes only at a release. The release checklist includes "site matches the README".
-- **Timing:** decided 2026-10-01: the site is live no later than the v1.0.0 release. It is built last among the docs, after the README, so the two say the same things. Removing cliamp's site, `CNAME` and install script is separate cleanup and happens regardless.
+- **Timing:** decided 2026-10-01: the site is live no later than the v1.0.0 release (confirmed 2026-10-05; it does not hold up `v1.0.0-rc.3`). It is built last among the docs, after the README, so the two say the same things. Removing cliamp's site, `CNAME` and install script is separate cleanup and happens regardless.
 
 ## Workstream 5: fresh-user tests
 

@@ -192,3 +192,10 @@ func TestCLISurfacePinsBoolDefaults(t *testing.T) {
 		t.Error("flipping --help-bar's default left the surface unchanged")
 	}
 }
+
+// The first line of --help carries the logo's tagline, not cliamp's.
+func TestDdsonicAppUsageIsTheTagline(t *testing.T) {
+	if got, want := ddsonicApp().Usage, "music for your terminal"; got != want {
+		t.Errorf("Usage = %q, want %q", got, want)
+	}
+}

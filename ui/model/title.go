@@ -10,7 +10,7 @@ import (
 
 const (
 	baseTerminalTitle         = appdir.Name // ddsonic: branding
-	defaultTerminalTitleIntro = "It really whips the terminal's ass."
+	defaultTerminalTitleIntro = ""          // ddsonic: no intro scrolls through the title; it reads ddsonic from the start
 	titleIntroViewportMin     = 18
 	titleIntroViewportDefault = 24
 	titleIntroStep            = 2

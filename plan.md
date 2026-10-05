@@ -784,7 +784,7 @@ Branch `m10-artwork`.
     - [ ] Still open for Gate B: an owner-approved ddmus icon (and, with it, whether ddmus ships a desktop entry), README refresh, `docs/ddmus/` pass, website draft, fresh-user scenarios A–H.
   - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
     - [x] `v1.0.0-rc.1` tagged at `73b97a5b` and published as a pre-release (2026-10-04); record in `docs/ddmus/releases/v1.0.0-rc.1.md`. Open: the Codex high-effort audit, the owner's use, and the rest of Gate C; then the website, the AUR package and v1.0.0.
-    - [ ] `v1.0.0-rc.2`, the first candidate released as ddsonic (2026-10-04): the rename and nothing else since `v1.0.0-rc.1`, which stays ddmus and untouched. Record in `docs/ddsonic/releases/v1.0.0-rc.2.md`; its gates run on the tagged commit.
+    - [x] `v1.0.0-rc.2`, the first candidate released as ddsonic: tagged at `491952e0` and published as a pre-release (2026-10-05). The rename and nothing else since `v1.0.0-rc.1`, which stays ddmus and untouched. The release build reproduces the local one byte for byte. Record in `docs/ddsonic/releases/v1.0.0-rc.2.md`. Open: the owner's field testing and the rest of Gate C; then the website, the AUR package and v1.0.0.
   - [ ] v1.0.0 (Gate D).
 
 ## Decisions log

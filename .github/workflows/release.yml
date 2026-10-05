@@ -45,7 +45,9 @@ jobs:
             install -m 755 ddsonic-*-linux-amd64/ddsonic /usr/local/bin/ddsonic
             ddsonic --version | grep -F -- "$TAG"
             test -s ddsonic-*-linux-amd64/THIRD_PARTY_NOTICES
-            test -s ddsonic-*-linux-amd64/LICENSE-GPL-3.0'
+            test -s ddsonic-*-linux-amd64/LICENSE-GPL-3.0
+            grep -qx Icon=ddsonic ddsonic-*-linux-amd64/share/applications/ddsonic.desktop
+            test -s ddsonic-*-linux-amd64/share/icons/hicolor/48x48/apps/ddsonic.png'
 
       - name: Attest the build
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2

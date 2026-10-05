@@ -62,6 +62,8 @@ bin="$name-linux-amd64"
 mkdir "$work/$bin"
 cp "$work/ddsonic" "$work/$bin/ddsonic"
 cp LICENSE LICENSE-GPL-3.0 README.md CHANGELOG.md "$work/$bin/"
+# The launcher entry and the icons, laid out as they install under a prefix.
+sh packaging/desktop.sh "$work/$bin/share"
 sh packaging/notices.sh "$work/ddsonic" > "$work/$bin/THIRD_PARTY_NOTICES"
 # Licenses that sit beside a package, not at its module's root, must be there.
 for nested in github.com/dop251/goja/ftoa/internal/fast/LICENSE_V8 \

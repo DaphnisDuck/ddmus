@@ -8,6 +8,7 @@ DaphnisDuck's Music Player (`ddsonic`) keeps its own files and runtime names, so
 | Data (music catalog `library.db`, embedded album art extracted for MPRIS) | `~/.local/share/ddsonic` | `~/.local/share/cliamp` |
 | Downloaded album artwork for the info view (`artwork/`, trimmed past 100 MB; safe to delete) | `$XDG_CACHE_HOME/ddsonic`, else `~/.cache/ddsonic` | — |
 | Default downloads (`Ctrl+S`) | `~/Music/ddsonic` | `~/Music/cliamp` |
+| Launcher entry and icon (from the AUR package, `make install`, or the release archive's `share/`; remove them to uninstall) | `applications/ddsonic.desktop` and `icons/hicolor/<size>/apps/ddsonic.png`, under `~/.local/share` or, from the package, `/usr/share` | `cliamp.desktop` and cliamp's icon |
 | MPRIS (media keys) | `org.mpris.MediaPlayer2.ddsonic` | `org.mpris.MediaPlayer2.cliamp` |
 | Client name and device ID reported to Plex, Navidrome, Emby, Jellyfin and podcast servers | `ddsonic` | `cliamp` |
 | PulseAudio/PipeWire stream matched when switching output device | `ddsonic` | `cliamp` |

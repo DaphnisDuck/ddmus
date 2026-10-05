@@ -6,7 +6,7 @@ ddsonic releases one build: Linux x86-64, from the pinned environment in `packag
 
 | File | What it is |
 | --- | --- |
-| `ddsonic-<version>-linux-amd64.tar.gz` | The `ddsonic` binary, `LICENSE`, `LICENSE-GPL-3.0`, `THIRD_PARTY_NOTICES`, `README.md`, `CHANGELOG.md` |
+| `ddsonic-<version>-linux-amd64.tar.gz` | The `ddsonic` binary, `LICENSE`, `LICENSE-GPL-3.0`, `THIRD_PARTY_NOTICES`, `README.md`, `CHANGELOG.md`, and `share/`: the launcher entry (`applications/ddsonic.desktop`) and the icons (`icons/hicolor/<size>/apps/ddsonic.png`) |
 | `ddsonic-<version>-source.tar.gz` | The complete corresponding source: ddsonic at the tag, every Go dependency (`vendor/`), the codec libraries' sources (`native/`) and the build scripts (`packaging/`) |
 | `ddsonic-<version>-THIRD_PARTY_NOTICES.txt` | The notices, also inside both archives |
 | `ddsonic-<version>-sbom.cdx.json` | A CycloneDX SBOM: Go modules, the Go toolchain, native libraries |

@@ -49,3 +49,5 @@ clean:
 install: build
 	install -d $(HOME)/.local/bin
 	install -m 755 $(BINARY) $(HOME)/.local/bin/$(BINARY)
+	# ddsonic: the launcher entry and icons, for the ddsonic binary only
+	@if [ "$(BINARY)" = ddsonic ]; then sh packaging/desktop.sh "$${XDG_DATA_HOME:-$(HOME)/.local/share}" "$(HOME)/.local/bin/$(BINARY)"; fi

@@ -49,6 +49,6 @@ These build, install or present cliamp, so ddsonic deleted them rather than carr
 - `cliamp.desktop`, `Cliamp.png`, `Cliamp.svg`, `Cliamp.ico`, `cliamp_windows.rc`, `logo.txt`: cliamp's launcher, logo and Windows icon resource.
 - `CNAME`.
 
-When upstream changes one of them, the merge reports a modify/delete conflict. Keep it deleted (`git rm <path>`); a file upstream adds under these paths is deleted the same way. ddsonic's own website, icon or launcher, when they exist, are new files under ddsonic's names.
+When upstream changes one of them, the merge reports a modify/delete conflict. Keep it deleted (`git rm <path>`); a file upstream adds under these paths is deleted the same way. ddsonic's own icon and launcher are new files under ddsonic's names: the artwork in `assets/branding`, the entry in `packaging/linux/ddsonic.desktop`, installed by `packaging/desktop.sh`. A website, when it exists, is added the same way. ddsonic has no Nix package.
 
 The `protocol` and `open` commands' code (`cmd/protocol*.go`, with its `cliamp-url-handler.desktop` template) stays: it is upstream Go code that ddsonic's command line doesn't reach (`cli_ddsonic.go`).

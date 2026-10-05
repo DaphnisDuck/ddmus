@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/branding/ddsonic-logo-horizontal.png" alt="ddsonic: music for your terminal" width="720"></p>
+
 # ddsonic
 
 **DaphnisDuck's Music Player** is a fast, terminal-first music player for Spotify, YouTube Music, local music and internet radio. It keeps a local catalog of your libraries, so browsing and search are instant and work offline, and it brings playback, the queue, lyrics, artwork, an equalizer and visualizers for all of them into one terminal interface.
@@ -63,6 +65,8 @@ cd ddsonic
 make install            # builds ./ddsonic and installs it to ~/.local/bin/ddsonic
 ```
 
+`make install` also adds a launcher entry and ddsonic's icon under `~/.local/share`, so ddsonic appears in your application menu and opens in a terminal.
+
 To update, `git pull && make install`. ddsonic does not update itself.
 
 **Release builds**
@@ -74,6 +78,15 @@ sha256sum -c --ignore-missing SHA256SUMS
 tar -xzf ddsonic-*-linux-amd64.tar.gz
 install -Dm755 ddsonic-*-linux-amd64/ddsonic ~/.local/bin/ddsonic
 ```
+
+From `v1.0.0-rc.3` on, the archive also holds a launcher entry and ddsonic's icon in `share/`. To have ddsonic in your application menu, copy them and point the entry at the executable you installed:
+
+```sh
+cp -r ddsonic-*-linux-amd64/share/. ~/.local/share/
+sed -i "s|^Exec=ddsonic\$|Exec=$HOME/.local/bin/ddsonic|" ~/.local/share/applications/ddsonic.desktop
+```
+
+The entry as shipped starts `ddsonic` from the `PATH` of your desktop session, which often lacks `~/.local/bin`; the second line gives it the full path.
 
 An AUR package, `ddsonic-bin`, is planned for the stable 1.0 release; it is not in the AUR yet.
 

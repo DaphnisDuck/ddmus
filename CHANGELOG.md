@@ -12,6 +12,7 @@ The first release for people who don't build from source. 1.0 adds no features t
 - A release build for Linux x86-64 with checksums, third-party notices, an SBOM, a build attestation and the complete corresponding source. An AUR package, `ddsonic-bin`, follows with the stable release.
 - `ddsonic setup` sets up Spotify, YouTube Music and the Local music folder, and keeps every other line of an existing `config.toml`.
 - `--version` answers in every build.
+- A logo and an icon for ddsonic: a duck at a terminal. The release archive (in `share/`), the AUR package and `make install` carry a launcher entry, `ddsonic.desktop`, and the icon in eight sizes from 16 to 512 pixels, so ddsonic appears in application menus and opens in a terminal. The artwork is raster (PNG); its masters and layered sources are in `assets/branding`.
 
 ### Changed
 - Renamed from ddmus to ddsonic. The executable, the config, data, cache and download folders, the config section (`[ddsonic]`), the `DDSONIC_CONFIG_DIR` variable, the log and socket, the media-key name (`org.mpris.MediaPlayer2.ddsonic`), the release files, the AUR package (`ddsonic-bin`) and the GitHub repository all changed. The candidate `v1.0.0-rc.1` was published as ddmus and stays that way. ddsonic does not read or move ddmus's folders: settings, sign-ins and the library are moved by hand, once; see [Moving from ddmus](https://github.com/DaphnisDuck/ddsonic/blob/main/docs/ddsonic/files.md#moving-from-ddmus-100-rc1-and-earlier).
@@ -29,7 +30,7 @@ The first release for people who don't build from source. 1.0 adds no features t
 - Lua plugins: none is loaded, and the `plugins` command and its IPC operations are gone. Plugin files and `[plugins.*]` config stay where they are, unused.
 - `--daemon` (headless mode), `--mono`, `--expanded`, `--simplified`, and the `mono`, `open`, `protocol`, `qobuz`, `radio` and `tidal` commands. `cliamp://` links are neither registered nor handled; see [docs/ddsonic/files.md](https://github.com/DaphnisDuck/ddsonic/blob/main/docs/ddsonic/files.md#still-shared) if an earlier version (as ddmus or omatunes) registered them.
 - The Logo visualizer, which draws cliamp's name. A config that names it starts with the default visualizer.
-- cliamp's Nix flake, desktop entry, icons, website and install script, which built or installed cliamp. ddsonic installs from the release archive, the AUR package or source.
+- cliamp's Nix flake, desktop entry, icons, website and install script, which built or installed cliamp. ddsonic installs from the release archive, the AUR package or source, and has a launcher entry and an icon of its own.
 
 ### Fixed
 - Two quick volume changes from a desktop media control could freeze ddsonic; a dropped session bus could crash it.

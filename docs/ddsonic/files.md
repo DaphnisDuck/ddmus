@@ -27,12 +27,12 @@ Until `v1.0.0-rc.1` this player was called ddmus and kept its files under that n
 mv -T ~/.config/ddmus ~/.config/ddsonic
 mv -T ~/.local/share/ddmus ~/.local/share/ddsonic
 [ -d ~/.cache/ddmus ] && mv -T ~/.cache/ddmus ~/.cache/ddsonic
-sed -i 's/^\[ddmus\]/[ddsonic]/' ~/.config/ddsonic/config.toml
+sed -i -E 's/^[[:space:]]*\[ddmus\][[:space:]]*$/[ddsonic]/I' ~/.config/ddsonic/config.toml
 ```
 
 - **Quit ddmus first.** `library.db` is an SQLite database with a write-ahead log (`library.db-wal`, `library.db-shm`); moving it while ddmus runs can lose its latest changes. `ddmus status` says whether one is running.
 - **If you already started ddsonic once**, it created `~/.config/ddsonic` and `~/.local/share/ddsonic`. Remove them first: `mv -T` refuses to move onto a folder that holds anything.
-- **The section header matters.** ddsonic reads `[ddsonic]` and ignores `[ddmus]` without a message, so `spotify_refresh`, `youtube_refresh`, `youtube_playlists`, `border` and `artwork` fall back to their defaults until the header is changed. The `sed` line does it.
+- **The section header matters.** ddsonic reads `[ddsonic]` and ignores `[ddmus]` without a message, so `spotify_refresh`, `youtube_refresh`, `youtube_playlists`, `border` and `artwork` fall back to their defaults until the header is changed. The `sed` line does it, however the header is capitalised or indented.
 - **What comes along:** `config.toml`, the Spotify and YouTube Music sign-ins, radio favorites, playlists, history, the resume position, themes, and the catalog with everything it has synced. Nothing inside these files names the config, data or cache folders, so no file needs editing but `config.toml`.
 - **Leave `~/Music/ddmus` where it is.** Tracks saved with `Ctrl+S` went there, and the history, the resume position, playlists and the catalog remember each of them by its full path; moving or renaming the folder breaks every one of those. ddsonic saves new tracks to `~/Music/ddsonic`. To keep saving into the old folder instead, set it in `config.toml`, as a full path (`~` is not expanded here):
 

@@ -77,7 +77,7 @@ install -Dm755 ddsonic-*-linux-amd64/ddsonic ~/.local/bin/ddsonic
 
 An AUR package, `ddsonic-bin`, is planned for the stable 1.0 release; it is not in the AUR yet.
 
-ddsonic was called ddmus until its first release candidate. `v1.0.0-rc.1` was published under that name and stays as it was: its files are `ddmus-1.0.0-rc.1-…`, its executable is `ddmus`, and it keeps its files in `ddmus` folders. To bring those over to ddsonic, see [moving from ddmus](docs/ddsonic/files.md#moving-from-ddmus-100-rc1-and-earlier).
+ddsonic was called ddmus until its first release candidate. `v1.0.0-rc.1` was published under that name and stays as it was: its files are `ddmus-1.0.0-rc.1-…`, its executable is `ddmus`, and it keeps its files in `ddmus` folders. To bring those over to ddsonic, see [moving from ddmus](https://github.com/DaphnisDuck/ddsonic/blob/main/docs/ddsonic/files.md#moving-from-ddmus-100-rc1-and-earlier).
 
 ## Quick start
 

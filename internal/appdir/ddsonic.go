@@ -6,15 +6,19 @@ package appdir
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-// Name is the short name of DaphnisDuck's Music Player: its directories,
-// binary, and the name it gives servers, MPRIS and the IPC socket.
+// Name is the short name of DaphnisDuck's Music Player, and the one place it
+// is defined: its directories, binary, config section and variable, and the
+// name it gives servers, MPRIS and the IPC socket all derive from it.
+// TestProductNameIsWrittenInOnePlace (identity_ddsonic_test.go) keeps it so.
 const Name = "ddsonic"
 
-// ConfigDirEnv overrides the config directory for ddsonic alone.
-const ConfigDirEnv = "DDSONIC_CONFIG_DIR"
+// ConfigDirEnv is the variable that overrides the config directory for
+// ddsonic alone: DDSONIC_CONFIG_DIR, the name in upper case.
+var ConfigDirEnv = strings.ToUpper(Name) + "_CONFIG_DIR"
 
 // configDirOverride returns DDSONIC_CONFIG_DIR, or "" under go test.
 // Upstream's tests isolate themselves with CLIAMP_CONFIG_DIR or a temporary

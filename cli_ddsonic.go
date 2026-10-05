@@ -76,7 +76,7 @@ func removedCommand(name string) *cli.Command {
 		Hidden:          true,
 		SkipFlagParsing: true,
 		Action: func(context.Context, *cli.Command) error {
-			return fmt.Errorf("%q is not part of ddsonic 1.0", name)
+			return fmt.Errorf("%q is not part of %s 1.0", name, appmeta.ClientName())
 		},
 	}
 }

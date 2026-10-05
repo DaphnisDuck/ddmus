@@ -36,7 +36,12 @@ func CallbackPage(html string) string {
 }
 
 // projectURL is where a server's operator can find out what this client is.
+// It is written out, not built from the name: a GitHub address is its own
+// name, renamed in its own step.
 const projectURL = "https://github.com/DaphnisDuck/ddsonic"
+
+// ProjectURL is the project's home page, where releases are published.
+func ProjectURL() string { return projectURL }
 
 // UserAgent is how ddsonic names itself in the HTTP requests it makes, as
 // "ddsonic/<version> (<project URL>)". It is the one place that string is

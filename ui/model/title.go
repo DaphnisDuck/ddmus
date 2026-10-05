@@ -4,11 +4,12 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/bjarneo/cliamp/internal/appdir" // ddsonic
 	"github.com/bjarneo/cliamp/playlist"
 )
 
 const (
-	baseTerminalTitle         = "ddsonic" // ddsonic: branding
+	baseTerminalTitle         = appdir.Name // ddsonic: branding
 	defaultTerminalTitleIntro = "It really whips the terminal's ass."
 	titleIntroViewportMin     = 18
 	titleIntroViewportDefault = 24

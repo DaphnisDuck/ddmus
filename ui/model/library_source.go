@@ -13,6 +13,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/bjarneo/cliamp/catalog"
+	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/library"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/ui"
@@ -20,7 +21,7 @@ import (
 
 // librarySourceMeta is the ProviderMeta key holding a track's catalog
 // provider, set when the library plays it.
-const librarySourceMeta = "ddsonic.source"
+const librarySourceMeta = appdir.Name + ".source"
 
 // withLibrarySource returns tracks with source recorded on each, leaving the
 // caller's tracks (and their shared meta maps) untouched.

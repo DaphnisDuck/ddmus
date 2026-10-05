@@ -234,12 +234,12 @@ func overridesFromFlags(c *cli.Command) (config.Overrides, error) {
 // ddsonic: the self-updater downloads cliamp's releases, which would replace
 // ddsonic with cliamp. It stays registered (hidden) so `ddsonic upgrade`
 // explains itself instead of failing as an unknown command.
-var errUpgradeDisabled = errors.New("ddsonic doesn't update itself: update it with your package manager (AUR: ddsonic-bin), or download the latest release from https://github.com/DaphnisDuck/ddsonic/releases")
+var errUpgradeDisabled = errors.New(appmeta.ClientName() + " doesn't update itself: update it with your package manager (AUR: " + appmeta.ClientName() + "-bin), or download the latest release from " + appmeta.ProjectURL() + "/releases")
 
 func upgradeCommand() *cli.Command {
 	return &cli.Command{
 		Name:   "upgrade",
-		Usage:  "disabled in ddsonic; update by pulling and rebuilding",
+		Usage:  "disabled in " + appmeta.ClientName() + "; update by pulling and rebuilding",
 		Hidden: true,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "prerelease", Usage: "upgrade to the latest prerelease"},

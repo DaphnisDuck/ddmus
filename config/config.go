@@ -491,7 +491,7 @@ func Load() (Config, error) {
 		val = strings.TrimSpace(val)
 
 		switch section {
-		case "ddsonic": // ddsonic: fork settings, parsed in config/ddsonic.go
+		case appdir.Name: // ddsonic: the [ddsonic] section, fork settings parsed in config/ddsonic.go
 			cfg.Ddsonic.parseKey(key, val)
 		case "downloads":
 			if key == "directory" {

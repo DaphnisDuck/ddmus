@@ -66,3 +66,10 @@ func TestOldDdmusFoldersAreNotUsed(t *testing.T) {
 		}
 	}
 }
+
+// ConfigDirEnv is built from Name; its spelling is what users export.
+func TestConfigDirEnvName(t *testing.T) {
+	if ConfigDirEnv != "DDSONIC_CONFIG_DIR" {
+		t.Errorf("ConfigDirEnv = %q, want DDSONIC_CONFIG_DIR", ConfigDirEnv)
+	}
+}

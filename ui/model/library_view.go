@@ -22,8 +22,8 @@ import (
 // brandTitle heads every screen (renderTitle in view.go): the duck and the
 // name in the title style, then the version as the build reports it, dimmed.
 // The version is secondary: in fewer than its width of room cells it is left
-// out, and the name stays whole. The duck is the TUI's alone; MPRIS keeps
-// appmeta.DisplayName.
+// out, and the name stays whole. The duck is the TUI's alone; MPRIS shows
+// the plain name (appmeta.DisplayName).
 func brandTitle(room int) string {
 	name := titleStyle.Render("🦆 " + appdir.Name)
 	full := name + " " + dimStyle.Render(appmeta.Version())

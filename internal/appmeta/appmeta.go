@@ -20,9 +20,9 @@ func SetVersion(v string) {
 
 func ClientName() string { return clientName }
 
-// DisplayName is the player's full name, for people rather than servers
-// (the UI header, MPRIS Identity). ddsonic.
-func DisplayName() string { return "DaphnisDuck's Music Player" }
+// DisplayName is the name desktop media integrations show to people (the
+// MPRIS Identity): the product's name. ddsonic.
+func DisplayName() string { return appdir.Name }
 
 func DeviceName() string { return deviceName }
 

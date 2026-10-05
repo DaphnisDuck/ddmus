@@ -1,6 +1,10 @@
 package appmeta
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/bjarneo/cliamp/internal/appdir"
+)
 
 func TestDefaults(t *testing.T) {
 	if got := ClientName(); got != "ddsonic" {
@@ -46,5 +50,13 @@ func TestUserAgent(t *testing.T) {
 		if got := UserAgent(); got != tt.want {
 			t.Errorf("UserAgent() with version %q = %q, want %q", tt.version, got, tt.want)
 		}
+	}
+}
+
+// ddsonic: the name desktop media integrations show (MPRIS Identity) is the
+// product's name, the same one the bus name is built from.
+func TestDisplayNameIsTheProductName(t *testing.T) {
+	if got := DisplayName(); got != appdir.Name || got != ClientName() {
+		t.Errorf("DisplayName() = %q, want the product name %q", got, appdir.Name)
 	}
 }

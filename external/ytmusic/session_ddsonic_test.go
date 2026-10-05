@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,5 +31,18 @@ func TestSessionTokenSourceOutlivesSignIn(t *testing.T) {
 	}
 	if tok.AccessToken != "fresh" {
 		t.Errorf("access token = %q, want fresh", tok.AccessToken)
+	}
+}
+
+// The page a browser shows after sign-in is titled ddsonic, not cliamp.
+func TestOAuthCallbackPageNamesDdsonic(t *testing.T) {
+	rec := httptest.NewRecorder()
+	oauthCallback("s", make(chan string, 1))(rec, httptest.NewRequest(http.MethodGet, "/callback?code=c&state=s", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "<title>ddsonic</title>") || strings.Contains(body, "cliamp") {
+		t.Errorf("callback page does not name ddsonic alone:\n%s", body)
 	}
 }

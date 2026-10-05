@@ -464,7 +464,7 @@ func oauthCallbackHandler(pending []pendingOAuthFlow, callbackCh chan<- oauthCal
 			return
 		}
 		w.Header().Set("Content-Type", "text/html")
-		_, _ = w.Write([]byte(oauthCallbackHTML))
+		_, _ = w.Write([]byte(appmeta.CallbackPage(oauthCallbackHTML))) // ddsonic: the tab title
 	})
 }
 

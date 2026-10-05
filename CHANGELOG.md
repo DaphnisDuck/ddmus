@@ -88,7 +88,7 @@ Released as ddmus.
 Released as ddmus.
 
 ### Changed
-- Renamed from omatunes to DaphnisDuck's Music Player, `ddmus` for short, because omatunes is another player's name. The binary, the config and data folders, the config section (`[ddmus]`), the media-key name and the GitHub repository all changed. Settings and library move once, by hand: see [docs/ddmus/files.md](docs/ddmus/files.md#moving-from-omatunes-before-v06).
+- Renamed from omatunes to DaphnisDuck's Music Player, `ddmus` for short, because omatunes is another player's name. The binary, the config and data folders, the config section (`[ddmus]`), the media-key name and the GitHub repository all changed. Settings and library move once, by hand: see [docs/ddmus/files.md](docs/ddsonic/files.md#moving-from-omatunes-before-v06).
 
 ## [0.5.0] - 2026-09-29
 

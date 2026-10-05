@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -217,5 +219,20 @@ func TestEnsureSessionEndsAStalledTokenRefresh(t *testing.T) {
 	err = returnsWithin(t, 5*time.Second, "the next ensureSession", p.ensureSession)
 	if err == nil || calls.Load() != 2 {
 		t.Fatalf("the next ensureSession: error = %v, setups = %d; want a second setup", err, calls.Load())
+	}
+}
+
+// The page a browser shows after sign-in is titled ddsonic, not cliamp.
+func TestOAuthCallbackPageNamesDdsonic(t *testing.T) {
+	callbacks := make(chan oauthCallback, 1)
+	handler := oauthCallbackHandler([]pendingOAuthFlow{{state: "s"}}, callbacks)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/login?state=s&code=c", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "<title>ddsonic</title>") || strings.Contains(body, "cliamp") {
+		t.Errorf("callback page does not name ddsonic alone:\n%s", body)
 	}
 }

@@ -27,15 +27,21 @@ Until `v1.0.0-rc.1` this player was called ddmus and kept its files under that n
 mv -T ~/.config/ddmus ~/.config/ddsonic
 mv -T ~/.local/share/ddmus ~/.local/share/ddsonic
 [ -d ~/.cache/ddmus ] && mv -T ~/.cache/ddmus ~/.cache/ddsonic
-[ -d ~/Music/ddmus ] && mv -T ~/Music/ddmus ~/Music/ddsonic
 sed -i 's/^\[ddmus\]/[ddsonic]/' ~/.config/ddsonic/config.toml
 ```
 
 - **Quit ddmus first.** `library.db` is an SQLite database with a write-ahead log (`library.db-wal`, `library.db-shm`); moving it while ddmus runs can lose its latest changes. `ddmus status` says whether one is running.
 - **If you already started ddsonic once**, it created `~/.config/ddsonic` and `~/.local/share/ddsonic`. Remove them first: `mv -T` refuses to move onto a folder that holds anything.
 - **The section header matters.** ddsonic reads `[ddsonic]` and ignores `[ddmus]` without a message, so `spotify_refresh`, `youtube_refresh`, `youtube_playlists`, `border` and `artwork` fall back to their defaults until the header is changed. The `sed` line does it.
-- **What comes along:** `config.toml`, the Spotify and YouTube Music sign-ins, radio favorites, playlists, history, the resume position, themes, and the catalog with everything it has synced. Nothing inside these files names the old folders, so no file needs editing but `config.toml`.
-- **Paths you set yourself:** a `[downloads] directory` or a playlist entry that points into `~/Music/ddmus` needs the new folder name.
+- **What comes along:** `config.toml`, the Spotify and YouTube Music sign-ins, radio favorites, playlists, history, the resume position, themes, and the catalog with everything it has synced. Nothing inside these files names the config, data or cache folders, so no file needs editing but `config.toml`.
+- **Leave `~/Music/ddmus` where it is.** Tracks saved with `Ctrl+S` went there, and the history, the resume position, playlists and the catalog remember each of them by its full path; moving or renaming the folder breaks every one of those. ddsonic saves new tracks to `~/Music/ddsonic`. To keep saving into the old folder instead, set it in `config.toml`, as a full path (`~` is not expanded here):
+
+  ```toml
+  [downloads]
+  directory = "/home/you/Music/ddmus"
+  ```
+
+  If you do rename the folder, expect to fix those paths by hand or let them go: press `r` in Local to index the files again, and remove the stale entries from your playlists and history.
 - **Leftovers to delete:** `~/.config/ddsonic/ddmus.log`, and `ddmus.sock` and `ddmus.sock.pid` if ddmus did not exit cleanly. ddsonic writes `ddsonic.log` and `ddsonic.sock`.
 - **The variable** `DDMUS_CONFIG_DIR` is now `DDSONIC_CONFIG_DIR`. A script that opens the socket by path, or addresses the player over MPRIS as `org.mpris.MediaPlayer2.ddmus`, needs the new name.
 - **The binary and the package:** remove the old `ddmus` executable (`~/.local/bin/ddmus` after a `make install`; `rm` it, or uninstall a locally built `ddmus-bin`). ddsonic installs as `ddsonic`, and its AUR package is `ddsonic-bin`.

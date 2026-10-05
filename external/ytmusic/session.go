@@ -15,6 +15,7 @@ import (
 	"time" // ddsonic
 
 	"github.com/bjarneo/cliamp/internal/appdir"
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddsonic
 	"github.com/bjarneo/cliamp/internal/browser"
 	"github.com/bjarneo/cliamp/internal/fileutil"
 
@@ -237,14 +238,14 @@ func oauthCallback(state string, codeCh chan<- string) http.HandlerFunc {
 			}
 		}
 		w.Header().Set("Content-Type", "text/html")
-		_, _ = w.Write([]byte(`<!DOCTYPE html>
+		_, _ = w.Write([]byte(appmeta.CallbackPage(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>cliamp</title></head>
 <body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0">
 <div style="text-align:center">
 <h2>Authenticated!</h2>
 <p>You can close this tab now.</p>
 <script>setTimeout(function(){window.close()},1500)</script>
-</div></body></html>`))
+</div></body></html>`))) // ddsonic: the tab title
 	}
 }
 

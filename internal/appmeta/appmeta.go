@@ -28,6 +28,13 @@ func DeviceName() string { return deviceName }
 
 func Version() string { return version }
 
+// CallbackPage is one of upstream's sign-in callback pages, titled with this
+// player's name instead of cliamp's: the browser tab a user sees after
+// signing in to Spotify or YouTube Music. ddsonic.
+func CallbackPage(html string) string {
+	return strings.Replace(html, "<title>cliamp</title>", "<title>"+clientName+"</title>", 1)
+}
+
 // projectURL is where a server's operator can find out what this client is.
 const projectURL = "https://github.com/DaphnisDuck/ddsonic"
 

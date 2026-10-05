@@ -12,14 +12,26 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/internal/appmeta"
 	"github.com/bjarneo/cliamp/library"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/ui"
 )
 
-// brandTitle heads every screen (renderTitle in view.go).
-var brandTitle = "🦆 " + appmeta.DisplayName() // the duck is the TUI's alone; MPRIS keeps the plain name
+// brandTitle heads every screen (renderTitle in view.go): the duck and the
+// name in the title style, then the version as the build reports it, dimmed.
+// The version is secondary: in fewer than its width of room cells it is left
+// out, and the name stays whole. The duck is the TUI's alone; MPRIS keeps
+// appmeta.DisplayName.
+func brandTitle(room int) string {
+	name := titleStyle.Render("🦆 " + appdir.Name)
+	full := name + " " + dimStyle.Render(appmeta.Version())
+	if lipgloss.Width(full) > room {
+		return name
+	}
+	return full
+}
 
 // libRow is one rendered line: an entry, or a section heading (index < 0).
 type libRow struct {

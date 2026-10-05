@@ -507,15 +507,15 @@ func (m Model) centerFrame(frame string) string {
 }
 
 func (m Model) renderTitle() string {
-	title := titleStyle.Render(brandTitle) // ddsonic: branding (library_view.go)
 	label := m.focus.label()
 	if screen := m.activeScreen(); screen != screenMain {
 		label = screen.label()
 	}
 	if label == "" {
-		return title
+		return brandTitle(ui.PanelWidth) // ddsonic: branding (library_view.go)
 	}
 	indicator := dimStyle.Render("[" + label + "]")
+	title := brandTitle(ui.PanelWidth - lipgloss.Width(indicator) - 1) // ddsonic: the version yields to the label
 	gap := max(ui.PanelWidth-lipgloss.Width(title)-lipgloss.Width(indicator), 1)
 	return title + strings.Repeat(" ", gap) + indicator
 }

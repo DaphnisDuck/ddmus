@@ -15,6 +15,7 @@ The first release for people who don't build from source. 1.0 adds no features t
 
 ### Changed
 - Renamed from ddmus to ddsonic. The executable, the config, data, cache and download folders, the config section (`[ddsonic]`), the `DDSONIC_CONFIG_DIR` variable, the log and socket, the media-key name (`org.mpris.MediaPlayer2.ddsonic`), the release files, the AUR package (`ddsonic-bin`) and the GitHub repository all changed. The candidate `v1.0.0-rc.1` was published as ddmus and stays that way. ddsonic does not read or move ddmus's folders: settings, sign-ins and the library are moved by hand, once; see [docs/ddsonic/files.md](docs/ddsonic/files.md#moving-from-ddmus-100-rc1-and-earlier).
+- The header reads `🦆 ddsonic` and the version, in place of "DaphnisDuck's Music Player". Media widgets (MPRIS) still show the full name.
 - ddsonic 1.0 supports Spotify, YouTube Music, local files and internet radio. cliamp's other providers (Navidrome, Plex, Jellyfin, SoundCloud and the rest) are not offered: `--provider` and `setup` no longer list them, and their sections in `config.toml` are left untouched but have no effect.
 - The log and the IPC socket are named `ddsonic.log` and `ddsonic.sock` (they kept cliamp's names before, and were `ddmus.log` and `ddmus.sock` in 1.0.0-rc.1). A script that opens the socket by path needs the new name.
 - In "Search Spotify for …" and its YouTube Music twin, Enter replaces the queue, as playing from the library does.

@@ -18,7 +18,7 @@ labels: bug
 
 ## Environment
 
-- ddmus version (`ddmus --version`):
+- ddsonic version (`ddsonic --version`):
 - OS and terminal:
 - Audio backend (PipeWire / PulseAudio / ALSA):
 - Source(s) involved (Spotify, YouTube Music, Local, Radio):

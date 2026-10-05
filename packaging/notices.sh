@@ -4,18 +4,18 @@
 # The list comes from the binary itself (`go version -m`), so it names what
 # ships, not what go.mod mentions. Runs inside the build image
 # (packaging/Dockerfile), which holds the native libraries' license files,
-# from the build tree release.sh prepares (ddmus's source with vendor/).
+# from the build tree release.sh prepares (ddsonic's source with vendor/).
 set -eu
 
 binary=$1
 
 cat <<'HEAD'
-ddmus: third-party notices
+ddsonic: third-party notices
 
-ddmus's own source is MIT-licensed (see LICENSE). The ddmus executable links
+ddsonic's own source is MIT-licensed (see LICENSE). The ddsonic executable links
 go-librespot, which is GPL-3.0, so the executable as a whole is distributed
 under GPL-3.0 (see LICENSE-GPL-3.0). The complete corresponding source for
-this build is the ddmus-<version>-source.tar.gz published beside it.
+this build is the ddsonic-<version>-source.tar.gz published beside it.
 
 This file lists everything compiled or linked into the executable, with each
 component's license text.
@@ -33,11 +33,11 @@ Linked statically:
   FLAC $(dpkg-query -W -f '${Version}' libflac-dev) (BSD-3-Clause; Xiph.Org)
   libvorbis $(dpkg-query -W -f '${Version}' libvorbis-dev) (BSD-3-Clause; Xiph.Org)
   libogg $(dpkg-query -W -f '${Version}' libogg-dev) (BSD-3-Clause; Xiph.Org)
-Linked dynamically, from the system ddmus runs on:
+Linked dynamically, from the system ddsonic runs on:
   alsa-lib (LGPL-2.1), glibc (LGPL-2.1)
 
-mpg123 is LGPL-2.1: you may relink ddmus against a modified mpg123. Its source
-and ddmus's build scripts are in the source archive.
+mpg123 is LGPL-2.1: you may relink ddsonic against a modified mpg123. Its source
+and ddsonic's build scripts are in the source archive.
 NATIVE
 
 native() {
@@ -64,7 +64,7 @@ trap 'rm -rf "$tmp"' EXIT
 go version -m "$binary" > "$tmp/buildinfo"
 awk '$1 == "dep" || $1 == "=>" { print $2, $3 }' "$tmp/buildinfo" | sort -u > "$tmp/shipped"
 go list -mod=vendor -deps -f '{{with .Module}}{{.Path}} {{.Version}} {{end}}{{.ImportPath}}' . > "$tmp/list"
-# Three fields: a dependency's package. Fewer: the standard library or ddmus.
+# Three fields: a dependency's package. Fewer: the standard library or ddsonic.
 awk 'NF == 3' "$tmp/list" > "$tmp/pkgs"
 awk '{ print $1, $2 }' "$tmp/pkgs" | sort -u > "$tmp/mods"
 if [ ! -s "$tmp/mods" ] || ! cmp -s "$tmp/shipped" "$tmp/mods"; then
@@ -110,7 +110,7 @@ while read -r mod ver; do
 			cat <<'NOTE'
 This module ships no license file at the pinned revision. It is generated Go
 bindings (c-for-go) to libvorbis, whose BSD-3-Clause license is reproduced
-above. go-librespot's Vorbis decoder pulls it in. ddmus ships it as inherited,
+above. go-librespot's Vorbis decoder pulls it in. ddsonic ships it as inherited,
 as cliamp does, and names the gap here.
 NOTE
 			;;

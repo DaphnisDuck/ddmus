@@ -1,4 +1,4 @@
-# The pinned build environment for ddmus releases (Linux amd64).
+# The pinned build environment for ddsonic releases (Linux amd64).
 #
 # Everything that ends up in the binary comes from here: Go from the image
 # digest, the codec libraries from one Debian snapshot, and mpg123 from a

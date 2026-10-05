@@ -1,6 +1,6 @@
 package model
 
-// ddmus: rendering for the library navigation stack.
+// ddsonic: rendering for the library navigation stack.
 
 import (
 	"errors"

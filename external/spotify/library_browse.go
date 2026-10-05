@@ -1,4 +1,4 @@
-// ddmus: saved-album and followed-artist browsing for the library
+// ddsonic: saved-album and followed-artist browsing for the library
 // navigation. Kept in its own file so upstream merges of provider.go stay
 // conflict-free.
 

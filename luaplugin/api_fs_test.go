@@ -202,7 +202,7 @@ func TestFSMkdirRejectsOutsideAllowlist(t *testing.T) {
 func TestMusicDirIsAllowed(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	path := filepath.Join(home, "Music", appdir.Name, "album", "01.mp3") // ddmus
+	path := filepath.Join(home, "Music", appdir.Name, "album", "01.mp3") // ddsonic
 	if !isWriteAllowed(path) {
 		t.Errorf("~/Music/cliamp/... should be writable")
 	}

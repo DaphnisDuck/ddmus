@@ -1,6 +1,6 @@
 package model
 
-// ddmus: the body's size for the library's views, and the rows a short
+// ddsonic: the body's size for the library's views, and the rows a short
 // terminal keeps for the list.
 //
 // recomputeLayout (layout.go) counts the chrome for the terminal size and

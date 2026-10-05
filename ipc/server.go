@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/bjarneo/cliamp/applog"
-	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddsonic
 )
 
 const ipcRequestReadTimeout = 60 * time.Second
@@ -552,7 +552,7 @@ func cleanStaleSocket(sockPath string) error {
 	conn, err := dialSocket(sockPath, 200*time.Millisecond)
 	if err == nil {
 		_ = conn.Close()
-		return fmt.Errorf("ipc: %s is already running", appmeta.ClientName()) // ddmus
+		return fmt.Errorf("ipc: %s is already running", appmeta.ClientName()) // ddsonic
 	}
 	if !isSocketUnavailable(err) {
 		return fmt.Errorf("ipc: probe socket %s: %w", sockPath, err)
@@ -585,5 +585,5 @@ func cleanStaleSocket(sockPath string) error {
 		return nil
 	}
 
-	return fmt.Errorf("ipc: %s is already running (pid %d)", appmeta.ClientName(), pid) // ddmus
+	return fmt.Errorf("ipc: %s is already running (pid %d)", appmeta.ClientName(), pid) // ddsonic
 }

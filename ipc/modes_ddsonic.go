@@ -1,6 +1,6 @@
 package ipc
 
-// ddmus: the names the shuffle, repeat and mono operations accept. Upstream
+// ddsonic: the names the shuffle, repeat and mono operations accept. Upstream
 // toggled or cycled on any other name, so a typo changed the setting.
 
 import "slices"

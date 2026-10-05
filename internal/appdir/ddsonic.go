@@ -1,5 +1,5 @@
-// ddmus: the fork's own on-disk identity, so ddmus and cliamp keep separate
-// files and can run side by side. See docs/ddmus/files.md.
+// ddsonic: the fork's own on-disk identity, so ddsonic and cliamp keep separate
+// files and can run side by side. See docs/ddsonic/files.md.
 
 package appdir
 
@@ -11,12 +11,12 @@ import (
 
 // Name is the short name of DaphnisDuck's Music Player: its directories,
 // binary, and the name it gives servers, MPRIS and the IPC socket.
-const Name = "ddmus"
+const Name = "ddsonic"
 
-// ConfigDirEnv overrides the config directory for ddmus alone.
-const ConfigDirEnv = "DDMUS_CONFIG_DIR"
+// ConfigDirEnv overrides the config directory for ddsonic alone.
+const ConfigDirEnv = "DDSONIC_CONFIG_DIR"
 
-// configDirOverride returns DDMUS_CONFIG_DIR, or "" under go test.
+// configDirOverride returns DDSONIC_CONFIG_DIR, or "" under go test.
 // Upstream's tests isolate themselves with CLIAMP_CONFIG_DIR or a temporary
 // HOME and know nothing of this variable, so a developer who exports it must
 // not send those tests to the real config. Dir checks CLIAMP_CONFIG_DIR first
@@ -29,7 +29,7 @@ func configDirOverride() string {
 }
 
 // LibraryDBPath is the catalog database, library.db in DataDir
-// (~/.local/share/ddmus).
+// (~/.local/share/ddsonic).
 func LibraryDBPath() (string, error) {
 	dir, err := DataDir()
 	if err != nil {
@@ -38,7 +38,7 @@ func LibraryDBPath() (string, error) {
 	return filepath.Join(dir, "library.db"), nil
 }
 
-// DownloadsDir is the default directory for saved tracks (~/Music/ddmus).
+// DownloadsDir is the default directory for saved tracks (~/Music/ddsonic).
 func DownloadsDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -47,8 +47,8 @@ func DownloadsDir() (string, error) {
 	return filepath.Join(home, "Music", Name), nil
 }
 
-// CacheDir is the directory for files ddmus can fetch again, such as album
-// artwork: $XDG_CACHE_HOME/ddmus, else ~/.cache/ddmus.
+// CacheDir is the directory for files ddsonic can fetch again, such as album
+// artwork: $XDG_CACHE_HOME/ddsonic, else ~/.cache/ddsonic.
 func CacheDir() (string, error) {
 	if dir := os.Getenv("XDG_CACHE_HOME"); filepath.IsAbs(dir) {
 		return filepath.Join(dir, Name), nil

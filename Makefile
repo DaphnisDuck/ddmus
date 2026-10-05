@@ -1,6 +1,6 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-# ddmus: fork binary name; `make build BINARY=cliamp` for the upstream name
-BINARY  ?= ddmus
+# ddsonic: fork binary name; `make build BINARY=cliamp` for the upstream name
+BINARY  ?= ddsonic
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: build test vet lint staticcheck fmt fmt-check coverage security ci check clean install

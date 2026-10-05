@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddsonic
 	"github.com/bjarneo/cliamp/playlist"
 )
 
@@ -45,7 +45,7 @@ func TestFeedMetadata(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %s, want GET without classification probes", r.Method)
 		}
-		if got := r.UserAgent(); got != appmeta.UserAgent() { // ddmus
+		if got := r.UserAgent(); got != appmeta.UserAgent() { // ddsonic
 			t.Errorf("User-Agent = %q", got)
 		}
 		if r.URL.Path == "/show" {

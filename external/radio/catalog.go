@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddsonic
 )
 
 const radioBrowserBase = "https://de1.api.radio-browser.info/json"
@@ -272,14 +272,14 @@ func getJSON(client *http.Client, u string, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-// get performs one GET as ddmus and fails on any status but 200. Callers
+// get performs one GET as ddsonic and fails on any status but 200. Callers
 // close the body.
 func get(ctx context.Context, client *http.Client, u string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddmus
+	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddsonic
 
 	resp, err := client.Do(req)
 	if err != nil {

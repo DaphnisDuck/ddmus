@@ -108,7 +108,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 		return fmt.Errorf("config: %w", err)
 	}
 	overrides.Apply(&cfg)
-	hideProviders(&cfg) // ddmus: only 1.0's providers (providers_ddmus.go)
+	hideProviders(&cfg) // ddsonic: only 1.0's providers (providers_ddsonic.go)
 
 	closeLog, appliedLevel, logErr := initLogging(cfg.LogLevel)
 	defer closeLog()
@@ -116,7 +116,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 		fmt.Fprintf(os.Stderr, "logging: %v (continuing without file log)\n", logErr)
 		applog.Status("logging: %v", logErr)
 	} else {
-		applog.Info("%s starting (version=%s level=%s)", appmeta.ClientName(), appmeta.Version(), appliedLevel) // ddmus
+		applog.Info("%s starting (version=%s level=%s)", appmeta.ClientName(), appmeta.Version(), appliedLevel) // ddsonic
 	}
 
 	// Public providers are always available; account providers register when configured.
@@ -312,7 +312,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 
 	if len(positional) > 0 && (positional[0] == "search" || positional[0] == "search-sc") {
 		if len(positional) == 1 {
-			return fmt.Errorf("search requires a query string (e.g. %s search \"never gonna give you up\")", appmeta.ClientName()) // ddmus
+			return fmt.Errorf("search requires a query string (e.g. %s search \"never gonna give you up\")", appmeta.ClientName()) // ddsonic
 		}
 		prefix := "ytsearch1:"
 		if positional[0] == "search-sc" {
@@ -477,7 +477,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	pluginBroker := ipc.NewBroker()
 	defer pluginBroker.Close()
 
-	// ddmus: plugins are not part of 1.0, so none load and every plugin hook
+	// ddsonic: plugins are not part of 1.0, so none load and every plugin hook
 	// below is skipped.
 	var luaMgr *luaplugin.Manager
 	var luaErr error
@@ -489,7 +489,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 		defer luaMgr.Close()
 	}
 
-	providers = supportedOnly(providers) // ddmus: providers_ddmus.go
+	providers = supportedOnly(providers) // ddsonic: providers_ddsonic.go
 	m := model.New(p, pl, providers, defaultProvider, localProv, themes, luaMgr, config.SaveFunc{})
 	m.SetRadioFavorites(radioFavorites)
 	if defaultProvider == "jellyfin" && jellyProv != nil {
@@ -583,13 +583,13 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 	if len(resolved.Tracks) == 0 && len(resolved.Pending) == 0 && pl.Len() == 0 {
 		m.StartInProvider()
 	}
-	// ddmus: the library navigation is the main screen, backed by the
+	// ddsonic: the library navigation is the main screen, backed by the
 	// synced catalog when one is available.
 	cat := openCatalog(spotifyProv, radioProv, cfg)
 	defer cat.close()
 	m.SetLibrary(library.Root(librarySources(providers, cfg.InitialDirectory, cat)))
-	m.SetFrameBorder(cfg.Ddmus.Border)
-	m.SetArtwork(artworkLoader(cfg.Ddmus.Artwork)) // ddmus: main_ddmus.go
+	m.SetFrameBorder(cfg.Ddsonic.Border)
+	m.SetArtwork(artworkLoader(cfg.Ddsonic.Artwork)) // ddsonic: main_ddsonic.go
 	cat.configure(&m)
 	if cfg.EQPreset != "" && cfg.EQPreset != "Custom" {
 		m.SetEQPreset(cfg.EQPreset, nil)
@@ -598,7 +598,7 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 		m.SetTheme(cfg.Theme)
 	}
 	if cfg.Visualizer != "" && !m.SetVisualizer(cfg.Visualizer) {
-		// ddmus: say so. A config may name a mode ddmus does not offer (Logo).
+		// ddsonic: say so. A config may name a mode ddsonic does not offer (Logo).
 		applog.Info("visualizer %q is not available in %s; using the default", cfg.Visualizer, appmeta.ClientName())
 	}
 	if cfg.AutoPlay && !restoredJellyfinChoice {
@@ -720,14 +720,14 @@ func run(overrides config.Overrides, positional []string, daemon, visualizer60FP
 			operations.Unregister("plugin.call", "plugin.commands")
 			ipcSrv.SetOperationRegistry(operations)
 		}
-		ipcSrv.SetOperationRegistry(ddmusOperations()) // ddmus: no mono or plugin operations
+		ipcSrv.SetOperationRegistry(ddsonicOperations()) // ddsonic: no mono or plugin operations
 		go publishV2JobEvents(ipcSrv.Done(), ipcSrv.JobStore(), pluginBroker)
 	}
 
-	cat.start(prog) // ddmus: background catalog sync, once the program is about to run
+	cat.start(prog) // ddsonic: background catalog sync, once the program is about to run
 	finalModel, err := mediactl.Run(prog, svc)
-	m.StopLibrary()                           // ddmus: however the program ended (a signal skips Update)
-	if seq := m.ArtworkCleanup(); seq != "" { // ddmus: an image a signal left behind
+	m.StopLibrary()                           // ddsonic: however the program ended (a signal skips Update)
+	if seq := m.ArtworkCleanup(); seq != "" { // ddsonic: an image a signal left behind
 		_, _ = os.Stdout.WriteString(seq)
 	}
 	if err != nil {
@@ -857,7 +857,7 @@ func initLogging(levelStr string) (func() error, string, error) {
 	if err != nil {
 		return noop, "", fmt.Errorf("resolve config dir: %w", err)
 	}
-	closeFn, err := applog.Init(filepath.Join(dir, appdir.Name+".log"), level) // ddmus: ddmus.log
+	closeFn, err := applog.Init(filepath.Join(dir, appdir.Name+".log"), level) // ddsonic: ddsonic.log
 	if err != nil {
 		return noop, "", err
 	}
@@ -877,7 +877,7 @@ func wireMediaCtl(prog *tea.Program) (*mediactl.Service, error) {
 // package returns a bare sentinel, so all CLI copy stays in the command layer.
 func userIPCError(err error) error {
 	if errors.Is(err, ipc.ErrNotRunning) {
-		return fmt.Errorf("%s is not running (no socket at %s)", appmeta.ClientName(), ipc.DefaultSocketPath()) // ddmus
+		return fmt.Errorf("%s is not running (no socket at %s)", appmeta.ClientName(), ipc.DefaultSocketPath()) // ddsonic
 	}
 	return err
 }
@@ -969,9 +969,9 @@ func stateResult(snapshot ipc.RuntimeSnapshot) ipc.Response {
 
 func main() {
 	appmeta.SetVersion(version)
-	app := ddmusApp() // ddmus: the 1.0 surface (cli_ddmus.go)
+	app := ddsonicApp() // ddsonic: the 1.0 surface (cli_ddsonic.go)
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, cliError(err)) // ddmus
+		fmt.Fprintln(os.Stderr, cliError(err)) // ddsonic
 		os.Exit(1)
 	}
 }

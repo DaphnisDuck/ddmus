@@ -13,13 +13,13 @@ import (
 
 // TestIndexRealLibrary times a first index of a real music folder into an
 // empty catalog, reading tags and writing apart. It runs only when
-// DDMUS_BENCH_MUSIC names the folder:
+// DDSONIC_BENCH_MUSIC names the folder:
 //
-//	DDMUS_BENCH_MUSIC=/path/to/music go test ./catalogsync/localsrc -run RealLibrary -v
+//	DDSONIC_BENCH_MUSIC=/path/to/music go test ./catalogsync/localsrc -run RealLibrary -v
 func TestIndexRealLibrary(t *testing.T) {
-	dir := os.Getenv("DDMUS_BENCH_MUSIC")
+	dir := os.Getenv("DDSONIC_BENCH_MUSIC")
 	if dir == "" {
-		t.Skip("DDMUS_BENCH_MUSIC not set")
+		t.Skip("DDSONIC_BENCH_MUSIC not set")
 	}
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "library.db"))

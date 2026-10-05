@@ -1,6 +1,6 @@
 package model
 
-// ddmus: the info view's artwork stays in step with the terminal when
+// ddsonic: the info view's artwork stays in step with the terminal when
 // writes are slow and the selection changes underneath it (review R8).
 
 import (

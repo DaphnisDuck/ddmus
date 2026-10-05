@@ -1,6 +1,6 @@
 package local
 
-// ddmus: the folder Local's Albums, Artists and Genres are indexed from,
+// ddsonic: the folder Local's Albums, Artists and Genres are indexed from,
 // shared by the player and setup.
 
 import (

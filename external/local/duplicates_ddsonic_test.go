@@ -1,7 +1,7 @@
 package local
 
-// ddmus: upstream 5450f73c's tests, without the cases that need 306c8b93
-// (an addition placed between two saved tracks; ddmus appends it).
+// ddsonic: upstream 5450f73c's tests, without the cases that need 306c8b93
+// (an addition placed between two saved tracks; ddsonic appends it).
 
 import (
 	"slices"

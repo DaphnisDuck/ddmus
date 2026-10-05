@@ -1,6 +1,6 @@
 package model
 
-// ddmus: q quits from every library screen, and Esc steps back without ever
+// ddsonic: q quits from every library screen, and Esc steps back without ever
 // quitting (M8.1).
 
 import (

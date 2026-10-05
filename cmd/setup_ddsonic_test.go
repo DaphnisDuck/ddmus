@@ -34,11 +34,11 @@ func setupHome(t *testing.T, initial string) string {
 	return path
 }
 
-// fillSetup runs one entry of ddmus's wizard as a user would: choose it,
+// fillSetup runs one entry of ddsonic's wizard as a user would: choose it,
 // pick an option (when it has a picker), type the values, submit.
 func fillSetup(t *testing.T, key, pick string, values map[string]string) *setupModel {
 	t.Helper()
-	m := newDdmusSetupModel()
+	m := newDdsonicSetupModel()
 	idx := slices.IndexFunc(m.provs, func(p providerSpec) bool { return p.key == key })
 	if idx < 0 {
 		t.Fatalf("no %q in setup", key)
@@ -73,10 +73,10 @@ func readConfig(t *testing.T, path string) string {
 	return string(data)
 }
 
-func TestDdmusSetupOffersOnlyDdmusSources(t *testing.T) {
+func TestDdsonicSetupOffersOnlyDdsonicSources(t *testing.T) {
 	setupHome(t, "")
 	var keys []string
-	for _, p := range newDdmusSetupModel().provs {
+	for _, p := range newDdsonicSetupModel().provs {
 		keys = append(keys, p.key)
 	}
 	if want := []string{"spotify", "ytmusic", "local"}; !slices.Equal(keys, want) {
@@ -84,7 +84,7 @@ func TestDdmusSetupOffersOnlyDdmusSources(t *testing.T) {
 	}
 }
 
-func TestDdmusSetupFresh(t *testing.T) {
+func TestDdsonicSetupFresh(t *testing.T) {
 	path := setupHome(t, "")
 	m := fillSetup(t, "spotify", "default", nil)
 	if m.saveFailed != nil || m.resultErr != nil {
@@ -100,10 +100,10 @@ func TestDdmusSetupFresh(t *testing.T) {
 	}
 }
 
-// TestDdmusSetupRerunKeepsOtherKeys: an existing config and a rerun. The
+// TestDdsonicSetupRerunKeepsOtherKeys: an existing config and a rerun. The
 // wizard's own keys change (client_id goes with the switch to the shared
 // client); everything else stays where it was.
-func TestDdmusSetupRerunKeepsOtherKeys(t *testing.T) {
+func TestDdsonicSetupRerunKeepsOtherKeys(t *testing.T) {
 	initial := `theme = "nord"
 
 [spotify]
@@ -112,7 +112,7 @@ client_id = "abc"
 bitrate   = 160
 device_name = "desk"
 
-[ddmus]
+[ddsonic]
 spotify_refresh = "1h"
 `
 	path := setupHome(t, initial)
@@ -124,7 +124,7 @@ spotify_refresh = "1h"
 device_name = "desk"
 bitrate   = 96
 
-[ddmus]
+[ddsonic]
 spotify_refresh = "1h"
 `
 	if got := readConfig(t, path); got != want {
@@ -137,14 +137,14 @@ spotify_refresh = "1h"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Spotify.ClientID != "xyz" || cfg.Spotify.Bitrate != 320 || cfg.Ddmus.SpotifyRefresh.String() != "1h0m0s" || cfg.Theme != "nord" {
-		t.Errorf("after the rerun: spotify %+v, theme %q, refresh %v", cfg.Spotify, cfg.Theme, cfg.Ddmus.SpotifyRefresh)
+	if cfg.Spotify.ClientID != "xyz" || cfg.Spotify.Bitrate != 320 || cfg.Ddsonic.SpotifyRefresh.String() != "1h0m0s" || cfg.Theme != "nord" {
+		t.Errorf("after the rerun: spotify %+v, theme %q, refresh %v", cfg.Spotify, cfg.Theme, cfg.Ddsonic.SpotifyRefresh)
 	}
 }
 
-// TestDdmusSetupWritesIntoAliasSection: [yt] and [youtube] are YouTube
+// TestDdsonicSetupWritesIntoAliasSection: [yt] and [youtube] are YouTube
 // Music's section too; setup writes into it instead of adding [ytmusic].
-func TestDdmusSetupWritesIntoAliasSection(t *testing.T) {
+func TestDdsonicSetupWritesIntoAliasSection(t *testing.T) {
 	path := setupHome(t, "[yt]\ncookies_from = \"firefox\"\nexpand_playlist = false\n")
 	fillSetup(t, "ytmusic", "cookies", map[string]string{"cookies_from": "brave+gnomekeyring"})
 	got := readConfig(t, path)
@@ -154,15 +154,15 @@ func TestDdmusSetupWritesIntoAliasSection(t *testing.T) {
 	}
 }
 
-func TestDdmusSetupYouTubeOAuthPointsToSignin(t *testing.T) {
+func TestDdsonicSetupYouTubeOAuthPointsToSignin(t *testing.T) {
 	setupHome(t, "")
 	m := fillSetup(t, "ytmusic", "custom", map[string]string{"client_id": "id", "client_secret": "secret"})
-	if !strings.Contains(m.resultText, "ddmus youtube signin") {
+	if !strings.Contains(m.resultText, "ddsonic youtube signin") {
 		t.Errorf("result %q doesn't say to sign in", m.resultText)
 	}
 }
 
-func TestDdmusSetupMissingCredentials(t *testing.T) {
+func TestDdsonicSetupMissingCredentials(t *testing.T) {
 	path := setupHome(t, "")
 	m := fillSetup(t, "ytmusic", "custom", map[string]string{"client_secret": "secret"})
 	if m.resultErr == nil || !strings.Contains(m.resultErr.Error(), "Client ID is required") {
@@ -173,7 +173,7 @@ func TestDdmusSetupMissingCredentials(t *testing.T) {
 	}
 }
 
-func TestDdmusSetupLocalOnly(t *testing.T) {
+func TestDdsonicSetupLocalOnly(t *testing.T) {
 	path := setupHome(t, "[spotify]\nbitrate = 320\n")
 	music := t.TempDir()
 	m := fillSetup(t, "local", "", map[string]string{"initial_directory": music})
@@ -189,7 +189,7 @@ func TestDdmusSetupLocalOnly(t *testing.T) {
 	}
 }
 
-func TestDdmusSetupLocalDefaultsToCurrentFolder(t *testing.T) {
+func TestDdsonicSetupLocalDefaultsToCurrentFolder(t *testing.T) {
 	setupHome(t, "")
 	home := os.Getenv("HOME")
 	music := filepath.Join(home, "Music")
@@ -209,7 +209,7 @@ func TestDdmusSetupLocalDefaultsToCurrentFolder(t *testing.T) {
 	}
 }
 
-func TestDdmusSetupInvalidInput(t *testing.T) {
+func TestDdsonicSetupInvalidInput(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "song.mp3")
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
 		t.Fatal(err)
@@ -237,9 +237,9 @@ func TestDdmusSetupInvalidInput(t *testing.T) {
 	}
 }
 
-// TestDdmusSetupMalformedConfig: setup edits text, so lines config.Load
+// TestDdsonicSetupMalformedConfig: setup edits text, so lines config.Load
 // can't make sense of survive untouched.
-func TestDdmusSetupMalformedConfig(t *testing.T) {
+func TestDdsonicSetupMalformedConfig(t *testing.T) {
 	initial := "volume = = 3\n[[[ broken\n\n[spotify]\nbitrate = \"oops\n"
 	path := setupHome(t, initial)
 	m := fillSetup(t, "spotify", "default", nil)
@@ -252,9 +252,9 @@ func TestDdmusSetupMalformedConfig(t *testing.T) {
 	}
 }
 
-// TestDdmusSetupUnwritableConfig: the config folder can't be created (its
+// TestDdsonicSetupUnwritableConfig: the config folder can't be created (its
 // parent is read-only). The wizard shows the error instead of quitting.
-func TestDdmusSetupUnwritableConfig(t *testing.T) {
+func TestDdsonicSetupUnwritableConfig(t *testing.T) {
 	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("needs a non-root Unix user")
 	}
@@ -273,9 +273,9 @@ func TestDdmusSetupUnwritableConfig(t *testing.T) {
 	}
 }
 
-func TestDdmusSetupCtrlCWritesNothing(t *testing.T) {
+func TestDdsonicSetupCtrlCWritesNothing(t *testing.T) {
 	path := setupHome(t, "")
-	m := newDdmusSetupModel()
+	m := newDdsonicSetupModel()
 	m.handleKey(keyPress(tea.KeyEnter, "")) // Spotify
 	m.handleKey(keyPress(tea.KeyEnter, "")) // own app
 	m.values["client_id"] = "abc"
@@ -291,7 +291,7 @@ func TestDdmusSetupCtrlCWritesNothing(t *testing.T) {
 	}
 }
 
-func TestDdmusSetupKeepsSymlinkedConfig(t *testing.T) {
+func TestDdsonicSetupKeepsSymlinkedConfig(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks")
 	}
@@ -337,10 +337,10 @@ func TestSetTopLevelKey(t *testing.T) {
 	}
 }
 
-// TestDdmusSetupClearsEveryAliasSection: config.Load reads [ytmusic], [yt]
+// TestDdsonicSetupClearsEveryAliasSection: config.Load reads [ytmusic], [yt]
 // and [youtube] in file order, so a later one would override the saved
 // choice; each loses the wizard's keys.
-func TestDdmusSetupClearsEveryAliasSection(t *testing.T) {
+func TestDdsonicSetupClearsEveryAliasSection(t *testing.T) {
 	for _, order := range [][2]string{{"yt", "youtube"}, {"youtube", "ytmusic"}, {"ytmusic", "yt"}} {
 		t.Run(order[0]+","+order[1], func(t *testing.T) {
 			path := setupHome(t, fmt.Sprintf("[%s]\nenabled = true\ncookies_from = \"firefox\"\n\n[%s]\nenabled = true\nexpand_playlist = false\n", order[0], order[1]))
@@ -358,9 +358,9 @@ func TestDdmusSetupClearsEveryAliasSection(t *testing.T) {
 	}
 }
 
-// TestDdmusSetupLocalRoundTrips: config.toml's reader strips the quotes and
+// TestDdsonicSetupLocalRoundTrips: config.toml's reader strips the quotes and
 // decodes no escapes, so the saved folder must read back unchanged.
-func TestDdmusSetupLocalRoundTrips(t *testing.T) {
+func TestDdsonicSetupLocalRoundTrips(t *testing.T) {
 	for _, name := range []string{`music\archive`, `a "quoted" name`, "with # hash", "space and ümlaut", `it's`} {
 		t.Run(name, func(t *testing.T) {
 			setupHome(t, "")
@@ -389,11 +389,11 @@ func TestDdmusSetupLocalRoundTrips(t *testing.T) {
 	}
 }
 
-// TestDdmusSetupChecksFolderInBackground: Enter doesn't touch the disk on
+// TestDdsonicSetupChecksFolderInBackground: Enter doesn't touch the disk on
 // the UI goroutine (a stalled mount would freeze the wizard, Ctrl+C too).
-func TestDdmusSetupChecksFolderInBackground(t *testing.T) {
+func TestDdsonicSetupChecksFolderInBackground(t *testing.T) {
 	setupHome(t, "")
-	m := newDdmusSetupModel()
+	m := newDdsonicSetupModel()
 	m.menuCursor = slices.IndexFunc(m.provs, func(p providerSpec) bool { return p.key == "local" })
 	m.handleKey(keyPress(tea.KeyEnter, ""))
 	m.values["initial_directory"] = "/no/such/folder"
@@ -403,9 +403,9 @@ func TestDdmusSetupChecksFolderInBackground(t *testing.T) {
 	}
 }
 
-// TestDdmusSetupLocalFailureIsFinal: a failed folder check offers no "save
+// TestDdsonicSetupLocalFailureIsFinal: a failed folder check offers no "save
 // anyway"; y writes nothing.
-func TestDdmusSetupLocalFailureIsFinal(t *testing.T) {
+func TestDdsonicSetupLocalFailureIsFinal(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "song.mp3")
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
 		t.Fatal(err)

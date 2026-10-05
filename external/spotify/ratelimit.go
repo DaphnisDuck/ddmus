@@ -1,4 +1,4 @@
-// ddmus: the Web API rate-limit gate. Spotify answers sustained use with a
+// ddsonic: the Web API rate-limit gate. Spotify answers sustained use with a
 // 429 whose Retry-After can run to many hours. While that block lasts, every
 // Web API request fails at once with a *catalog.RateLimitError instead of
 // reaching Spotify (which may extend the block) or sleeping in the request.

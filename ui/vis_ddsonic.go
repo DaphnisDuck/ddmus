@@ -1,15 +1,15 @@
 package ui
 
-// ddmus: the visualizer modes ddmus offers. cliamp's modes stay in visModes,
+// ddsonic: the visualizer modes ddsonic offers. cliamp's modes stay in visModes,
 // whole and in upstream's order; a hidden one is only kept out of reach.
 
-// hiddenVisModes are built-in modes ddmus does not offer: Logo draws cliamp's
+// hiddenVisModes are built-in modes ddsonic does not offer: Logo draws cliamp's
 // name.
 var hiddenVisModes = map[VisMode]bool{VisLogo: true}
 
 func visModeHidden(mode VisMode) bool { return hiddenVisModes[mode] }
 
-// PublicVisModeNames returns the names of the built-in modes ddmus offers, in
+// PublicVisModeNames returns the names of the built-in modes ddsonic offers, in
 // cycle order. Unlike VisModeNames, a name's index is not its VisMode.
 func PublicVisModeNames() []string {
 	names := make([]string, 0, VisCount)

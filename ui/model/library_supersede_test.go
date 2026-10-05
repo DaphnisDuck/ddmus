@@ -1,6 +1,6 @@
 package model
 
-// ddmus: a library play still resolving must not land after a newer intent.
+// ddsonic: a library play still resolving must not land after a newer intent.
 
 import (
 	"context"

@@ -1,6 +1,6 @@
 package model
 
-// ddmus: after a sync, an open album or playlist rereads the catalog alone,
+// ddsonic: after a sync, an open album or playlist rereads the catalog alone,
 // never repeating the live calls its first load may have made (review R9).
 
 import (

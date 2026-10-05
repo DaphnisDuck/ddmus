@@ -1,6 +1,6 @@
 package model
 
-// ddmus: the queue view's keys (M7.1). Each passes the library gate and has
+// ddsonic: the queue view's keys (M7.1). Each passes the library gate and has
 // its cliamp effect; overlays open over the queue and close back to it.
 
 import (

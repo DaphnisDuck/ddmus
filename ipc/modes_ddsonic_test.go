@@ -27,10 +27,10 @@ func TestValidModeName(t *testing.T) {
 	}
 }
 
-func TestDefaultSocketPathIsDDMUS(t *testing.T) {
+func TestDefaultSocketPathIsDdsonic(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CLIAMP_CONFIG_DIR", dir)
-	if got := DefaultSocketPath(); got != filepath.Join(dir, "ddmus.sock") {
+	if got := DefaultSocketPath(); got != filepath.Join(dir, "ddsonic.sock") {
 		t.Errorf("DefaultSocketPath = %q", got)
 	}
 }

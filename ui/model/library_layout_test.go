@@ -1,6 +1,6 @@
 package model
 
-// ddmus: the library's views fill the terminal (M9). More rows in the
+// ddsonic: the library's views fill the terminal (M9). More rows in the
 // terminal list more entries, the frame is exactly the terminal's size, and
 // resizing keeps the cursor on screen.
 

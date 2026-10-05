@@ -1,6 +1,6 @@
 package spotify
 
-// ddmus: the rest of upstream deb2f447, "ensureSession stops after 30 s".
+// ddsonic: the rest of upstream deb2f447, "ensureSession stops after 30 s".
 
 import (
 	"context"

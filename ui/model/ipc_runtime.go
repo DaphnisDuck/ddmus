@@ -151,13 +151,13 @@ func (m *Model) handleV2Request(msg V2RequestMsg) tea.Cmd {
 		return nil
 	case "next":
 		m.scrobbleCurrent()
-		cmd := m.skipByUser(true) // ddmus: retires a pending library play
+		cmd := m.skipByUser(true) // ddsonic: retires a pending library play
 		m.notifyAll()
 		m.completeV2Job(msg.Jobs, msg.JobID, ipc.Response{OK: true})
 		return cmd
 	case "prev":
 		m.scrobbleCurrent()
-		cmd := m.skipByUser(false) // ddmus: retires a pending library play
+		cmd := m.skipByUser(false) // ddsonic: retires a pending library play
 		m.notifyAll()
 		m.completeV2Job(msg.Jobs, msg.JobID, ipc.Response{OK: true})
 		return cmd
@@ -268,7 +268,7 @@ func (m *Model) handleV2QueueRequest(ctx context.Context, jobs *ipc.JobStore, jo
 			m.failV2Job(jobs, jobID, v2InvalidParamsError())
 			return nil
 		}
-		m.retireLibraryPlay() // ddmus: the chosen track wins over an album still loading
+		m.retireLibraryPlay() // ddsonic: the chosen track wins over an album still loading
 		m.playlist.SetIndex(request.Index)
 		m.plCursor = request.Index
 		cmd := m.playCurrentTrack()
@@ -366,7 +366,7 @@ func (m *Model) handleV2Theme(jobs *ipc.JobStore, jobID string, request ipc.Requ
 
 func (m *Model) handleV2Visualizer(jobs *ipc.JobStore, jobID string, request ipc.Request) tea.Cmd {
 	if strings.EqualFold(request.Name, "list") {
-		m.completeV2Job(jobs, jobID, ipc.Response{OK: true, Items: ui.PublicVisModeNames()}) // ddmus: without the hidden modes
+		m.completeV2Job(jobs, jobID, ipc.Response{OK: true, Items: ui.PublicVisModeNames()}) // ddsonic: without the hidden modes
 		return nil
 	}
 	if m.vis == nil {
@@ -454,7 +454,7 @@ func (m *Model) handleV2EQ(jobs *ipc.JobStore, jobID string, request ipc.Request
 
 func (m *Model) handleV2Mode(jobs *ipc.JobStore, jobID string, request ipc.Request) tea.Cmd {
 	name := strings.ToLower(request.Name)
-	if !ipc.ValidModeName(request.Cmd, name) { // ddmus: an unknown name fails instead of toggling
+	if !ipc.ValidModeName(request.Cmd, name) { // ddsonic: an unknown name fails instead of toggling
 		m.failV2Job(jobs, jobID, v2InvalidParamsError())
 		return nil
 	}

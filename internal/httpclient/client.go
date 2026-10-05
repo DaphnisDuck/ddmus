@@ -14,13 +14,13 @@ import (
 	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/proxy"
 
-	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddsonic
 )
 
 // UserAgent is shared by API and stream requests so Navidrome identifies them
 // as the same player when applying per-player settings.
 //
-// ddmus: a function, not cliamp's constant: the identity is ddmus's and
+// ddsonic: a function, not cliamp's constant: the identity is ddsonic's and
 // carries the version, which is set at startup (appmeta.UserAgent).
 func UserAgent() string { return appmeta.UserAgent() }
 

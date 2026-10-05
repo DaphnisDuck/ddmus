@@ -37,7 +37,7 @@ func (m Model) renderBodyRegion() string {
 
 	joined := make([]string, rows)
 	for i := range joined {
-		joined[i] = left[i] + m.libColumnGutter() + right[i] // ddmus: a divider with the border (library_frame.go)
+		joined[i] = left[i] + m.libColumnGutter() + right[i] // ddsonic: a divider with the border (library_frame.go)
 	}
 	return strings.Join(joined, "\n")
 }
@@ -61,7 +61,7 @@ func (m Model) renderColumnHeaders() string {
 	// against their own column width, and the settings separator is re-fitted
 	// either way. The queue's header arrives here when it is toggled on.
 	return fillSeparator(m.renderPlaylistHeader(), m.layout.playlistWidth) +
-		m.libColumnGutter() + // ddmus: a divider with the border (library_frame.go)
+		m.libColumnGutter() + // ddsonic: a divider with the border (library_frame.go)
 		fillSeparator(sepHeader("Settings"), m.layout.settingsWidth)
 }
 
@@ -220,7 +220,7 @@ func (m Model) settingsVolume(w int) string {
 // settingsSource renders the active provider, or "" when there is only one
 // source to pick from and the row would say nothing.
 func (m Model) settingsSource(w int) string {
-	if m.libraryEnabled() { // ddmus: the playing track's source (library_source.go)
+	if m.libraryEnabled() { // ddsonic: the playing track's source (library_source.go)
 		return m.libSourceRow(w)
 	}
 	if len(m.providers) <= 1 {

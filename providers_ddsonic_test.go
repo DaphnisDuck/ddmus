@@ -78,8 +78,8 @@ func TestSupportedOnly(t *testing.T) {
 	}
 }
 
-func TestDDMUSOperationsDropRemoved(t *testing.T) {
-	ops := ddmusOperations()
+func TestDdsonicOperationsDropRemoved(t *testing.T) {
+	ops := ddsonicOperations()
 	for _, name := range []string{"mono", "plugin.call", "plugin.commands"} {
 		if _, ok := ops.Lookup(name); ok {
 			t.Errorf("operation %q is still registered", name)
@@ -92,18 +92,18 @@ func TestDDMUSOperationsDropRemoved(t *testing.T) {
 	}
 }
 
-// TestProviderFlagNarrowed runs --provider through ddmusApp's validator and
+// TestProviderFlagNarrowed runs --provider through ddsonicApp's validator and
 // upstream's overridesFromFlags, as a real start does.
 func TestProviderFlagNarrowed(t *testing.T) {
 	parse := func(v string) (config.Overrides, error) {
-		app := ddmusApp()
+		app := ddsonicApp()
 		var ov config.Overrides
 		app.Action = func(_ context.Context, c *cli.Command) error {
 			var err error
 			ov, err = overridesFromFlags(c)
 			return err
 		}
-		err := app.Run(context.Background(), []string{"ddmus", "--provider", v})
+		err := app.Run(context.Background(), []string{"ddsonic", "--provider", v})
 		return ov, err
 	}
 	// Every advertised value must survive the whole path, not just the validator.

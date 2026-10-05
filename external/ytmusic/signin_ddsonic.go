@@ -1,6 +1,6 @@
 package ytmusic
 
-// ddmus: a forced sign-in, to switch Google accounts.
+// ddsonic: a forced sign-in, to switch Google accounts.
 
 import (
 	"context"

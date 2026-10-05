@@ -1,9 +1,9 @@
 package main
 
-// ddmus: the command-line surface ddmus 1.0 ships (docs/ddmus/cli-audit.md).
+// ddsonic: the command-line surface ddsonic 1.0 ships (docs/ddsonic/cli-audit.md).
 // Upstream's buildApp stays whole, so its tests and merges keep working;
-// ddmusApp takes out what ddmus doesn't support and rewords what it words
-// differently. main runs ddmusApp through one tagged line.
+// ddsonicApp takes out what ddsonic doesn't support and rewords what it words
+// differently. main runs ddsonicApp through one tagged line.
 
 import (
 	"context"
@@ -26,8 +26,8 @@ var (
 	removedFlags    = []string{"daemon", "expanded", "mono", "simplified"}
 )
 
-// ddmusApp is buildApp as ddmus ships it.
-func ddmusApp() *cli.Command {
+// ddsonicApp is buildApp as ddsonic ships it.
+func ddsonicApp() *cli.Command {
 	app := buildApp()
 	// A plain go build has no version; urfave hides --version when it's empty.
 	if app.Version == "" {
@@ -49,7 +49,7 @@ func ddmusApp() *cli.Command {
 		}
 		if s, ok := f.(*cli.StringFlag); ok && s.Name == "provider" {
 			s.Usage = "default provider: " + strings.Join(startProviders, ", ") + " (cliamp is cliamp radio)"
-			s.Validator = validProvider // providers_ddmus.go
+			s.Validator = validProvider // providers_ddsonic.go
 		}
 	}
 	if c := app.Command("setup"); c != nil {
@@ -76,12 +76,12 @@ func removedCommand(name string) *cli.Command {
 		Hidden:          true,
 		SkipFlagParsing: true,
 		Action: func(context.Context, *cli.Command) error {
-			return fmt.Errorf("%q is not part of ddmus 1.0", name)
+			return fmt.Errorf("%q is not part of ddsonic 1.0", name)
 		},
 	}
 }
 
-// cliError is err as ddmus prints it: upstream's usage messages name its own
+// cliError is err as ddsonic prints it: upstream's usage messages name its own
 // binary ("usage: cliamp volume <dB>").
 func cliError(err error) string {
 	return strings.Replace(err.Error(), "usage: cliamp ", "usage: "+appmeta.ClientName()+" ", 1)

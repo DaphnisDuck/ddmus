@@ -23,7 +23,7 @@ func (m *Model) replacePlaylist(tracks []playlist.Track) {
 	}
 	m.playlist.Replace(tracks)
 	m.normalizeQueueOverlay()
-	m.retireLibraryPlay() // ddmus: a newer queue retires a pending library play
+	m.retireLibraryPlay() // ddsonic: a newer queue retires a pending library play
 }
 
 func trackIndexByPath(tracks []playlist.Track, path string) int {
@@ -176,7 +176,7 @@ func (m *Model) playCurrentTrack() tea.Cmd {
 // playTrackImmediate appends a track to the playlist and starts playing it now,
 // stopping any current playback. Used by search-result "Play now" actions.
 func (m *Model) playTrackImmediate(track playlist.Track) tea.Cmd {
-	m.retireLibraryPlay() // ddmus: every caller is an explicit play
+	m.retireLibraryPlay() // ddsonic: every caller is an explicit play
 	m.player.Stop()
 	m.player.ClearPreload()
 	m.playlist.Add(track)
@@ -215,7 +215,7 @@ func (m *Model) appendTrack(track playlist.Track) tea.Cmd {
 // its first track. Like playTrackImmediate it adds rather than replaces, so a
 // queue built up over an evening survives picking an album from search.
 func (m *Model) playAlbumImmediate(album playlist.Track, tracks []playlist.Track) tea.Cmd {
-	m.retireLibraryPlay() // ddmus: every caller is an explicit play
+	m.retireLibraryPlay() // ddsonic: every caller is an explicit play
 	m.player.Stop()
 	m.player.ClearPreload()
 	idx := m.playlist.Len()
@@ -456,7 +456,7 @@ func (m *Model) playTrack(track playlist.Track) tea.Cmd {
 		return playYTDLStreamCmd(m.player, track.Path, dur, m.requests.stream)
 	}
 	dur := time.Duration(track.DurationSecs) * time.Second
-	// ddmus: upstream 095a56ec (this part only). Custom URIs such as spotify:
+	// ddsonic: upstream 095a56ec (this part only). Custom URIs such as spotify:
 	// open over the network, which can take seconds. Start them off the
 	// Update goroutine like streams.
 	if track.Stream || m.isCustomStreamURI(track.Path) {

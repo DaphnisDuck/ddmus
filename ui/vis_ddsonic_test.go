@@ -1,6 +1,6 @@
 package ui
 
-// ddmus: the Logo visualizer draws cliamp's name, so ddmus keeps it out of
+// ddsonic: the Logo visualizer draws cliamp's name, so ddsonic keeps it out of
 // reach: not listed, not cycled to, not selectable by name or by mode.
 
 import (

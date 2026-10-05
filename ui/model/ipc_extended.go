@@ -71,7 +71,7 @@ func (m *Model) handleIPCURLResult(result ipcURLLoadResult) tea.Cmd {
 	m.addToHeaderState(result.tracks)
 	result.request.Reply <- ipc.Response{OK: true, Tracks: ipcTrackInfos(result.tracks), Total: len(result.tracks)}
 	if result.request.Play {
-		m.retireLibraryPlay() // ddmus: the chosen track wins over an album still loading
+		m.retireLibraryPlay() // ddsonic: the chosen track wins over an album still loading
 		m.player.Stop()
 		m.player.ClearPreload()
 		m.playlist.SetIndex(start)
@@ -112,7 +112,7 @@ func (m *Model) handleIPCQueue(request ipc.QueueRequestMsg) tea.Cmd {
 			request.Reply <- ipc.Response{OK: false, Error: "queue index out of range"}
 			return nil
 		}
-		m.retireLibraryPlay() // ddmus: the chosen track wins over an album still loading
+		m.retireLibraryPlay() // ddsonic: the chosen track wins over an album still loading
 		m.playlist.SetIndex(request.Index)
 		m.plCursor = request.Index
 		request.Reply <- m.ipcQueueResponse()

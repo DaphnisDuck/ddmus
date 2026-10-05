@@ -1,4 +1,4 @@
-// ddmus: keep Spotify outages from reading as "sign-in required".
+// ddsonic: keep Spotify outages from reading as "sign-in required".
 //
 // Upstream ensureSession reported every silent sign-in failure as
 // playlist.ErrNeedsAuth, so an outage (login5 answering 503 "no healthy

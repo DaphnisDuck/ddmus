@@ -1,8 +1,8 @@
 package main
 
-// ddmus: the providers ddmus 1.0 supports. The rest are cliamp's, and the
-// owner removed their entry points for 1.0 (docs/ddmus/cli-audit.md): their
-// sections stay in config.toml untouched, but ddmus constructs none of them,
+// ddsonic: the providers ddsonic 1.0 supports. The rest are cliamp's, and the
+// owner removed their entry points for 1.0 (docs/ddsonic/cli-audit.md): their
+// sections stay in config.toml untouched, but ddsonic constructs none of them,
 // and neither the library, --provider, IPC nor a hotkey reaches them. Plugins
 // go the same way. main.go calls in through tagged lines.
 
@@ -16,16 +16,16 @@ import (
 	"github.com/bjarneo/cliamp/ui/model"
 )
 
-// supportedProviders are the provider keys ddmus 1.0 ships; "cliamp" is
-// cliamp radio's channels, which ddmus keeps.
+// supportedProviders are the provider keys ddsonic 1.0 ships; "cliamp" is
+// cliamp radio's channels, which ddsonic keeps.
 var supportedProviders = []string{"cliamp", "radio", "local", "spotify", "ytmusic"}
 
-// startProviders are the supported providers ddmus can start in (--provider,
+// startProviders are the supported providers ddsonic can start in (--provider,
 // provider = in config.toml): upstream never offered Local as one.
 var startProviders = []string{"cliamp", "radio", "spotify", "ytmusic"}
 
 // hideProviders turns the unsupported providers off in cfg, in memory, so
-// main constructs none of them. A start provider ddmus doesn't offer falls
+// main constructs none of them. A start provider ddsonic doesn't offer falls
 // back to the default.
 func hideProviders(cfg *config.Config) {
 	cfg.Navidrome = config.NavidromeConfig{}
@@ -54,9 +54,9 @@ func supportedOnly(providers []model.ProviderEntry) []model.ProviderEntry {
 	})
 }
 
-// ddmusOperations is the IPC registry without what 1.0 removed: mono (the
+// ddsonicOperations is the IPC registry without what 1.0 removed: mono (the
 // UI dropped it in M8) and the plugin operations (no plugins load).
-func ddmusOperations() *ipc.OperationRegistry {
+func ddsonicOperations() *ipc.OperationRegistry {
 	ops := ipc.DefaultOperationRegistry()
 	ops.Unregister("mono", "plugin.call", "plugin.commands")
 	return ops

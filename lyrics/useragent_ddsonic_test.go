@@ -1,6 +1,6 @@
 package lyrics
 
-// ddmus: a lyrics lookup at LRCLIB is made as ddmus, not as cliamp.
+// ddsonic: a lyrics lookup at LRCLIB is made as ddsonic, not as cliamp.
 
 import (
 	"net/http"
@@ -10,7 +10,7 @@ import (
 	"github.com/bjarneo/cliamp/internal/appmeta"
 )
 
-func TestFetchLRCLIBIdentifiesAsDdmus(t *testing.T) {
+func TestFetchLRCLIBIdentifiesAsDdsonic(t *testing.T) {
 	var got string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = r.UserAgent()

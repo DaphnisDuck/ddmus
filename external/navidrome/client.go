@@ -204,7 +204,7 @@ func (c *NavidromeClient) buildURL(endpoint string, params url.Values) string {
 	params.Set("t", token)
 	params.Set("s", salt)
 	params.Set("v", "1.0.0")
-	params.Set("c", appmeta.ClientName()) // ddmus: distinct client from cliamp
+	params.Set("c", appmeta.ClientName()) // ddsonic: distinct client from cliamp
 	params.Set("f", "json")
 
 	return fmt.Sprintf("%s/rest/%s?%s", c.url, endpoint, params.Encode())
@@ -217,7 +217,7 @@ func (c *NavidromeClient) httpGet(rawURL string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", httpclient.UserAgent()) // ddmus: now a function
+	req.Header.Set("User-Agent", httpclient.UserAgent()) // ddsonic: now a function
 	return httpClient.Do(req)
 }
 

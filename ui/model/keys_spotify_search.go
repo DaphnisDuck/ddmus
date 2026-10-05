@@ -97,7 +97,7 @@ func (m *Model) handleSpotSearchResultsKey(msg tea.KeyPressMsg) tea.Cmd {
 				return m.expandSpotAlbum(track, spotAlbumPlay)
 			}
 			m.closeSpotSearch()
-			return m.spotSearchPlay([]playlist.Track{track}) // ddmus: Enter replaces the queue
+			return m.spotSearchPlay([]playlist.Track{track}) // ddsonic: Enter replaces the queue
 		}
 	case "a":
 		if count > 0 && !m.spotSearchBusy() {

@@ -1,6 +1,6 @@
 package model
 
-// ddmus: upstream 095a56ec's tests for the part ddmus ported: a custom URI
+// ddsonic: upstream 095a56ec's tests for the part ddsonic ported: a custom URI
 // (spotify:) opens off the Update goroutine.
 
 import (

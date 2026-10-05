@@ -1,6 +1,6 @@
 package player
 
-// ddmus: upstream 70e5f79e's clock for a yt-dlp seek by restart, ported
+// ddsonic: upstream 70e5f79e's clock for a yt-dlp seek by restart, ported
 // without the player refactors it sits on upstream.
 
 import "time"

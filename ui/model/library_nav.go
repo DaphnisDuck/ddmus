@@ -1,9 +1,9 @@
 package model
 
-// ddmus: the library navigation stack (Music → source → concept → item).
+// ddsonic: the library navigation stack (Music → source → concept → item).
 // The library owns the main screen; the playback chrome around it is
 // cliamp's, untouched. Upstream files reach this code only through small
-// "// ddmus:" hooks (handleKey, Update, activeScreen, activeOverlay, the
+// "// ddsonic:" hooks (handleKey, Update, activeScreen, activeOverlay, the
 // layout, the key bar and the SRC row).
 
 import (
@@ -31,12 +31,12 @@ type libraryState struct {
 	fits *libFits
 	// border draws the frame's border and rules (library_frame.go).
 	border bool
-	// art is the info view's artwork, nil when off (ddmus: library_info.go).
+	// art is the info view's artwork, nil when off (ddsonic: library_info.go).
 	art *libArt
 
 	// ctx is the library's lifetime: foreground work (loads, plays,
 	// artwork) derives its timeouts from it, and quitting cancels it, so
-	// nothing keeps fetching or writing once ddmus is on its way out.
+	// nothing keeps fetching or writing once ddsonic is on its way out.
 	ctx  context.Context
 	stop context.CancelFunc
 
@@ -204,7 +204,7 @@ func (m Model) libContext() context.Context {
 	return context.Background()
 }
 
-// libStop cancels foreground library work as ddmus quits.
+// libStop cancels foreground library work as ddsonic quits.
 func (m *Model) libStop() {
 	if m.lib.stop != nil {
 		m.lib.stop()

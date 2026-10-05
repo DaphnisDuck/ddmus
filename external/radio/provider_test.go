@@ -43,7 +43,7 @@ func TestProviderLoadsStationsFromTOML(t *testing.T) {
 	t.Setenv("HOME", home)
 
 	// Create radios.toml with one extra station.
-	cfgDir := filepath.Join(home, ".config", "ddmus")
+	cfgDir := filepath.Join(home, ".config", "ddsonic")
 	writeFile(t, filepath.Join(cfgDir, "radios.toml"), `[[station]]
 name = "Extra"
 url = "https://extra.example/stream"

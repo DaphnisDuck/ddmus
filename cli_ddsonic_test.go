@@ -71,12 +71,12 @@ func flagKind(f cli.Flag) string {
 	return kind
 }
 
-// The golden file pins what ddmus 1.0 promises on the command line. A
-// deliberate change: DDMUS_UPDATE_GOLDEN=1 go test -run TestCLISurfaceGolden .
+// The golden file pins what ddsonic 1.0 promises on the command line. A
+// deliberate change: DDSONIC_UPDATE_GOLDEN=1 go test -run TestCLISurfaceGolden .
 func TestCLISurfaceGolden(t *testing.T) {
-	got := cliSurface(ddmusApp())
+	got := cliSurface(ddsonicApp())
 	path := filepath.Join("testdata", "cli-surface.golden")
-	if os.Getenv("DDMUS_UPDATE_GOLDEN") == "1" {
+	if os.Getenv("DDSONIC_UPDATE_GOLDEN") == "1" {
 		if err := os.MkdirAll("testdata", 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -86,15 +86,15 @@ func TestCLISurfaceGolden(t *testing.T) {
 	}
 	want, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("%v (create it with DDMUS_UPDATE_GOLDEN=1)", err)
+		t.Fatalf("%v (create it with DDSONIC_UPDATE_GOLDEN=1)", err)
 	}
 	if got != string(want) {
 		t.Errorf("the CLI surface changed; if that's intended, regenerate %s and review the diff.\ngot:\n%s", path, got)
 	}
 }
 
-func TestDDMUSAppRemovesUnsupported(t *testing.T) {
-	upstream, shipped := buildApp(), ddmusApp()
+func TestDdsonicAppRemovesUnsupported(t *testing.T) {
+	upstream, shipped := buildApp(), ddsonicApp()
 	flagNames := func(c *cli.Command) []string {
 		var names []string
 		for _, f := range c.Flags {
@@ -108,10 +108,10 @@ func TestDDMUSAppRemovesUnsupported(t *testing.T) {
 		}
 		stub := shipped.Command(name)
 		if stub == nil || !stub.Hidden {
-			t.Errorf("ddmus still lists the %q command", name)
+			t.Errorf("ddsonic still lists the %q command", name)
 			continue
 		}
-		if err := stub.Action(context.Background(), stub); err == nil || !strings.Contains(err.Error(), "not part of ddmus 1.0") {
+		if err := stub.Action(context.Background(), stub); err == nil || !strings.Contains(err.Error(), "not part of ddsonic 1.0") {
 			t.Errorf("%s stub: %v", name, err)
 		}
 	}
@@ -120,13 +120,13 @@ func TestDDMUSAppRemovesUnsupported(t *testing.T) {
 			t.Errorf("upstream has no --%s flag: the removal list is stale", name)
 		}
 		if slices.Contains(flagNames(shipped), name) {
-			t.Errorf("ddmus still ships --%s", name)
+			t.Errorf("ddsonic still ships --%s", name)
 		}
 	}
 }
 
 func TestHistoryClearTakesNoOptions(t *testing.T) {
-	history := ddmusApp().Command("history")
+	history := ddsonicApp().Command("history")
 	if history == nil || len(history.Flags) == 0 {
 		t.Fatal("history lost its listing options")
 	}
@@ -137,9 +137,9 @@ func TestHistoryClearTakesNoOptions(t *testing.T) {
 	}
 }
 
-func TestCLIErrorNamesDDMUS(t *testing.T) {
+func TestCLIErrorNamesDdsonic(t *testing.T) {
 	got := cliError(errors.New("usage: cliamp volume <dB>"))
-	if got != "usage: ddmus volume <dB>" {
+	if got != "usage: ddsonic volume <dB>" {
 		t.Errorf("cliError = %q", got)
 	}
 	if got := cliError(errors.New("cliamp radio is gone")); got != "cliamp radio is gone" {
@@ -174,14 +174,14 @@ func TestVersionFlagWithoutBuildVersion(t *testing.T) {
 	saved := version
 	t.Cleanup(func() { version = saved })
 	version = ""
-	if got := ddmusApp().Version; got != "dev" {
+	if got := ddsonicApp().Version; got != "dev" {
 		t.Errorf("Version = %q, want dev", got)
 	}
 }
 
 // A changed boolean default must change the snapshot too (Codex, cli1 R1-F1).
 func TestCLISurfacePinsBoolDefaults(t *testing.T) {
-	app := ddmusApp()
+	app := ddsonicApp()
 	before := cliSurface(app)
 	for _, f := range app.Flags {
 		if b, ok := f.(*cli.BoolWithInverseFlag); ok && b.Name == "help-bar" {

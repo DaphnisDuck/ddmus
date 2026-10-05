@@ -1,6 +1,6 @@
 //go:build !windows
 
-// ddmus: pins the Playlists() sections the library navigation splits on.
+// ddsonic: pins the Playlists() sections the library navigation splits on.
 
 package spotify
 

@@ -437,7 +437,7 @@ func (p *Player) buildYTDLPipeline(pageURL string, startSec int) (*trackPipeline
 			continue
 		}
 
-		// ddmus: upstream 70e5f79e. The prefetch reads the pipe away from the
+		// ddsonic: upstream 70e5f79e. The prefetch reads the pipe away from the
 		// speaker callback, so a stalled download plays silence instead of
 		// holding the speaker lock, which froze every control.
 		return p.prefetchNetworkPipeline(&trackPipeline{

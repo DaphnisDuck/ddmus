@@ -26,9 +26,9 @@ import (
 //go:embed migrations/*.sql
 var migrationFS embed.FS
 
-// ErrSchemaTooNew means the database was migrated by a newer ddmus than
+// ErrSchemaTooNew means the database was migrated by a newer ddsonic than
 // this one, so this binary must not write to it.
-var ErrSchemaTooNew = errors.New("catalog database schema is newer than this ddmus")
+var ErrSchemaTooNew = errors.New("catalog database schema is newer than this ddsonic")
 
 // dsnParams apply to every pooled connection. WAL lets the UI read while a
 // sync writes; _txlock=immediate takes the write lock when a transaction
@@ -36,7 +36,7 @@ var ErrSchemaTooNew = errors.New("catalog database schema is newer than this ddm
 const dsnParams = "_journal_mode=WAL&_foreign_keys=on&_synchronous=NORMAL&_txlock=immediate"
 
 // Busy timeouts, in milliseconds. Only background syncs write, and another
-// ddmus on the same catalog can hold the write lock for a whole snapshot
+// ddsonic on the same catalog can hold the write lock for a whole snapshot
 // (a local index takes seconds), so the writer waits long; reads never wait
 // on a writer under WAL.
 const (

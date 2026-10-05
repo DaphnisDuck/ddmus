@@ -1,6 +1,6 @@
 package spotify
 
-// ddmus: ensureSession bounds session setup (upstream deb2f447). A setup that
+// ddsonic: ensureSession bounds session setup (upstream deb2f447). A setup that
 // stalls must end with an error and give the session lock up, not hold every
 // Spotify call behind it.
 

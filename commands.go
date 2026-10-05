@@ -54,7 +54,7 @@ func buildApp() *cli.Command {
 	}
 
 	return &cli.Command{
-		Name:                  appmeta.ClientName(), // ddmus
+		Name:                  appmeta.ClientName(), // ddsonic
 		Usage:                 "retro terminal music player",
 		Version:               version,
 		EnableShellCompletion: true,
@@ -76,7 +76,7 @@ func buildApp() *cli.Command {
 			historyCommand(),
 			radioCommand(),
 			setupCommand(),
-			youtubeCommand(), // ddmus: YouTube Music sign-in (commands_ddmus.go)
+			youtubeCommand(), // ddsonic: YouTube Music sign-in (commands_ddsonic.go)
 			spotifyCommand(),
 			qobuzCommand(),
 			tidalCommand(),
@@ -231,15 +231,15 @@ func overridesFromFlags(c *cli.Command) (config.Overrides, error) {
 	return ov, nil
 }
 
-// ddmus: the self-updater downloads cliamp's releases, which would replace
-// ddmus with cliamp. It stays registered (hidden) so `ddmus upgrade`
+// ddsonic: the self-updater downloads cliamp's releases, which would replace
+// ddsonic with cliamp. It stays registered (hidden) so `ddsonic upgrade`
 // explains itself instead of failing as an unknown command.
-var errUpgradeDisabled = errors.New("ddmus doesn't update itself: update it with your package manager (AUR: ddmus-bin), or download the latest release from https://github.com/DaphnisDuck/ddmus/releases")
+var errUpgradeDisabled = errors.New("ddsonic doesn't update itself: update it with your package manager (AUR: ddsonic-bin), or download the latest release from https://github.com/DaphnisDuck/ddsonic/releases")
 
 func upgradeCommand() *cli.Command {
 	return &cli.Command{
 		Name:   "upgrade",
-		Usage:  "disabled in ddmus; update by pulling and rebuilding",
+		Usage:  "disabled in ddsonic; update by pulling and rebuilding",
 		Hidden: true,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "prerelease", Usage: "upgrade to the latest prerelease"},
@@ -482,7 +482,7 @@ func providerCredsCommand(key, display string, credsPath func() (string, error),
 						return nil
 					}
 					fmt.Printf("Removed %s\n", path)
-					fmt.Printf("Restart %s and open %s to sign in again.\n", appmeta.ClientName(), display) // ddmus
+					fmt.Printf("Restart %s and open %s to sign in again.\n", appmeta.ClientName(), display) // ddsonic
 					return nil
 				},
 			},
@@ -786,7 +786,7 @@ func statusCommand() *cli.Command {
 			if resp.Repeat != "" {
 				fmt.Printf("Repeat: %s\n", resp.Repeat)
 			}
-			// ddmus: no Mono line; mono isn't a ddmus feature.
+			// ddsonic: no Mono line; mono isn't a ddsonic feature.
 			if resp.Speed > 0 {
 				fmt.Printf("Speed: %.2fx\n", resp.Speed)
 			}
@@ -926,9 +926,9 @@ func visCommand() *cli.Command {
 				if snapshot, err := ipcState(); err == nil {
 					active = snapshot.Visualizer
 				} else {
-					fmt.Fprintf(os.Stderr, "(%s not running — active marker unavailable)\n", appmeta.ClientName()) // ddmus
+					fmt.Fprintf(os.Stderr, "(%s not running — active marker unavailable)\n", appmeta.ClientName()) // ddsonic
 				}
-				for _, name := range ui.PublicVisModeNames() { // ddmus: without the hidden modes
+				for _, name := range ui.PublicVisModeNames() { // ddsonic: without the hidden modes
 					marker := "  "
 					if strings.EqualFold(name, active) {
 						marker = "* "
@@ -957,7 +957,7 @@ func shuffleCommand() *cli.Command {
 			if c.Args().Len() > 0 {
 				name = strings.ToLower(c.Args().First())
 			}
-			if err := checkModeName("shuffle", name); err != nil { // ddmus
+			if err := checkModeName("shuffle", name); err != nil { // ddsonic
 				return err
 			}
 			resp, err := ipcSend("shuffle", ipc.Request{Name: name})
@@ -984,7 +984,7 @@ func repeatCommand() *cli.Command {
 			if c.Args().Len() > 0 {
 				name = strings.ToLower(c.Args().First())
 			}
-			if err := checkModeName("repeat", name); err != nil { // ddmus
+			if err := checkModeName("repeat", name); err != nil { // ddsonic
 				return err
 			}
 			resp, err := ipcSend("repeat", ipc.Request{Name: name})

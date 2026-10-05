@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddsonic
 	"github.com/bjarneo/cliamp/internal/sshurl"
 
 	"github.com/gopxl/beep/v2"
@@ -204,7 +204,7 @@ func openSource(path string, onMeta func(string)) (sourceResult, error) {
 		cancel()
 		return sourceResult{}, fmt.Errorf("http request: %w", err)
 	}
-	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddmus
+	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddsonic
 	// Request ICY metadata — servers that don't support it simply ignore this header.
 	req.Header.Set("Icy-MetaData", "1")
 	resp, err := httpClient.Do(req)

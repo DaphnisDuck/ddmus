@@ -1,6 +1,6 @@
 package main
 
-// ddmus: the messages a user sees name ddmus, not cliamp.
+// ddsonic: the messages a user sees name ddsonic, not cliamp.
 
 import (
 	"fmt"
@@ -9,11 +9,11 @@ import (
 	"github.com/bjarneo/cliamp/ipc"
 )
 
-func TestNotRunningNamesDdmus(t *testing.T) {
+func TestNotRunningNamesDdsonic(t *testing.T) {
 	// The socket path comes from the environment and may contain any name;
 	// only the player's name in the message is under test.
 	got := userIPCError(ipc.ErrNotRunning).Error()
-	want := fmt.Sprintf("ddmus is not running (no socket at %s)", ipc.DefaultSocketPath())
+	want := fmt.Sprintf("ddsonic is not running (no socket at %s)", ipc.DefaultSocketPath())
 	if got != want {
 		t.Fatalf("userIPCError = %q, want %q", got, want)
 	}

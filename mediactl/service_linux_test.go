@@ -154,7 +154,7 @@ func TestServiceCallbacksDoNotWaitForSend(t *testing.T) {
 // TestServiceUpdateAfterConnectionLoss checks that Update does not panic
 // after the bus connection drops. godbus then fails each property emit, and
 // SetMust panics. The model calls Update on the event loop, so a panic there
-// ends ddmus in the middle of playback. (Upstream 23c66b70.)
+// ends ddsonic in the middle of playback. (Upstream 23c66b70.)
 func TestServiceUpdateAfterConnectionLoss(t *testing.T) {
 	base := playback.State{Status: playback.StatusPaused, VolumeDB: -12, Seekable: true}
 	tests := []struct {

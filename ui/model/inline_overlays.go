@@ -195,7 +195,7 @@ func (m Model) activeOverlay() (overlayView, bool) {
 		return overlayView{(*Model).searchHeaderLine, (*Model).searchHelpLine, (*Model).renderSearchList}, true
 	case m.netSearch.active:
 		return overlayView{(*Model).netSearchHeaderLine, (*Model).netSearchHelpLine, (*Model).renderNetSearchBody}, true
-	case m.libraryVisible(): // ddmus: lowest priority, so overlays it opens draw on top
+	case m.libraryVisible(): // ddsonic: lowest priority, so overlays it opens draw on top
 		return overlayView{(*Model).libHeaderLine, (*Model).libHelpLine, (*Model).renderLibraryBody}, true
 	}
 	return overlayView{}, false
@@ -306,7 +306,7 @@ func (m Model) renderQueueBody() string {
 	// not cloned on every frame.
 	windowStart := max(0, scroll-1)
 	tracks := m.playlist.QueueWindow(windowStart, 2*budget+2)
-	column := m.libUpNextColumn() // ddmus: wide rows end at their content (library_rows.go)
+	column := m.libUpNextColumn() // ddsonic: wide rows end at their content (library_rows.go)
 	localScroll, localCursor := scroll-windowStart, m.queue.cursor-windowStart
 	// clampedScroll counts tracks, but album headers take rows too. Advance
 	// past headers until the rows from scroll through the cursor fit.
@@ -327,7 +327,7 @@ func (m Model) renderQueueBody() string {
 			}
 			continue
 		}
-		restoreWidth := ui.WithPanelWidth(m.libTrackRowWidth(row.Track, 3+numWidth+2, column, false)) // ddmus
+		restoreWidth := ui.WithPanelWidth(m.libTrackRowWidth(row.Track, 3+numWidth+2, column, false)) // ddsonic
 		lines = append(lines, m.queueRow(row.Track, windowStart+row.Index, numWidth, stateReporters))
 		restoreWidth()
 	}
@@ -402,7 +402,7 @@ func clampedScroll(scroll, cursor, count, budget int) int {
 // — track info —
 
 func (m Model) renderInfoBody() string {
-	if body, ok := m.libInfoBody(); ok { // ddmus: with the album's artwork (library_info.go)
+	if body, ok := m.libInfoBody(); ok { // ddsonic: with the album's artwork (library_info.go)
 		return body
 	}
 	budget := m.effectivePlaylistVisible()

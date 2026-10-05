@@ -396,7 +396,7 @@ type Config struct {
 	Plugins          map[string]map[string]string // per-plugin config from [plugins.*] sections
 	LogLevel         string                       // log level: debug, info, warn, error (default "info")
 	LowPower         bool                         // reduce CPU by lowering UI cadence and disabling visualization
-	Ddmus            DdmusConfig                  // ddmus: the [ddmus] section (config/ddmus.go)
+	Ddsonic          DdsonicConfig                // ddsonic: the [ddsonic] section (config/ddsonic.go)
 }
 
 // defaultConfig returns a Config with sensible defaults.
@@ -405,7 +405,7 @@ type Config struct {
 // that require a specific rate (commonly 48 kHz) work out of the box.
 func defaultConfig() Config {
 	return Config{
-		Ddmus:           defaultDdmusConfig(), // ddmus
+		Ddsonic:         defaultDdsonicConfig(), // ddsonic
 		VolumeMin:       -50,
 		VisVolumeLinked: true,
 		Repeat:          "off",
@@ -491,8 +491,8 @@ func Load() (Config, error) {
 		val = strings.TrimSpace(val)
 
 		switch section {
-		case "ddmus": // ddmus: fork settings, parsed in config/ddmus.go
-			cfg.Ddmus.parseKey(key, val)
+		case "ddsonic": // ddsonic: fork settings, parsed in config/ddsonic.go
+			cfg.Ddsonic.parseKey(key, val)
 		case "downloads":
 			if key == "directory" {
 				cfg.Downloads.Directory = parseString(val)

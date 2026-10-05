@@ -1,8 +1,8 @@
 package cmd
 
-// ddmus: setup as ddmus 1.0 ships it (docs/ddmus/cli-audit.md). Upstream's
+// ddsonic: setup as ddsonic 1.0 ships it (docs/ddsonic/cli-audit.md). Upstream's
 // wizard and its provider list stay whole, so its tests and merges keep
-// working; ddmus offers only what it uses: Spotify, YouTube Music and the
+// working; ddsonic offers only what it uses: Spotify, YouTube Music and the
 // Local music folder. A rerun keeps the keys of a section the wizard doesn't
 // manage (owner, 2026-10-02), and every write replaces config.toml
 // atomically. setup.go calls in through tagged lines.
@@ -23,16 +23,16 @@ import (
 	"github.com/bjarneo/cliamp/internal/fileutil"
 )
 
-// newDdmusSetupModel is upstream's wizard with ddmus's three entries.
-func newDdmusSetupModel() *setupModel {
+// newDdsonicSetupModel is upstream's wizard with ddsonic's three entries.
+func newDdsonicSetupModel() *setupModel {
 	m := newSetupModel()
-	m.provs = ddmusSetupProviders()
+	m.provs = ddsonicSetupProviders()
 	return m
 }
 
-// ddmusSetupProviders lists what ddmus sets up, Spotify and YouTube Music
+// ddsonicSetupProviders lists what ddsonic sets up, Spotify and YouTube Music
 // reworded from upstream's specs.
-func ddmusSetupProviders() []providerSpec {
+func ddsonicSetupProviders() []providerSpec {
 	var spotify, ytmusic providerSpec
 	for _, p := range providers() {
 		switch p.key {
@@ -49,13 +49,13 @@ func ddmusSetupProviders() []providerSpec {
 		"",
 		"Recommended: your own Spotify Developer app, from",
 		"developer.spotify.com/dashboard, with the redirect URI",
-		"http://127.0.0.1:19872/login. Its client_id gives ddmus a quota",
+		"http://127.0.0.1:19872/login. Its client_id gives ddsonic a quota",
 		"of its own for syncing your library and searching.",
 		"",
-		"Otherwise ddmus uses the built-in client_id shared by every",
+		"Otherwise ddsonic uses the built-in client_id shared by every",
 		"librespot-based player, which Spotify rate-limits more often.",
 		"",
-		"You sign in the first time you open Spotify in ddmus.",
+		"You sign in the first time you open Spotify in ddsonic.",
 	}
 	spotify.save = mergeSave(spotify)
 
@@ -64,7 +64,7 @@ func ddmusSetupProviders() []providerSpec {
 		"",
 		"Browser cookies need no setup beyond a browser signed in to",
 		"YouTube. On Linux, name a Chrome-family browser with its keyring,",
-		"e.g. brave+gnomekeyring (see docs/ddmus/youtube.md).",
+		"e.g. brave+gnomekeyring (see docs/ddsonic/youtube.md).",
 		"Your own Google OAuth client is the other way; you can use both.",
 	}
 	ytSave := mergeSave(ytmusic)
@@ -89,7 +89,7 @@ func localSetupSpec() providerSpec {
 		key:  "local",
 		name: "Local music folder",
 		intro: []string{
-			"The folder ddmus indexes for Local's albums, artists and genres.",
+			"The folder ddsonic indexes for Local's albums, artists and genres.",
 			"",
 			"Now: " + current,
 		},
@@ -122,7 +122,7 @@ func localSetupSpec() providerSpec {
 	}
 }
 
-// currentMusicDir is the folder ddmus indexes now. A config.toml that
+// currentMusicDir is the folder ddsonic indexes now. A config.toml that
 // doesn't load leaves the fallbacks.
 func currentMusicDir() string {
 	cfg, err := config.Load()
@@ -152,7 +152,7 @@ func folderPath(input string) (string, error) {
 	return dir, nil
 }
 
-// readableFolder checks that dir is a folder ddmus can list, reading one
+// readableFolder checks that dir is a folder ddsonic can list, reading one
 // entry rather than the whole folder.
 func readableFolder(dir string) error {
 	info, err := os.Stat(dir)
@@ -345,7 +345,7 @@ func writeConfigAtomic(path string, lines []string) error {
 	return fileutil.WriteFileAtomic(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600)
 }
 
-// persist saves the active spec: its own way when it has one (ddmus's
+// persist saves the active spec: its own way when it has one (ddsonic's
 // entries), else upstream's section rewrite.
 func (m *setupModel) persist(spec providerSpec) (string, error) {
 	if spec.save != nil {

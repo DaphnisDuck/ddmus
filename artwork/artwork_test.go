@@ -27,8 +27,8 @@ func TestResolve(t *testing.T) {
 	}{
 		{"spotify cover", playlist.Track{Path: "spotify:track:x", AlbumArtURL: "https://i.scdn.co/image/ab"},
 			Ref{Key: "https://i.scdn.co/image/ab", URL: "https://i.scdn.co/image/ab"}},
-		{"extracted embedded art", playlist.Track{Path: "/m/a.flac", AlbumArtURL: "file:///home/u/.local/share/ddmus/album-art/f.jpg"},
-			Ref{Key: "file:/home/u/.local/share/ddmus/album-art/f.jpg", File: "/home/u/.local/share/ddmus/album-art/f.jpg"}},
+		{"extracted embedded art", playlist.Track{Path: "/m/a.flac", AlbumArtURL: "file:///home/u/.local/share/ddsonic/album-art/f.jpg"},
+			Ref{Key: "file:/home/u/.local/share/ddsonic/album-art/f.jpg", File: "/home/u/.local/share/ddsonic/album-art/f.jpg"}},
 		{"local file", playlist.Track{Path: "/m/Album/01.flac"}, Ref{Key: "audio:/m/Album/01.flac", Audio: "/m/Album/01.flac"}},
 		{"local file with % and :", playlist.Track{Path: "/m/100% Hits: Vol 1/01.mp3"}, Ref{Key: "audio:/m/100% Hits: Vol 1/01.mp3", Audio: "/m/100% Hits: Vol 1/01.mp3"}},
 		{"relative local file", playlist.Track{Path: "Album/01.flac"}, Ref{Key: "audio:Album/01.flac", Audio: "Album/01.flac"}},

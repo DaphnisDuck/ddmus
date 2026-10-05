@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time" // ddmus
+	"time" // ddsonic
 
 	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/internal/browser"
@@ -87,12 +87,12 @@ func NewSessionSilent(ctx context.Context, clientID, clientSecret string) (*Sess
 
 // newSessionFromStored creates a session from stored credentials via silent refresh.
 func newSessionFromStored(ctx context.Context, clientID, clientSecret string, creds *storedCreds) (*Session, error) {
-	token, err := silentTokenRefresh(tokenContext(ctx), clientID, clientSecret, creds.RefreshToken) // ddmus: ctx
+	token, err := silentTokenRefresh(tokenContext(ctx), clientID, clientSecret, creds.RefreshToken) // ddsonic: ctx
 	if err != nil {
 		return nil, fmt.Errorf("ytmusic: silent refresh: %w", err)
 	}
 
-	ts := sessionTokenSource(ctx, googleOAuthConfig(clientID, clientSecret), token) // ddmus: bounded, outlives ctx
+	ts := sessionTokenSource(ctx, googleOAuthConfig(clientID, clientSecret), token) // ddsonic: bounded, outlives ctx
 
 	svc, err := youtube.NewService(ctx, option.WithTokenSource(ts))
 	if err != nil {
@@ -119,13 +119,13 @@ func newSessionFromStored(ctx context.Context, clientID, clientSecret string, cr
 
 // silentTokenRefresh uses a stored refresh token to get a new access token
 // without opening a browser.
-func silentTokenRefresh(ctx context.Context, clientID, clientSecret, refreshToken string) (*oauth2.Token, error) { // ddmus: ctx
+func silentTokenRefresh(ctx context.Context, clientID, clientSecret, refreshToken string) (*oauth2.Token, error) { // ddsonic: ctx
 	conf := googleOAuthConfig(clientID, clientSecret)
 	src := conf.TokenSource(ctx, &oauth2.Token{RefreshToken: refreshToken})
 	return src.Token()
 }
 
-// ddmus: token requests are bounded and follow the caller's ctx. Without a
+// ddsonic: token requests are bounded and follow the caller's ctx. Without a
 // client in ctx, oauth2 uses http.DefaultClient, which never times out, so
 // a stalled token endpoint held a catalog sync forever.
 var tokenHTTPClient = &http.Client{Timeout: 30 * time.Second}
@@ -139,19 +139,19 @@ func tokenContext(ctx context.Context) context.Context {
 // context it was built with for as long as the session lives, so it must not
 // be the sign-in's: that one ends with the sign-in, and the first refresh,
 // about an hour later, failed with "context canceled" until a restart
-// (ddmus: upstream 85a0f120).
+// (ddsonic: upstream 85a0f120).
 func sessionTokenSource(ctx context.Context, conf *oauth2.Config, token *oauth2.Token) oauth2.TokenSource {
 	return conf.TokenSource(tokenContext(context.WithoutCancel(ctx)), token)
 }
 
 // newInteractiveSession performs an OAuth2 flow to authenticate.
-func newInteractiveSession(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*Session, error) { // ddmus: opts
+func newInteractiveSession(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*Session, error) { // ddsonic: opts
 	token, err := doOAuth(ctx, clientID, clientSecret, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	ts := sessionTokenSource(ctx, googleOAuthConfig(clientID, clientSecret), token) // ddmus: outlives the sign-in's ctx
+	ts := sessionTokenSource(ctx, googleOAuthConfig(clientID, clientSecret), token) // ddsonic: outlives the sign-in's ctx
 
 	svc, err := youtube.NewService(ctx, option.WithTokenSource(ts))
 	if err != nil {
@@ -180,8 +180,8 @@ func newInteractiveSession(ctx context.Context, clientID, clientSecret string, o
 // exchanges code for token. The context controls cancellation — if ctx is
 // cancelled (e.g. the user retries auth), the listener is closed and the
 // function returns promptly, freeing the callback port.
-func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) { // ddmus: opts
-	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", CallbackPort)) // ddmus: the redirect URI's host only, not every interface
+func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) { // ddsonic: opts
+	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", CallbackPort)) // ddsonic: the redirect URI's host only, not every interface
 	if err != nil {
 		return nil, fmt.Errorf("ytmusic: listen on port %d (is another instance running?): %w", CallbackPort, err)
 	}
@@ -190,13 +190,13 @@ func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.
 	oauthConf := googleOAuthConfig(clientID, clientSecret)
 
 	verifier := oauth2.GenerateVerifier()
-	// ddmus: a callback without this state is not Google's.
+	// ddsonic: a callback without this state is not Google's.
 	state := rand.Text()
-	authURL := oauthConf.AuthCodeURL(state, append([]oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier), oauth2.AccessTypeOffline}, opts...)...) // ddmus: opts
+	authURL := oauthConf.AuthCodeURL(state, append([]oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier), oauth2.AccessTypeOffline}, opts...)...) // ddsonic: opts
 
 	codeCh := make(chan string, 1)
 	go func() {
-		if err := http.Serve(lis, oauthCallback(state, codeCh)); err != nil && !errors.Is(err, net.ErrClosed) { // ddmus: oauthCallback
+		if err := http.Serve(lis, oauthCallback(state, codeCh)); err != nil && !errors.Is(err, net.ErrClosed) { // ddsonic: oauthCallback
 			fmt.Fprintf(os.Stderr, "ytmusic: auth callback server error: %v\n", err)
 		}
 	}()
@@ -210,7 +210,7 @@ func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.
 		return nil, fmt.Errorf("ytmusic: authentication cancelled: %w", ctx.Err())
 	}
 
-	token, err := oauthConf.Exchange(tokenContext(ctx), code, oauth2.VerifierOption(verifier)) // ddmus: bounded
+	token, err := oauthConf.Exchange(tokenContext(ctx), code, oauth2.VerifierOption(verifier)) // ddsonic: bounded
 	if err != nil {
 		return nil, fmt.Errorf("ytmusic: token exchange: %w", err)
 	}
@@ -221,7 +221,7 @@ func doOAuth(ctx context.Context, clientID, clientSecret string, opts ...oauth2.
 
 // oauthCallback serves the OAuth redirect: it hands on the first code that
 // carries state, and turns away requests without it (another local process
-// or page racing the browser). ddmus: extracted from doOAuth, with the state
+// or page racing the browser). ddsonic: extracted from doOAuth, with the state
 // check and a send that never blocks.
 func oauthCallback(state string, codeCh chan<- string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -294,5 +294,5 @@ func saveCreds(creds *storedCreds) error {
 	if err != nil {
 		return err
 	}
-	return fileutil.WriteFileAtomic(path, data, 0o600) // ddmus: the catalog sync reads it concurrently
+	return fileutil.WriteFileAtomic(path, data, 0o600) // ddsonic: the catalog sync reads it concurrently
 }

@@ -1,6 +1,6 @@
 package model
 
-// ddmus: album artwork in the track info view (i in the queue).
+// ddsonic: album artwork in the track info view (i in the queue).
 //
 // The artwork package finds and loads a track's artwork; kittyimg draws it.
 // This file lays the info view out with the artwork beside the metadata and
@@ -9,8 +9,8 @@ package model
 // view shows the image kept under the selected track's key, so a late
 // result can never land on another track. One hook at the end of Update
 // sends the image to the terminal, gives it a new size when the view's room
-// changes, and frees it before ddmus quits. Without an image-capable
-// terminal, or with [ddmus] artwork = false, lib.art is nil and none of
+// changes, and frees it before ddsonic quits. Without an image-capable
+// terminal, or with [ddsonic] artwork = false, lib.art is nil and none of
 // this runs.
 
 import (
@@ -99,11 +99,11 @@ func (m *Model) SetArtwork(load func(context.Context, artwork.Ref) (image.Image,
 		m.lib.art = nil
 		return
 	}
-	// The id is per process, so two ddmus in one terminal rarely share it.
+	// The id is per process, so two ddsonic in one terminal rarely share it.
 	m.lib.art = &libArt{id: 1 + os.Getpid()%255, load: load, images: map[string]*libArtImage{}, busy: map[string]bool{}}
 }
 
-// ArtworkCleanup returns what frees the image ddmus left with the terminal,
+// ArtworkCleanup returns what frees the image ddsonic left with the terminal,
 // or "". main writes it after the program ends, for the ways out (a signal)
 // that never reach Update's quit.
 func (m Model) ArtworkCleanup() string {
@@ -276,7 +276,7 @@ func (m Model) libInfoBody() (string, bool) {
 // it sends the selected track's image once, places it anew when its box
 // changes (a resize, the key bar, the cell size), asks for the cell size
 // again after a resize (a font change moves it), and frees the image before
-// ddmus quits. It returns cmd with those sequences. Ticks and other
+// ddsonic quits. It returns cmd with those sequences. Ticks and other
 // messages that cannot change the box pass straight through.
 func (m *Model) libArtworkSync(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
 	a := m.lib.art

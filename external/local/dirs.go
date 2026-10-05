@@ -144,7 +144,7 @@ type playlistSection struct {
 // a materialized track keeps its position among the directory's tracks;
 // tracks no directory provides are appended at the end.
 //
-// ddmus: upstream 5450f73c (match by occurrence, not by path alone), ported
+// ddsonic: upstream 5450f73c (match by occurrence, not by path alone), ported
 // without 306c8b93's placement of additions, which waits for the 1.1 merge.
 func rebuildDoc(existing *playlistDoc, explicit []playlist.Track) (tracks []playlist.Track, dirs []playlist.DirSource, order []uint8) {
 	// A caller track can take an original slot while the document has a copy

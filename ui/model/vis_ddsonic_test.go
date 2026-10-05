@@ -1,6 +1,6 @@
 package model
 
-// ddmus: a config or a remote command naming the hidden Logo visualizer is
+// ddsonic: a config or a remote command naming the hidden Logo visualizer is
 // refused, and the visualizer stays as it was (the default, at startup).
 
 import (

@@ -1,4 +1,4 @@
-// ddmus: the self-updater must refuse, since it would install cliamp.
+// ddsonic: the self-updater must refuse, since it would install cliamp.
 
 package main
 

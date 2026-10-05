@@ -1,6 +1,6 @@
 package player
 
-// ddmus: an HTTP stream is opened as ddmus, not as cliamp.
+// ddsonic: an HTTP stream is opened as ddsonic, not as cliamp.
 
 import (
 	"net/http"
@@ -10,7 +10,7 @@ import (
 	"github.com/bjarneo/cliamp/internal/appmeta"
 )
 
-func TestOpenSourceIdentifiesAsDdmus(t *testing.T) {
+func TestOpenSourceIdentifiesAsDdsonic(t *testing.T) {
 	var got string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = r.UserAgent()

@@ -1,6 +1,6 @@
 package model
 
-// ddmus: cliamp's own provider search ("Search Spotify for …") plays as the
+// ddsonic: cliamp's own provider search ("Search Spotify for …") plays as the
 // library does: Enter replaces the queue; a and q still append and queue
 // next; Stop drops an album still loading.
 

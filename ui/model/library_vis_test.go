@@ -1,6 +1,6 @@
 package model
 
-// ddmus: v cycles the visualizer in the queue, as in cliamp, and every mode
+// ddsonic: v cycles the visualizer in the queue, as in cliamp, and every mode
 // keeps the frame exactly the terminal's size.
 
 import (

@@ -1,6 +1,6 @@
 package main
 
-// ddmus: tests for ddmus' own subcommands.
+// ddsonic: tests for ddsonic' own subcommands.
 
 import (
 	"context"

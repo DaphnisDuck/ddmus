@@ -1,4 +1,4 @@
-// ddmus: tests for the cookie-mode catalog fetchers.
+// ddsonic: tests for the cookie-mode catalog fetchers.
 
 package ytmusic
 

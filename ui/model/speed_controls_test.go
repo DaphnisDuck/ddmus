@@ -69,7 +69,7 @@ func TestTickPendingSpeedSaveUsesElapsedTime(t *testing.T) {
 	m := Model{player: sharedPlayer, configSaver: config.SaveFunc{}}
 	m.changeSpeed(0.5)
 
-	configPath := filepath.Join(home, ".config", "ddmus", "config.toml")
+	configPath := filepath.Join(home, ".config", "ddsonic", "config.toml")
 	for i := range 4 {
 		m.tickPendingSpeedSave(ui.TickSlow)
 		if _, err := os.Stat(configPath); !os.IsNotExist(err) {
@@ -111,7 +111,7 @@ func TestFlushPendingSpeedSavePersistsImmediately(t *testing.T) {
 	m.changeSpeed(0.25)
 	m.flushPendingSpeedSave()
 
-	configPath := filepath.Join(home, ".config", "ddmus", "config.toml")
+	configPath := filepath.Join(home, ".config", "ddsonic", "config.toml")
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", configPath, err)

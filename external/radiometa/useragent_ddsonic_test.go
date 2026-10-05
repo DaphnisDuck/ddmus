@@ -1,6 +1,6 @@
 package radiometa
 
-// ddmus: a now-playing lookup is made as ddmus, not as cliamp.
+// ddsonic: a now-playing lookup is made as ddsonic, not as cliamp.
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/bjarneo/cliamp/internal/appmeta"
 )
 
-func TestGetJSONIdentifiesAsDdmus(t *testing.T) {
+func TestGetJSONIdentifiesAsDdsonic(t *testing.T) {
 	var got string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = r.UserAgent()

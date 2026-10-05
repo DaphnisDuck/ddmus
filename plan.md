@@ -1,10 +1,12 @@
-# ddmus plan (DaphnisDuck's Music Player)
+# ddsonic plan (DaphnisDuck's Music Player)
 
-This is the working anchor for the ddmus fork of cliamp. Read it before starting any task. Update **Status** and **Decisions** as work lands.
+This is the working anchor for the ddsonic fork of cliamp. Read it before starting any task. Update **Status** and **Decisions** as work lands.
+
+The project was called omatunes until v0.6 and ddmus from v0.6 to `v1.0.0-rc.1`; it has been ddsonic since 2026-10-04. The milestone plans, **Status** and the **Decisions log** below are history and keep the names, paths and file names that were true when each entry was written (`ddmus`, `docs/ddmus/`, `*_ddmus.go`, `// ddmus:`). Read them as today's `ddsonic` equivalents.
 
 ## Vision
 
-You shouldn't have to remember where your music lives. ddmus turns cliamp's provider-oriented TUI into a library-oriented player:
+You shouldn't have to remember where your music lives. ddsonic turns cliamp's provider-oriented TUI into a library-oriented player:
 
 - The application owns navigation.
 - Providers own capabilities and content.
@@ -99,7 +101,7 @@ Done when:
 - `i` in the queue shows the album's artwork beside the track's metadata when the terminal can draw images (Kitty, Ghostty) and artwork exists (Spotify covers, local embedded art or cover files). Everywhere else the info view is as before. Nothing else in the UI changes.
 
 ### 1.0 release (feature freeze)
-- M1–M10 are the 1.0 feature set. No features before 1.0: prove, package, document, release. The plan, with its workstreams, gates A–D and every owner decision, is `docs/ddmus/release-plan.md`. Work happens on `release-1.0`.
+- M1–M10 are the 1.0 feature set. No features before 1.0: prove, package, document, release. The plan, with its workstreams, gates A–D and every owner decision, is `docs/ddsonic/release-plan.md`. Work happens on `release-1.0`.
 
 ## Architecture invariants
 1. `library/` defines the navigation Node model and has no Bubbletea dependency. `ui/model` only talks to Nodes (and, from M2, the Catalog). The exception is playback, which uses the existing cliamp paths.
@@ -109,12 +111,12 @@ Done when:
 5. Secrets (tokens, credentials) never go into the catalog database.
 
 ## Upstream policy
-- The `upstream` remote is `https://github.com/bjarneo/cliamp.git`. `origin` is `DaphnisDuck/ddmus` (renamed from omatunes in M6).
+- The `upstream` remote is `https://github.com/bjarneo/cliamp.git`. `origin` is `DaphnisDuck/ddsonic` (omatunes until M6, then ddmus; the GitHub repository itself is renamed at the 1.0 cutover, see `docs/ddsonic/releasing.md`).
 - To sync, create a branch `sync/upstream-YYYYMMDD`, run `git fetch upstream && git merge upstream/main`, then `make check`, then open a PR. Merge; don't rebase public history.
-- Keep the Go module path `github.com/bjarneo/cliamp`. ddmus has its own config, data, downloads and MPRIS name so it runs beside cliamp (see `docs/ddmus/files.md`).
+- Keep the Go module path `github.com/bjarneo/cliamp`. ddsonic has its own config, data, downloads and MPRIS name so it runs beside cliamp (see `docs/ddsonic/files.md`).
 - Put new code in new files and packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`).
-- Keep each unavoidable edit to an upstream file small, and tag it with a `// ddmus:` comment.
-- ddmus docs live in `docs/ddmus/`. Upstream's `docs/` and `site/` are left untouched to avoid conflicts, so the CLAUDE.md rule "keep site in sync" applies to upstream-style changes only.
+- Keep each unavoidable edit to an upstream file small, and tag it with a `// ddsonic:` comment.
+- ddsonic docs live in `docs/ddsonic/`. Upstream's `docs/` is left untouched to avoid conflicts. Upstream's `site/`, Nix files and branding assets were removed on 2026-10-04 (`docs/ddsonic/upstream.md`), so the CLAUDE.md rule "keep site in sync" no longer applies.
 
 ## M2 implementation plan
 
@@ -777,7 +779,9 @@ Branch `m10-artwork`.
     - [x] Documentation and release hygiene (2026-10-04, branch `cleanup-1.0`): the messages a user sees name ddmus (not running, already running, the Spotify reset advice, the no-audio hint); `config.toml.example` is ddmus's; `SECURITY.md` says no binaries exist yet; `files.md` and the templates no longer mention plugins or cliamp; `CNAME` removed; `docs/README.md` sorts cliamp's 35 inherited pages into what applies and what does not (index only, by the owner's decision; no page deleted). Found on the way: `config.toml` has no inline comments (a `# …` after a value becomes part of it), which several docs examples use. Left for separate changes: the CLIAMP Logo visualizer, the `cliamp` User-Agent, the Nix files, `site/`, the MP3's provenance.
     - [x] Pre-RC1 items (2026-10-04, branch `pre-rc1`): the inherited Logo visualizer is hidden (not listed, cycled to or selectable; a config naming it starts with the default; `ui/vis_ddmus.go`); ddmus names itself in the HTTP requests it makes, from one function, `appmeta.UserAgent()` (`ddmus/<version>`), at all six reachable call sites; cliamp's MP3 fixture, whose origin and license are not recorded, is replaced by a generated tone (`player/testdata/README.md`).
     - [x] RC1 gate work (2026-10-04, branch `rc1-prep`): scenarios C, D, G and H passed in isolated homes; the release workflow ran on GitHub for the first time on the test tag `v1.0.0-test.1` (draft pre-release, attestation verified, byte-identical to a local build, installs on Debian 13, `ddmus-bin` builds and installs from it); README and SECURITY.md word releases so they stay true before and after one is published; the record is `docs/ddmus/releases/v1.0.0-rc.1.md`. The website draft is waived to before 1.0 (owner). The owner's YouTube Music check passed; the Spotify check failed (a track stuck on Buffering), which blocked the candidate: session setup had no time limit, the half of upstream `deb2f447` the earlier port missed. Fixed in `3fcf2447` (one 30-second budget for the access-point connection and the first token refresh; Codex, two rounds). The owner's Spotify check on the fixed build passed (2026-10-04), the last gate before `v1.0.0-rc.1`.
-    - [ ] Still open for Gate B: branding (site, `CNAME`, Nix flake, `.desktop`, icons, the MP3), README refresh, `docs/ddmus/` pass, website draft, fresh-user scenarios A–H.
+    - [x] Inherited branding and packaging removed (2026-10-04, branch `branding-1.0`): cliamp's `site/` (website and `install.sh`), the Nix flake and `nix/`, `cliamp.desktop`, `Cliamp.png`/`.svg`/`.ico`, `cliamp_windows.rc` and `logo.txt`. None reached a user through the release archive or `ddmus-bin`; the flake and the installer built or installed cliamp. Nix could not be tested here, so it is removed, not rebranded. ddmus 1.0 has no desktop entry and no icon until the owner approves one. `cmd/protocol*.go` stays, unreachable. `docs/ddmus/upstream.md` lists the removed paths for the next sync.
+    - [x] Renamed to ddsonic (2026-10-04, branch `rename-ddsonic`, owner's decision after a naming-clearance concern): the executable, `appdir.Name` (config, data, cache and download folders, socket, log, MPRIS name, client name, User-Agent), `DDSONIC_CONFIG_DIR`, the `[ddsonic]` config section, release file names, the SBOM, `ddsonic-bin`, the workflows' repository check, fork-owned file names, `// ddsonic:` tags and `docs/ddsonic/`. No alias and no automatic move: ddsonic does not read ddmus's folders or `[ddmus]`, and `docs/ddsonic/files.md` gives the one-time hand move (owner's decision, as in M6). Kept as ddmus: `v1.0.0-rc.1` with its tag, files and release page; its release record; the changelog entries of 0.6 to 0.10; the dated CLI audit, triage log and review report; this plan's history; and the comments in the catalog migrations, which are never edited once merged. The Go module path is unchanged. The GitHub repository is renamed at the cutover, not on this branch. Afterwards the name is written once in production Go code, `appdir.Name`: the config section, `DDSONIC_CONFIG_DIR`, the terminal title, the in-memory source key and the CLI's messages derive from it, and `TestProductNameIsWrittenInOnePlace` (`identity_ddsonic_test.go`) lists the five files that still spell it in a string, each with its reason.
+    - [ ] Still open for Gate B: an owner-approved ddmus icon (and, with it, whether ddmus ships a desktop entry), README refresh, `docs/ddmus/` pass, website draft, fresh-user scenarios A–H.
   - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
     - [x] `v1.0.0-rc.1` tagged at `73b97a5b` and published as a pre-release (2026-10-04); record in `docs/ddmus/releases/v1.0.0-rc.1.md`. Open: the Codex high-effort audit, the owner's use, and the rest of Gate C; then the website, the AUR package and v1.0.0.
   - [ ] v1.0.0 (Gate D).
@@ -857,7 +861,10 @@ Branch `m10-artwork`.
   - Website live no later than v1.0.0; demo recorded with `vhs`; one Kitty screenshot.
   - In cliamp's Spotify search, Enter on an album or track replaces the queue (`a` and `q` unchanged).
 - 2026-10-02: `spotify_refresh` defaults to 2h (was 30m), matching YouTube, to make fewer calls to Spotify's rate-limited development-mode API; `r` still syncs on demand (owner). Syncing only on first use of Spotify was discussed; not built for now.
+- 2026-10-04: Inherited cliamp branding and packaging is removed, not rebranded: `site/`, the Nix flake, the desktop entry, the icons, the Windows resource file and `logo.txt`. A ddmus icon is the owner's design decision and is not invented here; a desktop entry waits for it. No `ddmus://` links. `v1.0.0-rc.1` stays as published.
 - 2026-10-02: Upstream fixes are triaged before the release candidate, without a full upstream merge (owner; Claude and Codex agreed). Cutoff: upstream's latest release tag if newer than v2.3.0 when the session starts, else `9d9e55ab` (no waiting for a release); one session; plugin fixes only if plugins turn out reachable (1.0 removes them); severity from evidence in ddmus's code; accepted fixes ported with regression tests; log in `docs/ddmus/upstream-triage.md`. The full merge is the first 1.1 work, and merges upstream's latest release tag, never `main`.
+- 2026-10-04: The project is renamed from ddmus to ddsonic before stable 1.0, after a naming-clearance concern (owner). The name is lowercase `ddsonic` everywhere; capitals appear only where a system needs them (`DDSONIC_CONFIG_DIR`, exported Go identifiers such as `DdsonicConfig`). `v1.0.0-rc.1` stays ddmus, untouched; stable 1.0.0 is ddsonic. State left by ddmus is moved by hand, once (`docs/ddsonic/files.md`): no alias for `[ddmus]`, no fallback read, no automatic move. The Go module path stays `github.com/bjarneo/cliamp`. No `ddsonic://` links. The wordmark and icon remain the owner's separate artwork work.
+- 2026-10-04: The permanent header is `🦆 ddsonic <version>` (owner): the duck and the name in the title style, the version dimmed after one space, taken from the build's own version (`appmeta.Version`), and left out before the name when the row is too narrow. "DaphnisDuck" is the creator's name, kept in the README, the license and the package metadata, and not in the header. The MPRIS Identity is `ddsonic` too (`appmeta.DisplayName`, from `appdir.Name`): it is the product's identity, as media widgets show it.
 
 ## Post-1.0 backlog
 Nothing here is built before 1.0.
@@ -866,7 +873,7 @@ Nothing here is built before 1.0.
 - More providers: only ones the owner uses and can test; the hidden ones are candidates.
 - Sixel, iTerm2 and other artwork protocols (WezTerm, Konsole, foot).
 - InnerTube discovery of saved YouTube Music playlists the API doesn't list.
-- Cross-source, ddmus-owned playlists.
+- Cross-source, ddsonic-owned playlists.
 - `X` in the queue clears the whole queue (Ctrl+Z undoes it); `X` is free once the provider hotkeys go.
 - YouTube cookie playlist count check (guard against a short playlist feed).
 - Daemon or headless persistent playback (likely a 2.0 architectural project).
@@ -875,8 +882,8 @@ Nothing here is built before 1.0.
 - `go install` (needs the module renamed, which makes upstream merges costly).
 - Full upstream merge (`sync/upstream-YYYYMMDD`) of upstream's latest release tag, never `main`, as the first 1.1 work; the pre-1.0 triage log says which conflicts keep ours.
 - Comments after a value in `config.toml` (`artwork = false  # Disable artwork`): the loader takes the comment as part of the value today, so the docs keep each comment on its own line. Investigate and support normal TOML inline comments; the loader is upstream's file.
-- A ddmus visualizer of its own (an ASCII duck) in place of the hidden Logo mode.
-- Nix packaging (`flake.nix`, `nix/` still build the package as cliamp; parked, not on the RC path).
+- A ddsonic visualizer of its own (an ASCII duck) in place of the hidden Logo mode.
+- Nix packaging: a ddsonic package written and tested on Nix (upstream's flake, which built the package as cliamp, was removed on 2026-10-04).
 - Replace `xlab/vorbis-go` with a properly licensed decoder: a feasibility study (candidate `jfreymuth/oggvorbis`, MIT, already in `go.mod`; likely needs a go-librespot change or a maintained patch).
 
 ## Open questions

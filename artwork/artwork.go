@@ -12,7 +12,7 @@ import (
 	"github.com/bjarneo/cliamp/playlist"
 )
 
-// ErrNone means the track has no artwork ddmus can find.
+// ErrNone means the track has no artwork ddsonic can find.
 var ErrNone = errors.New("no artwork")
 
 // Ref locates a track's artwork. Exactly one of URL, File and Audio is set;

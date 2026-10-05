@@ -1,6 +1,6 @@
 package model
 
-// ddmus: rendering a long library list costs the rows in view, not the list
+// ddsonic: rendering a long library list costs the rows in view, not the list
 // (review P2). Run with go test ./ui/model -run '^$' -bench LibraryList -benchmem.
 
 import (

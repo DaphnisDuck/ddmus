@@ -1,6 +1,6 @@
 package model
 
-// ddmus: the settings pane's SRC row while the library is enabled. It names
+// ddsonic: the settings pane's SRC row while the library is enabled. It names
 // the source of the playing track instead of cliamp's provider pill, which
 // the library replaced. The library records the source on each track it
 // plays; a track queued by cliamp's own paths (a file or URL argument, the
@@ -13,6 +13,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/bjarneo/cliamp/catalog"
+	"github.com/bjarneo/cliamp/internal/appdir"
 	"github.com/bjarneo/cliamp/library"
 	"github.com/bjarneo/cliamp/playlist"
 	"github.com/bjarneo/cliamp/ui"
@@ -20,7 +21,7 @@ import (
 
 // librarySourceMeta is the ProviderMeta key holding a track's catalog
 // provider, set when the library plays it.
-const librarySourceMeta = "ddmus.source"
+const librarySourceMeta = appdir.Name + ".source"
 
 // withLibrarySource returns tracks with source recorded on each, leaving the
 // caller's tracks (and their shared meta maps) untouched.

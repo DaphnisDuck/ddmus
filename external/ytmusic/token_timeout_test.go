@@ -1,4 +1,4 @@
-// ddmus: a stalled token endpoint must not hold a session start forever.
+// ddsonic: a stalled token endpoint must not hold a session start forever.
 
 package ytmusic
 

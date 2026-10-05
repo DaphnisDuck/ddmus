@@ -28,7 +28,7 @@ type frameLayout struct {
 	twoColumn     bool
 	playlistWidth int
 	settingsWidth int
-	// border is whether the frame draws its border and rules (ddmus:
+	// border is whether the frame draws its border and rules (ddsonic:
 	// library_frame.go).
 	border bool
 	// closedSettings is the same full-tier playback screen with the pane shut:
@@ -57,7 +57,7 @@ func (l frameLayout) chromeRowsFreed() int {
 // playlistMinWidth.
 const (
 	// columnGutter is the blank channel between the two columns. It runs
-	// unbroken down the body, which is what separates them. (ddmus: with the
+	// unbroken down the body, which is what separates them. (ddsonic: with the
 	// border a divider runs down its middle, library_frame.go.) Its width is the
 	// declared one, not len(): a non-ASCII gutter would make those differ.
 	columnGutterWidth = 5
@@ -144,7 +144,7 @@ func (m *Model) recomputeLayout() {
 		layout.fixedRows = 7
 	}
 	layout.baseVisualizerRows = layout.visualizerRows
-	layout.border = m.libBorderOn(layout) // ddmus: library_frame.go
+	layout.border = m.libBorderOn(layout) // ddsonic: library_frame.go
 	contentFirst := m.usesContentFirstLayout()
 	simplified := m.usesSimplifiedLayout()
 	if contentFirst {
@@ -152,12 +152,12 @@ func (m *Model) recomputeLayout() {
 		if layout.tier == layoutMinimal {
 			layout.fixedRows = 6
 		} else if layout.tier == layoutCompact {
-			layout.fixedRows = 6 // ddmus: compact draws no spacer above the hint bar (mainSections)
+			layout.fixedRows = 6 // ddsonic: compact draws no spacer above the hint bar (mainSections)
 		} else {
 			layout.fixedRows = 7
 		}
 		if layout.border {
-			// ddmus: these counts leave a status line to push the frame's
+			// ddsonic: these counts leave a status line to push the frame's
 			// bottom padding row off; with the border that row is its
 			// bottom line.
 			layout.fixedRows++
@@ -170,7 +170,7 @@ func (m *Model) recomputeLayout() {
 		if layout.tier == layoutFull {
 			layout.fixedRows = 10
 			if layout.border {
-				// ddmus: 10 leaves a status line to push the frame's bottom
+				// ddsonic: 10 leaves a status line to push the frame's bottom
 				// padding row off; with the border that row is its bottom line.
 				layout.fixedRows++
 			}
@@ -198,18 +198,18 @@ func (m *Model) recomputeLayout() {
 	// a higher cap so the reclaimed rows show tracks instead of blank space.
 	layout.fixedRows = max(0, layout.fixedRows-layout.chromeRowsFreed())
 	if layout.border && layout.twoColumn {
-		layout.fixedRows++ // ddmus: the rule above the hint bar (libSpacerRule)
+		layout.fixedRows++ // ddsonic: the rule above the hint bar (libSpacerRule)
 	}
 	// The simplified view never draws the hint bar, so its fixedRows budget
 	// does not include that row and must not be reduced here.
 	if m.hideHelpBar && !simplified {
 		layout.fixedRows = max(0, layout.fixedRows-1)
 	}
-	if y := m.libVisualizerYield(layout.panelWidth, height-2*paddingV-layout.fixedRows-layout.footerRows, layout.visualizerRows); y > 0 { // ddmus: the list before the visualizer
+	if y := m.libVisualizerYield(layout.panelWidth, height-2*paddingV-layout.fixedRows-layout.footerRows, layout.visualizerRows); y > 0 { // ddsonic: the list before the visualizer
 		layout.visualizerRows -= y
 		layout.fixedRows -= y
 	}
-	if !m.hideHelpBar && !simplified { // ddmus: the library's key bar wraps
+	if !m.hideHelpBar && !simplified { // ddsonic: the library's key bar wraps
 		layout.fixedRows += m.libFitKeyBar(layout.panelWidth, height-2*paddingV-layout.fixedRows-layout.footerRows)
 	}
 	if layout.twoColumn && m.showMetadata && !m.visualizerDisabled() {
@@ -232,7 +232,7 @@ func (m *Model) recomputeLayout() {
 			m.plVisible = 0
 		} else {
 			limit := maxPlVisible
-			if m.heightExpanded || m.libraryEnabled() { // ddmus: lists fill the body (library_layout.go)
+			if m.heightExpanded || m.libraryEnabled() { // ddsonic: lists fill the body (library_layout.go)
 				limit = layout.bodyRows
 			} else if contentFirst {
 				limit = maxPlExpandVisible
@@ -244,7 +244,7 @@ func (m *Model) recomputeLayout() {
 	}
 
 	m.layout = layout
-	ui.FrameStyle = m.libFrameStyle().Width(width) // ddmus: the border (library_frame.go)
+	ui.FrameStyle = m.libFrameStyle().Width(width) // ddsonic: the border (library_frame.go)
 	ui.PanelWidth = layout.panelWidth
 	if m.vis != nil {
 		m.vis.Cols = layout.panelWidth

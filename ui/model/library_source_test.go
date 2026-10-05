@@ -1,6 +1,6 @@
 package model
 
-// ddmus: SRC names the playing track's source while the library is enabled
+// ddsonic: SRC names the playing track's source while the library is enabled
 // (M7.2).
 
 import (

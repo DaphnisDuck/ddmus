@@ -665,7 +665,7 @@ func (p *Player) SeekYTDL(d time.Duration) error {
 	// waiting for yt-dlp data). Without this, the old audio keeps playing
 	// at the pre-seek position during the rebuild.
 	speaker.Lock()
-	curPos := ytdlPlayedPosition(cur) // ddmus: upstream 70e5f79e (ytdl_ddmus.go)
+	curPos := ytdlPlayedPosition(cur) // ddsonic: upstream 70e5f79e (ytdl_ddsonic.go)
 	p.gapless.Replace(nil)
 	p.gaplessAdvance.Store(false)
 	speaker.Unlock()

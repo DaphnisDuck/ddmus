@@ -1,4 +1,4 @@
-// ddmus: whole-collection fetchers for the catalog sync. Each pages one
+// ddsonic: whole-collection fetchers for the catalog sync. Each pages one
 // library collection with the caller's context and returns catalog records
 // carrying Spotify IDs, or an error: never a partial collection. Kept in its
 // own file so upstream merges of provider.go stay conflict-free.
@@ -276,7 +276,7 @@ type webGetter func(ctx context.Context, method, path string, query url.Values) 
 // duration). Real blocks have run to 20h.
 const maxRetryAfterSecs = 48 * 3600
 
-// MaxRateLimit is the longest block the provider keeps (ddmus).
+// MaxRateLimit is the longest block the provider keeps (ddsonic).
 const MaxRateLimit = maxRetryAfterSecs * time.Second
 
 // webAPIOnce is webAPI without the 429 retries: a rate limit returns a

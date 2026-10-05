@@ -1,6 +1,6 @@
 //go:build !windows
 
-// ddmus: tests for the whole-collection catalog fetchers.
+// ddsonic: tests for the whole-collection catalog fetchers.
 
 package spotify
 

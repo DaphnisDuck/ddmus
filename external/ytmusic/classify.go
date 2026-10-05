@@ -54,7 +54,7 @@ func saveClassification(scope string, music map[string]bool) {
 	data, _ := json.MarshalIndent(cache, "", "  ")
 	path := classificationCachePath()
 	os.MkdirAll(filepath.Dir(path), 0o700)
-	fileutil.WriteFileAtomic(path, data, 0o600) // ddmus: the catalog sync reads it concurrently
+	fileutil.WriteFileAtomic(path, data, 0o600) // ddsonic: the catalog sync reads it concurrently
 }
 
 // classifyPlaylists determines which playlists contain music content by

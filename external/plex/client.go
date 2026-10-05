@@ -84,7 +84,7 @@ func (c *Client) get(path string, params url.Values, result any) error {
 		return fmt.Errorf("plex: %s: %w", path, err)
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Plex-Product", appmeta.ClientName()) // ddmus: distinct client from cliamp
+	req.Header.Set("X-Plex-Product", appmeta.ClientName()) // ddsonic: distinct client from cliamp
 	req.Header.Set("X-Plex-Client-Identifier", appmeta.ClientName())
 
 	resp, err := apiClient.Do(req)

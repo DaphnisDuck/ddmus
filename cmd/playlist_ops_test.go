@@ -501,7 +501,7 @@ func TestNewProvider(t *testing.T) {
 	}
 }
 
-// ddmus: an out-of-range index is reported as the user gave it, not 0-based.
+// ddsonic: an out-of-range index is reported as the user gave it, not 0-based.
 func TestPlaylistRemoveReportsGivenIndex(t *testing.T) {
 	home := setupTestEnv(t)
 	audioDir := filepath.Join(home, "music")

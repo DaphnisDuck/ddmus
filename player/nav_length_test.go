@@ -112,7 +112,7 @@ func TestNavBufferCompletedPathOnTruncatedDownload(t *testing.T) {
 // fixtureMP3 returns a short MP3, a real encoded file both decoders accept,
 // so routing tests exercise the same path a podcast enclosure takes.
 //
-// ddmus: the fixture is a generated tone (testdata/README.md), not cliamp's
+// ddsonic: the fixture is a generated tone (testdata/README.md), not cliamp's
 // clip, whose origin and redistribution rights are not recorded.
 func fixtureMP3(t *testing.T) []byte {
 	t.Helper()

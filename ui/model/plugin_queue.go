@@ -41,7 +41,7 @@ func (m *Model) handlePluginQueue(msg PluginQueueMsg) tea.Cmd {
 			return nil
 		}
 		refresh := m.scrobbleCurrent()
-		m.retireLibraryPlay() // ddmus: the chosen track wins over an album still loading
+		m.retireLibraryPlay() // ddsonic: the chosen track wins over an album still loading
 		m.playlist.SetIndex(msg.Index)
 		cmd := m.playCurrentTrack()
 		m.notifyPlayback()

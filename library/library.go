@@ -1,4 +1,4 @@
-// Package library is ddmus' application-owned navigation model: the
+// Package library is ddsonic' application-owned navigation model: the
 // Music → source → concept → item hierarchy the UI walks. It knows nothing
 // about Bubbletea; ui/model renders Levels and acts on Entries.
 //

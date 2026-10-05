@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddsonic
 )
 
 var client = &http.Client{Timeout: 8 * time.Second}
@@ -45,7 +45,7 @@ func getJSON(ctx context.Context, url string, v any) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddmus
+	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddsonic
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

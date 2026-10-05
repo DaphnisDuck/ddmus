@@ -53,7 +53,7 @@ const statsFixture = `{
 
 func TestFetchStatistics(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if ua := r.Header.Get("User-Agent"); !strings.HasPrefix(ua, "ddmus/") { // ddmus
+		if ua := r.Header.Get("User-Agent"); !strings.HasPrefix(ua, "ddsonic/") { // ddsonic
 			t.Errorf("User-Agent = %q", ua)
 		}
 		w.Write([]byte(statsFixture))

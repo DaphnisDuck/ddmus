@@ -67,8 +67,8 @@ type SpotifyProvider struct {
 	userID     string // Spotify user ID, fetched lazily on first Playlists() call
 	meFetched  bool   // /v1/me has been attempted this session; suppresses retry on failure
 	mu         sync.Mutex
-	sessionMu  sync.Mutex                // ddmus: one session creation at a time (sync and playback both ensure one)
-	rate       rateGate                  // ddmus: Spotify's current rate-limit block
+	sessionMu  sync.Mutex                // ddsonic: one session creation at a time (sync and playback both ensure one)
+	rate       rateGate                  // ddsonic: Spotify's current rate-limit block
 	trackCache map[string]*playlistCache // playlist ID → cache entry
 	pending    map[string]*pendingTracks
 	authCancel context.CancelFunc // cancels any in-progress OAuth flow
@@ -96,7 +96,7 @@ func New(session *Session, clientID string, bitrate int) *SpotifyProvider {
 // ensureSession tries to create a session using stored credentials only
 // (no browser). Returns playlist.ErrNeedsAuth if interactive sign-in is needed.
 func (p *SpotifyProvider) ensureSession() error {
-	p.sessionMu.Lock() // ddmus: a second caller waits for the first's session
+	p.sessionMu.Lock() // ddsonic: a second caller waits for the first's session
 	defer p.sessionMu.Unlock()
 	p.mu.Lock()
 	if p.session != nil {
@@ -109,13 +109,13 @@ func (p *SpotifyProvider) ensureSession() error {
 	if clientID == "" {
 		return fmt.Errorf("spotify: no client ID available")
 	}
-	// ddmus: upstream deb2f447. Bounded, so a stalled setup ends and gives
-	// sessionMu up (session_setup_ddmus.go).
+	// ddsonic: upstream deb2f447. Bounded, so a stalled setup ends and gives
+	// sessionMu up (session_setup_ddsonic.go).
 	ctx, cancel := context.WithTimeout(context.Background(), sessionSetupTimeout)
 	defer cancel()
 	sess, err := newSessionSilent(ctx, clientID)
 	if err != nil {
-		return silentSessionError(err) // ddmus: only credential failures need sign-in
+		return silentSessionError(err) // ddsonic: only credential failures need sign-in
 	}
 	p.mu.Lock()
 	p.session = sess
@@ -811,10 +811,10 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 			reqBody = bytes.NewReader(bodyBytes)
 		}
 
-		if err := p.rateLimited(); err != nil { // ddmus: blocked, do not ask
+		if err := p.rateLimited(); err != nil { // ddsonic: blocked, do not ask
 			return nil, err
 		}
-		// ddmus: read the session under the lock; the catalog sync calls
+		// ddsonic: read the session under the lock; the catalog sync calls
 		// this from a background goroutine while Close may clear it.
 		p.mu.Lock()
 		sess := p.session
@@ -831,14 +831,14 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 			wait := time.Duration(1<<uint(attempt)) * time.Second
 			if ra := resp.Header.Get("Retry-After"); ra != "" {
 				if secs, err := strconv.Atoi(ra); err == nil && secs > 0 {
-					wait = time.Duration(min(secs, maxRetryAfterSecs)) * time.Second // ddmus: capped
-					if wait > maxInlineRetryWait {                                   // ddmus: a long block fails now
+					wait = time.Duration(min(secs, maxRetryAfterSecs)) * time.Second // ddsonic: capped
+					if wait > maxInlineRetryWait {                                   // ddsonic: a long block fails now
 						return nil, p.block(wait)
 					}
 				}
 			}
 			// On the last attempt there's no retry after the wait, so don't
-			// sleep (up to 128s) just to give up; fail now. ddmus: after
+			// sleep (up to 128s) just to give up; fail now. ddsonic: after
 			// reading Retry-After, so a long block on it closes the gate.
 			if attempt == maxRetries-1 {
 				break
@@ -856,7 +856,7 @@ func (p *SpotifyProvider) webAPIWithBody(ctx context.Context, method, path strin
 		if !ok {
 			respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 512))
 			resp.Body.Close()
-			return nil, statusError(resp.StatusCode, resp.Status, respBody, readErr) // ddmus: typed, same message
+			return nil, statusError(resp.StatusCode, resp.Status, respBody, readErr) // ddsonic: typed, same message
 		}
 		return resp, nil
 	}

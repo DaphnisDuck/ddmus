@@ -1,7 +1,7 @@
 package model
 
-// ddmus: how wide list rows run. Up to listReadWidth they fill the width, as
-// cliamp draws them; past it they form a table (docs/ddmus/layout.md). A
+// ddsonic: how wide list rows run. Up to listReadWidth they fill the width, as
+// cliamp draws them; past it they form a table (docs/ddsonic/layout.md). A
 // library level measures its rows once, when its entries arrive; the queue
 // once per playlist change. Rendering narrows ui.PanelWidth per row with
 // ui.WithPanelWidth, so cliamp's row formatters need no change.

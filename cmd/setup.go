@@ -39,7 +39,7 @@ import (
 
 // Setup launches the interactive wizard. Returns nil on clean exit.
 func Setup() error {
-	prog := tea.NewProgram(newDdmusSetupModel()) // ddmus: setup_ddmus.go
+	prog := tea.NewProgram(newDdsonicSetupModel()) // ddsonic: setup_ddsonic.go
 	_, err := prog.Run()
 	return err
 }
@@ -73,10 +73,10 @@ type providerSpec struct {
 	// "token OR (user+password)" for Jellyfin.
 	extraValidate func(map[string]string) error
 	// save, when set, writes the values itself and returns the result line
-	// (ddmus: setup_ddmus.go).
+	// (ddsonic: setup_ddsonic.go).
 	save func(map[string]string) (string, error)
 	// strict, when set, makes a failed validate final: no "save anyway"
-	// (ddmus: the Local folder must be readable).
+	// (ddsonic: the Local folder must be readable).
 	strict bool
 }
 
@@ -1001,7 +1001,7 @@ func (m *setupModel) onValidateDone(err error) (tea.Model, tea.Cmd) {
 		return m, m.persistAndDone(false)
 	}
 	m.resultErr = err
-	m.awaitingSave = !m.provs[m.pidx].strict // ddmus
+	m.awaitingSave = !m.provs[m.pidx].strict // ddsonic
 	m.stage = stageResult
 	return m, nil
 }
@@ -1010,7 +1010,7 @@ func (m *setupModel) onValidateDone(err error) (tea.Model, tea.Cmd) {
 // indicates the user opted to save despite a failed probe.
 func (m *setupModel) persistAndDone(warn bool) tea.Cmd {
 	spec := m.provs[m.pidx]
-	text, err := m.persist(spec) // ddmus: setup_ddmus.go
+	text, err := m.persist(spec) // ddsonic: setup_ddsonic.go
 	if err != nil {
 		m.saveFailed = err
 		m.stage = stageResult
@@ -1021,7 +1021,7 @@ func (m *setupModel) persistAndDone(warn bool) tea.Cmd {
 	m.awaitingSave = false
 	m.resultErr = nil
 	m.resultWarning = warn
-	m.resultText = text // ddmus
+	m.resultText = text // ddsonic
 	return nil
 }
 
@@ -1092,8 +1092,8 @@ var (
 
 const (
 	maxCardWidth = 78
-	logoLine1    = "  " + appdir.Name + " setup"    // ddmus
-	logoLine2    = "  configure your music sources" // ddmus
+	logoLine1    = "  " + appdir.Name + " setup"    // ddsonic
+	logoLine2    = "  configure your music sources" // ddsonic
 )
 
 func (m *setupModel) View() tea.View {

@@ -36,7 +36,7 @@ func TestBundledPluginsLoad(t *testing.T) {
 	// Seed an isolated HOME so appdir.PluginDir() resolves into a temp tree.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	pluginDir := filepath.Join(home, ".config", "ddmus", "plugins")
+	pluginDir := filepath.Join(home, ".config", "ddsonic", "plugins")
 	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 		t.Fatalf("mkdir plugin dir: %v", err)
 	}

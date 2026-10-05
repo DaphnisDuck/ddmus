@@ -35,9 +35,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if nm, ok := next.(Model); ok {
 		nm.dropStalePreload()
-		cmd = nm.libArtworkSync(msg, cmd) // ddmus: the info view's artwork (library_info.go)
+		cmd = nm.libArtworkSync(msg, cmd) // ddsonic: the info view's artwork (library_info.go)
 		if nm.quitting {
-			nm.libStop() // ddmus: cancels foreground library work
+			nm.libStop() // ddsonic: cancels foreground library work
 		}
 		next = nm
 	}
@@ -64,7 +64,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.publishIPCRuntimeState()
 	}()
 
-	// ddmus: library navigation messages.
+	// ddsonic: library navigation messages.
 	if cmd, ok := m.handleLibraryMsg(msg); ok {
 		return m, cmd
 	}
@@ -839,7 +839,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		var resumeCmd tea.Cmd
 		if errors.Is(msg.err, playlist.ErrNeedsAuth) {
-			// ddmus: upstream 095a56ec. The provider session went stale, for
+			// ddsonic: upstream 095a56ec. The provider session went stale, for
 			// example after Spotify rejected the stream keys. Ask for
 			// sign-in, not a raw error.
 			m.provSignIn = true
@@ -952,7 +952,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd := m.queueAlbumNext(album, tracks)
 			return m, cmd
 		default:
-			cmd := m.spotSearchPlay(tracks) // ddmus: Enter replaces the queue
+			cmd := m.spotSearchPlay(tracks) // ddsonic: Enter replaces the queue
 			return m, cmd
 		}
 
@@ -1072,13 +1072,13 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case playback.NextMsg:
 		refresh := m.scrobbleCurrent()
-		cmd := m.skipByUser(true) // ddmus: retires a pending library play
+		cmd := m.skipByUser(true) // ddsonic: retires a pending library play
 		m.notifyAll()
 		return m, tea.Batch(refresh, cmd)
 
 	case playback.PrevMsg:
 		refresh := m.scrobbleCurrent()
-		cmd := m.skipByUser(false) // ddmus: retires a pending library play
+		cmd := m.skipByUser(false) // ddsonic: retires a pending library play
 		m.notifyAll()
 		return m, tea.Batch(refresh, cmd)
 

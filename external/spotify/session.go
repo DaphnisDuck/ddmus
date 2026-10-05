@@ -15,10 +15,10 @@ import (
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
-	"time" // ddmus
+	"time" // ddsonic
 
 	"github.com/bjarneo/cliamp/applog"
-	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddsonic
 	"github.com/bjarneo/cliamp/internal/browser"
 	"github.com/bjarneo/cliamp/internal/fileutil"
 	"github.com/bjarneo/cliamp/playlist"
@@ -151,7 +151,7 @@ func NewSession(ctx context.Context, clientID string) (*Session, error) {
 func NewSessionSilent(ctx context.Context, clientID string) (*Session, error) {
 	creds, err := loadCreds()
 	if err != nil || creds.Username == "" || len(creds.Data) == 0 {
-		return nil, errNoStoredCreds // ddmus: a sentinel for silentSessionError
+		return nil, errNoStoredCreds // ddsonic: a sentinel for silentSessionError
 	}
 	return newSessionFromStored(ctx, clientID, creds, true)
 }
@@ -184,7 +184,7 @@ func newSessionFromStored(ctx context.Context, clientID string, creds *storedCre
 	var oauthToken *oauth2.Token
 	var refreshErr error
 	if creds.RefreshToken != "" {
-		// ddmus: upstream deb2f447. The refresh shares the setup's deadline.
+		// ddsonic: upstream deb2f447. The refresh shares the setup's deadline.
 		token, err := silentTokenRefresh(ctx, clientID, creds.RefreshToken)
 		if err == nil {
 			oauthToken = token
@@ -192,7 +192,7 @@ func newSessionFromStored(ctx context.Context, clientID string, creds *storedCre
 			refreshErr = err
 		}
 	}
-	// ddmus: a refresh cut short by the setup's deadline says nothing about
+	// ddsonic: a refresh cut short by the setup's deadline says nothing about
 	// the sign-in. The setup failed for now; the next call tries again.
 	if err := setupExpired(ctx, refreshErr); err != nil {
 		sess.Close()
@@ -212,7 +212,7 @@ func newSessionFromStored(ctx context.Context, clientID string, creds *storedCre
 		if silentOnly {
 			// Continue without a token source — already-loaded tracks still stream
 			// via spclient; new Web API calls will return ErrNeedsAuth.
-			applog.UserError("spotify: stored auth no longer valid; run '%s spotify reset' or sign in again to fix", appmeta.ClientName()) // ddmus
+			applog.UserError("spotify: stored auth no longer valid; run '%s spotify reset' or sign in again to fix", appmeta.ClientName()) // ddsonic
 			s := &Session{sess: sess, devID: devID, clientID: clientID}
 			if err := saveCreds(&storedCreds{
 				Username:     sess.Username(),
@@ -306,7 +306,7 @@ func spotifyOAuthConfig(clientID string, scopes []string) *oauth2.Config {
 // silentTokenRefresh uses a stored refresh token to get a new access token
 // without opening a browser.
 //
-// ddmus: upstream deb2f447. The request ends with ctx, so a refresh made
+// ddsonic: upstream deb2f447. The request ends with ctx, so a refresh made
 // during session setup cannot outlast the setup's deadline; a caller with no
 // deadline of its own still has the bounded client's.
 func silentTokenRefresh(ctx context.Context, clientID, refreshToken string) (*oauth2.Token, error) {
@@ -315,23 +315,23 @@ func silentTokenRefresh(ctx context.Context, clientID, refreshToken string) (*oa
 	return src.Token()
 }
 
-// ddmus: token refreshes use a bounded client. oauth2's default
+// ddsonic: token refreshes use a bounded client. oauth2's default
 // (http.DefaultClient) never times out, so a stalled token endpoint held a
 // session start, and every Web API call after the token expired, forever.
 var tokenHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 // webHTTPClient sends Web API and lyrics requests. http.DefaultClient never
 // times out, so a stalled connection held a catalog sync until quit, and r
-// was dropped while it ran (ddmus: upstream deb2f447).
+// was dropped while it ran (ddsonic: upstream deb2f447).
 var webHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
-// tokenContext carries the bounded client to oauth2's requests. ddmus
+// tokenContext carries the bounded client to oauth2's requests. ddsonic
 func tokenContext() context.Context {
 	return tokenContextFrom(context.Background())
 }
 
 // tokenContextFrom is tokenContext within ctx: the requests also end when
-// ctx does. ddmus
+// ctx does. ddsonic
 func tokenContextFrom(ctx context.Context) context.Context {
 	return context.WithValue(ctx, oauth2.HTTPClient, tokenHTTPClient)
 }
@@ -368,7 +368,7 @@ func (s *persistingTokenSource) Token() (*oauth2.Token, error) {
 
 func webAPITokenSource(clientID string, token *oauth2.Token, creds storedCreds) oauth2.TokenSource {
 	conf := spotifyOAuthConfig(clientID, oauthScopes)
-	source := conf.TokenSource(tokenContext(), token) // ddmus: bounded
+	source := conf.TokenSource(tokenContext(), token) // ddsonic: bounded
 	return &persistingTokenSource{
 		source:       source,
 		refreshToken: creds.RefreshToken,
@@ -464,7 +464,7 @@ func oauthCallbackHandler(pending []pendingOAuthFlow, callbackCh chan<- oauthCal
 			return
 		}
 		w.Header().Set("Content-Type", "text/html")
-		_, _ = w.Write([]byte(oauthCallbackHTML))
+		_, _ = w.Write([]byte(appmeta.CallbackPage(oauthCallbackHTML))) // ddsonic: the tab title
 	})
 }
 
@@ -674,7 +674,7 @@ func (s *Session) webApiWithBody(ctx context.Context, method, path string, query
 	s.mu.RUnlock()
 
 	if ts == nil {
-		return nil, fmt.Errorf("spotify: web api token unavailable, run '%s spotify reset' and sign in again: %w", appmeta.ClientName(), playlist.ErrNeedsAuth) // ddmus
+		return nil, fmt.Errorf("spotify: web api token unavailable, run '%s spotify reset' and sign in again: %w", appmeta.ClientName(), playlist.ErrNeedsAuth) // ddsonic
 	}
 	tok, err := ts.Token()
 	if err != nil {
@@ -698,7 +698,7 @@ func (s *Session) webApiWithBody(ctx context.Context, method, path string, query
 		req.Header.Set("Content-Type", contentType)
 	}
 
-	return webHTTPClient.Do(req) // ddmus: bounded
+	return webHTTPClient.Do(req) // ddsonic: bounded
 }
 
 // Close releases all session and player resources.

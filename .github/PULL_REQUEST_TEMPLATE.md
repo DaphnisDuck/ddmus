@@ -13,4 +13,4 @@
 ## Checklist
 
 - [ ] `make check` passes
-- [ ] `docs/ddmus/`, `README.md` and `CHANGELOG.md` updated for user-facing changes
+- [ ] `docs/ddsonic/`, `README.md` and `CHANGELOG.md` updated for user-facing changes

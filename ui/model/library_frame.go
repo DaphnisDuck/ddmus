@@ -1,6 +1,6 @@
 package model
 
-// ddmus: the frame's border and the rules between the screen's parts.
+// ddsonic: the frame's border and the rules between the screen's parts.
 //
 // The border takes the place of the frame's outer padding (one row above and
 // below, one column each side), so the layout loses no row or column to it:
@@ -16,7 +16,7 @@ import (
 	"github.com/bjarneo/cliamp/ui"
 )
 
-// SetFrameBorder turns the border and rules on or off ([ddmus] border).
+// SetFrameBorder turns the border and rules on or off ([ddsonic] border).
 func (m *Model) SetFrameBorder(on bool) {
 	m.lib.border = on
 	m.recomputeLayout()

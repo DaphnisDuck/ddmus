@@ -1,14 +1,14 @@
-# ddmus configuration
+# ddsonic configuration
 #
-# ddmus reads ~/.config/ddmus/config.toml (DDMUS_CONFIG_DIR picks another
-# folder). You don't need this file to start: `ddmus setup` writes the
+# ddsonic reads ~/.config/ddsonic/config.toml (DDSONIC_CONFIG_DIR picks another
+# folder). You don't need this file to start: `ddsonic setup` writes the
 # Spotify, YouTube Music and music-folder settings for you, and everything
 # else has a default. Copy the lines you want to change. A comment needs a
-# line of its own: ddmus does not read one that follows a value.
+# line of its own: ddsonic does not read one that follows a value.
 #
-# ddmus is a fork of cliamp and reads the same file format. The sections of
+# ddsonic is a fork of cliamp and reads the same file format. The sections of
 # cliamp's other providers ([navidrome], [plex], [jellyfin], …) and of its
-# plugins may stay in the file; ddmus ignores them.
+# plugins may stay in the file; ddsonic ignores them.
 
 # --- Playback ---
 
@@ -54,15 +54,15 @@ eq = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 # The folder Local → Albums, Artists and Genres are indexed from, and where
 # Local → Folders opens. Default: $XDG_MUSIC_DIR, else ~/Music.
-# `ddmus setup` → Local music folder sets it.
+# `ddsonic setup` → Local music folder sets it.
 # initial_directory = "~/Music"
 
 # --- Look ---
 
-# UI theme name (`ddmus theme list` shows them; your own go in ~/.config/ddmus/themes/)
+# UI theme name (`ddsonic theme list` shows them; your own go in ~/.config/ddsonic/themes/)
 # theme = "Tokyo Night"
 
-# Visualizer mode (`ddmus vis list` shows them all; "None" turns it off).
+# Visualizer mode (`ddsonic vis list` shows them all; "None" turns it off).
 # `v` in the queue switches it and saves the choice here.
 # visualizer = "Bars"
 
@@ -85,13 +85,13 @@ eq = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 # provider = "cliamp"
 
 # Log level: "debug", "info", "warn", or "error" (default "info")
-# The log is ~/.config/ddmus/ddmus.log
+# The log is ~/.config/ddsonic/ddsonic.log
 # log_level = "info"
 
-# --- ddmus ---
+# --- ddsonic ---
 
-# [ddmus]
-# How old a source's last sync may get before ddmus syncs it again at
+# [ddsonic]
+# How old a source's last sync may get before ddsonic syncs it again at
 # startup. "0s" syncs at every start; `r` in the library syncs on demand.
 # spotify_refresh = "2h"
 # youtube_refresh = "2h"
@@ -107,8 +107,8 @@ eq = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 # --- Spotify (optional; needs a Premium account) ---
 #
-# The section's presence turns Spotify on. `ddmus setup` writes it. Your own
-# Spotify Developer app's client_id is recommended; without one, ddmus uses a
+# The section's presence turns Spotify on. `ddsonic setup` writes it. Your own
+# Spotify Developer app's client_id is recommended; without one, ddsonic uses a
 # shared client that Spotify rate-limits more often. See docs/spotify.md.
 # The first time you open Spotify in the library, press Enter to sign in.
 #
@@ -119,7 +119,7 @@ eq = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 # --- YouTube Music (optional; needs yt-dlp) ---
 #
 # The section's presence turns YouTube Music on. Sign in with a browser's
-# cookies, with your own Google OAuth client, or both. See docs/ddmus/youtube.md.
+# cookies, with your own Google OAuth client, or both. See docs/ddsonic/youtube.md.
 #
 # [ytmusic]
 # A browser you are signed in to: firefox, chrome, brave+gnomekeyring, …
@@ -127,15 +127,15 @@ eq = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 #
 # client_id = "your-google-oauth-client-id"
 # client_secret = "your-google-oauth-client-secret"
-# Then run: ddmus youtube signin
+# Then run: ddsonic youtube signin
 
 # --- Radio ---
 #
 # Radio needs no settings here. Your own stations go in
-# ~/.config/ddmus/radios.toml (see "Custom Radio Stations" in docs/configuration.md).
+# ~/.config/ddsonic/radios.toml (see "Custom Radio Stations" in docs/configuration.md).
 
 # --- Downloads ---
 
-# Where saved tracks go. Empty uses ~/Music/ddmus.
+# Where saved tracks go. Empty uses ~/Music/ddsonic.
 [downloads]
 directory = ""

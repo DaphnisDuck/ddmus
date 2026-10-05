@@ -1,6 +1,6 @@
 package model
 
-// ddmus: album artwork in the track info view (M10).
+// ddsonic: album artwork in the track info view (M10).
 
 import (
 	"context"

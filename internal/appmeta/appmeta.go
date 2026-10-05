@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	clientName = appdir.Name // ddmus: identifies this fork to servers and MPRIS
+	clientName = appdir.Name // ddsonic: identifies this fork to servers and MPRIS
 	deviceName = appdir.Name
 	version    = "dev"
 )
@@ -20,20 +20,32 @@ func SetVersion(v string) {
 
 func ClientName() string { return clientName }
 
-// DisplayName is the player's full name, for people rather than servers
-// (the UI header, MPRIS Identity). ddmus.
-func DisplayName() string { return "DaphnisDuck's Music Player" }
+// DisplayName is the name desktop media integrations show to people (the
+// MPRIS Identity): the product's name. ddsonic.
+func DisplayName() string { return appdir.Name }
 
 func DeviceName() string { return deviceName }
 
 func Version() string { return version }
 
-// projectURL is where a server's operator can find out what this client is.
-const projectURL = "https://github.com/DaphnisDuck/ddmus"
+// CallbackPage is one of upstream's sign-in callback pages, titled with this
+// player's name instead of cliamp's: the browser tab a user sees after
+// signing in to Spotify or YouTube Music. ddsonic.
+func CallbackPage(html string) string {
+	return strings.Replace(html, "<title>cliamp</title>", "<title>"+clientName+"</title>", 1)
+}
 
-// UserAgent is how ddmus names itself in the HTTP requests it makes, as
-// "ddmus/<version> (<project URL>)". It is the one place that string is
-// built: every request that names its client calls this. ddmus.
+// projectURL is where a server's operator can find out what this client is.
+// It is written out, not built from the name: a GitHub address is its own
+// name, renamed in its own step.
+const projectURL = "https://github.com/DaphnisDuck/ddsonic"
+
+// ProjectURL is the project's home page, where releases are published.
+func ProjectURL() string { return projectURL }
+
+// UserAgent is how ddsonic names itself in the HTTP requests it makes, as
+// "ddsonic/<version> (<project URL>)". It is the one place that string is
+// built: every request that names its client calls this. ddsonic.
 func UserAgent() string {
 	return clientName + "/" + strings.TrimPrefix(version, "v") + " (" + projectURL + ")"
 }

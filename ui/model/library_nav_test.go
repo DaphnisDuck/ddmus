@@ -1,6 +1,6 @@
 package model
 
-// ddmus: library navigation stack behavior, driven through Update so the
+// ddsonic: library navigation stack behavior, driven through Update so the
 // handleKey/Update hooks are exercised too.
 
 import (

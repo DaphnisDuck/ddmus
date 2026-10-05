@@ -1,4 +1,4 @@
-// ddmus: tests for the library and catalog station helpers.
+// ddsonic: tests for the library and catalog station helpers.
 
 package radio
 

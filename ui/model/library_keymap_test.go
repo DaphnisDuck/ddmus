@@ -1,6 +1,6 @@
 package model
 
-// ddmus: each library view's key table drives the gate, the key bar and the
+// ddsonic: each library view's key table drives the gate, the key bar and the
 // keymap overlay, so the bar lists exactly the keys that work (M7.3).
 
 import (

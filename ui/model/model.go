@@ -185,7 +185,7 @@ const (
 	screenLyrics
 	screenJump
 	screenFullVisualizer
-	screenLibrary // ddmus: library navigation
+	screenLibrary // ddsonic: library navigation
 )
 
 func (s topLevelScreen) label() string {
@@ -224,7 +224,7 @@ func (s topLevelScreen) label() string {
 		return "Jump to Time"
 	case screenFullVisualizer:
 		return "Visualizer"
-	case screenLibrary: // ddmus
+	case screenLibrary: // ddsonic
 		return "Library"
 	default:
 		return ""
@@ -232,7 +232,7 @@ func (s topLevelScreen) label() string {
 }
 
 // maxPlVisible caps the playlist at a readable height even on tall terminals.
-// ddmus: not with the library enabled, where lists fill the body (layout.go).
+// ddsonic: not with the library enabled, where lists fill the body (layout.go).
 // maxPlExpandVisible is the higher cap used by content-first list screens.
 const (
 	maxPlVisible       = 12
@@ -363,7 +363,7 @@ type Model struct {
 	eqSaveAfter    time.Duration
 	termTitle      terminalTitleState
 
-	lib libraryState // ddmus: library navigation stack
+	lib libraryState // ddsonic: library navigation stack
 
 	// Jump to time mode
 	jumping   bool
@@ -559,7 +559,7 @@ func (m Model) activeScreen() topLevelScreen {
 		return screenSearch
 	case m.netSearch.active:
 		return screenNetSearch
-	case m.libraryVisible(): // ddmus
+	case m.libraryVisible(): // ddsonic
 		return screenLibrary
 	default:
 		return screenMain
@@ -585,7 +585,7 @@ func (m Model) usesContentFirstLayout() bool {
 	// the settings pane rather than taking the frame.
 	if m.keymap.visible || m.devicePicker.visible || m.fileBrowser.visible ||
 		m.navBrowser.visible || m.themePicker.visible || m.subs.visible || m.search.active ||
-		m.libraryVisible() { // ddmus: library is a list screen
+		m.libraryVisible() { // ddsonic: library is a list screen
 		return true
 	}
 	if m.plPicker.visible && m.plPicker.screen == plPickerChoose {

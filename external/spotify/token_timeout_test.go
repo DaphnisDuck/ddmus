@@ -1,4 +1,4 @@
-// ddmus: a stalled token endpoint must not hold a session start forever.
+// ddsonic: a stalled token endpoint must not hold a session start forever.
 
 package spotify
 
@@ -27,7 +27,7 @@ func TestSilentTokenRefreshIsBounded(t *testing.T) {
 	tokenHTTPClient = &http.Client{Timeout: 50 * time.Millisecond}
 	done := make(chan error, 1)
 	go func() {
-		_, err := silentTokenRefresh(context.Background(), "id", "rt") // ddmus: takes the caller's context
+		_, err := silentTokenRefresh(context.Background(), "id", "rt") // ddsonic: takes the caller's context
 		done <- err
 	}()
 	select {

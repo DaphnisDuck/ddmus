@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bjarneo/cliamp/internal/appmeta" // ddmus
+	"github.com/bjarneo/cliamp/internal/appmeta" // ddsonic
 )
 
 // ErrNotFound is returned when no lyrics could be found from any source.
@@ -139,7 +139,7 @@ func fetchLRCLIB(query string) ([]Line, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddmus
+	req.Header.Set("User-Agent", appmeta.UserAgent()) // ddsonic
 
 	resp, err := httpClient.Do(req)
 	if err != nil {

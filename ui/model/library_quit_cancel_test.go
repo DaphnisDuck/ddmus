@@ -1,6 +1,6 @@
 package model
 
-// ddmus: quitting cancels foreground library work in flight (review R7).
+// ddsonic: quitting cancels foreground library work in flight (review R7).
 
 import (
 	"context"

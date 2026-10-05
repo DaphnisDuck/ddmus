@@ -1,6 +1,6 @@
 package main
 
-// ddmus: tests for the catalog runtime's sync retries.
+// ddsonic: tests for the catalog runtime's sync retries.
 
 import (
 	"context"

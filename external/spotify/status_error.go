@@ -1,6 +1,6 @@
 package spotify
 
-// ddmus: a typed Web API status error, so callers match the status
+// ddsonic: a typed Web API status error, so callers match the status
 // code instead of the message text.
 
 import "fmt"

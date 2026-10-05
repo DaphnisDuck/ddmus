@@ -1,6 +1,6 @@
 package spotify
 
-// ddmus: StatusError keeps upstream's message and drives unreadable.
+// ddsonic: StatusError keeps upstream's message and drives unreadable.
 
 import (
 	"errors"

@@ -453,7 +453,7 @@ func NewVisualizer(sampleRate float64) *Visualizer {
 func (v *Visualizer) CycleMode() {
 	total := VisCount + VisMode(len(v.luaVisNames))
 	v.Mode = (v.Mode + 1) % total
-	for visModeHidden(v.Mode) { // ddmus: skip the modes ddmus does not offer (vis_ddmus.go)
+	for visModeHidden(v.Mode) { // ddsonic: skip the modes ddsonic does not offer (vis_ddsonic.go)
 		v.Mode = (v.Mode + 1) % total
 	}
 }
@@ -520,7 +520,7 @@ func (v *Visualizer) ModeName() string {
 // StringToVisModeExact converts a name to VisMode, returning false if not found.
 func StringToVisModeExact(name string) (VisMode, bool) {
 	mode, ok := visNameMap[strings.ToLower(name)]
-	if ok && visModeHidden(mode) { // ddmus: a hidden mode has no name (vis_ddmus.go)
+	if ok && visModeHidden(mode) { // ddsonic: a hidden mode has no name (vis_ddsonic.go)
 		return 0, false
 	}
 	return mode, ok
@@ -546,7 +546,7 @@ func (v *Visualizer) AllModeNames() []string {
 // SetMode switches to mode if it is within range (built-in or Lua) and requests
 // a refresh. Out-of-range values are ignored, matching the SetVisualizer guard.
 func (v *Visualizer) SetMode(mode VisMode) {
-	if mode < 0 || mode >= VisCount+VisMode(len(v.luaVisNames)) || visModeHidden(mode) { // ddmus: nor a hidden mode
+	if mode < 0 || mode >= VisCount+VisMode(len(v.luaVisNames)) || visModeHidden(mode) { // ddsonic: nor a hidden mode
 		return
 	}
 	v.Mode = mode

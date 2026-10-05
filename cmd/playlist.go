@@ -321,7 +321,7 @@ func PlaylistRemove(name string, index int) error {
 		return err
 	}
 
-	// ddmus: report the 1-based index the user gave; RemoveTrack's own error
+	// ddsonic: report the 1-based index the user gave; RemoveTrack's own error
 	// names the 0-based one.
 	if tracks, err := prov.Tracks(name); err == nil && (index < 1 || index > len(tracks)) {
 		return fmt.Errorf("track index %d out of range (playlist has %d tracks)", index, len(tracks))

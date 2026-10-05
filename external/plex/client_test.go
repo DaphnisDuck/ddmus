@@ -572,8 +572,8 @@ func TestRequestHeaders(t *testing.T) {
 		if r.Header.Get("Accept") != "application/json" {
 			t.Errorf("expected Accept: application/json, got %q", r.Header.Get("Accept"))
 		}
-		if r.Header.Get("X-Plex-Product") != "ddmus" {
-			t.Errorf("expected X-Plex-Product: ddmus, got %q", r.Header.Get("X-Plex-Product"))
+		if r.Header.Get("X-Plex-Product") != "ddsonic" {
+			t.Errorf("expected X-Plex-Product: ddsonic, got %q", r.Header.Get("X-Plex-Product"))
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"MediaContainer":{}}`))

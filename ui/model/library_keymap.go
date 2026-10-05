@@ -1,6 +1,6 @@
 package model
 
-// ddmus: the key table of each library view (Library, Search Results,
+// ddsonic: the key table of each library view (Library, Search Results,
 // Library Search, Queue). A view's table lists the library's own keys and
 // the cliamp keys it passes through. The gate (handleLibraryKey) passes
 // exactly the table's cliamp keys, and the key bar at the bottom and the

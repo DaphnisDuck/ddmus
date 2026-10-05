@@ -10,7 +10,7 @@ import "github.com/bjarneo/cliamp/internal/appmeta"
 // "default" PCM. That is the most common cause of the failure, and it is
 // what WSL2 hits out of the box.
 func audioOutputHint() string {
-	// ddmus: the message names this player.
+	// ddsonic: the message names this player.
 	return " (" + appmeta.ClientName() + " outputs through ALSA; on a PipeWire or PulseAudio system install the" +
 		" ALSA bridge package: pipewire-alsa, pulseaudio-alsa, or libasound2-plugins on" +
 		" Debian/Ubuntu and WSL2. See docs/configuration.md)"

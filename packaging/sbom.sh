@@ -9,7 +9,7 @@ version=$2
 
 native() { # name version license linkage
 	jq -n --arg n "$1" --arg v "$2" --arg l "$3" --arg k "$4" \
-		'{type: "library", name: $n, version: $v, licenses: [{license: {id: $l}}], properties: [{name: "ddmus:linkage", value: $k}]}'
+		'{type: "library", name: $n, version: $v, licenses: [{license: {id: $l}}], properties: [{name: "ddsonic:linkage", value: $k}]}'
 }
 
 tmp=$(mktemp -d)
@@ -41,6 +41,6 @@ jq -s --arg v "$version" '{
 	bomFormat: "CycloneDX",
 	specVersion: "1.5",
 	version: 1,
-	metadata: {component: {type: "application", name: "ddmus", version: $v, licenses: [{license: {id: "GPL-3.0-only"}}]}},
+	metadata: {component: {type: "application", name: "ddsonic", version: $v, licenses: [{license: {id: "GPL-3.0-only"}}]}},
 	components: .
 }' "$tmp/components"

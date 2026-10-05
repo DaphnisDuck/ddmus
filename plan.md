@@ -786,6 +786,7 @@ Branch `m10-artwork`.
   - [ ] v1.0.0-rc.1 and the RC audit (Gate C).
     - [x] `v1.0.0-rc.1` tagged at `73b97a5b` and published as a pre-release (2026-10-04); record in `docs/ddmus/releases/v1.0.0-rc.1.md`. Open: the Codex high-effort audit, the owner's use, and the rest of Gate C; then the website, the AUR package and v1.0.0.
     - [x] `v1.0.0-rc.2`, the first candidate released as ddsonic: tagged at `491952e0` and published as a pre-release (2026-10-05). The rename and nothing else since `v1.0.0-rc.1`, which stays ddmus and untouched. The release build reproduces the local one byte for byte. Record in `docs/ddsonic/releases/v1.0.0-rc.2.md`. Open: the owner's field testing and the rest of Gate C; then the website, the AUR package and v1.0.0.
+    - [x] The name a plain `go build` gives (2026-10-05, branch `branding-ddsonic`, from the rc.2 field test): documented, not changed (see the Decisions log). `TestMakeNamesTheBinary` (`packaging_ddsonic_test.go`) asks `make` what `make install` would run and checks that it builds and installs `ddsonic`.
   - [ ] v1.0.0 (Gate D).
 
 ## Decisions log
@@ -868,6 +869,7 @@ Branch `m10-artwork`.
 - 2026-10-04: The project is renamed from ddmus to ddsonic before stable 1.0, after a naming-clearance concern (owner). The name is lowercase `ddsonic` everywhere; capitals appear only where a system needs them (`DDSONIC_CONFIG_DIR`, exported Go identifiers such as `DdsonicConfig`). `v1.0.0-rc.1` stays ddmus, untouched; stable 1.0.0 is ddsonic. State left by ddmus is moved by hand, once (`docs/ddsonic/files.md`): no alias for `[ddmus]`, no fallback read, no automatic move. The Go module path stays `github.com/bjarneo/cliamp`. No `ddsonic://` links. The wordmark and icon remain the owner's separate artwork work.
 - 2026-10-04: The permanent header is `🦆 ddsonic <version>` (owner): the duck and the name in the title style, the version dimmed after one space, taken from the build's own version (`appmeta.Version`), and left out before the name when the row is too narrow. "DaphnisDuck" is the creator's name, kept in the README, the license and the package metadata, and not in the header. The MPRIS Identity is `ddsonic` too (`appmeta.DisplayName`, from `appdir.Name`): it is the product's identity, as media widgets show it.
 - 2026-10-05: ddsonic has a logo and an icon, the owner's approved artwork (a duck at a terminal), kept in `assets/branding` as delivered and never regenerated or redrawn here. With the icon, ddsonic ships a desktop entry: `ddsonic.desktop`, which opens ddsonic in a terminal. The artwork is raster; no vector version exists. It ships in `v1.0.0-rc.3`; `v1.0.0-rc.2` stays as published. Still no `ddsonic://` links, and Nix packaging stays deferred (owner).
+- 2026-10-05: A plain `go build` and `go install .` name the executable `cliamp` (Go takes the last element of the module path), found in the rc.2 field test. Accepted for 1.0 (owner): the module path stays, the root package is not moved, and the README and `docs/ddsonic/upstream.md` say to use `make build`, `make install` or `go build -o ddsonic .`. No supported path is affected: the Makefile and the release build pass `-o ddsonic`. Renaming the module is a later decision (Post-1.0 backlog).
 
 ## Post-1.0 backlog
 Nothing here is built before 1.0.
@@ -882,7 +884,7 @@ Nothing here is built before 1.0.
 - Daemon or headless persistent playback (likely a 2.0 architectural project).
 - Broad-prefix search speed (P3), only if it becomes a complaint.
 - Linux arm64, macOS, Homebrew, `.deb`/`.rpm`, once someone can test them.
-- `go install` (needs the module renamed, which makes upstream merges costly).
+- `go install` (needs the module renamed, which makes upstream merges costly). The same rename is what would make a plain `go build` and a local `go install .` write `ddsonic` instead of `cliamp`, and make `go install github.com/DaphnisDuck/ddsonic@<version>` work. It belongs to one future decision: whether keeping upstream's module path still earns its cost. Until then the path is intended, not debt.
 - Full upstream merge (`sync/upstream-YYYYMMDD`) of upstream's latest release tag, never `main`, as the first 1.1 work; the pre-1.0 triage log says which conflicts keep ours.
 - Comments after a value in `config.toml` (`artwork = false  # Disable artwork`): the loader takes the comment as part of the value today, so the docs keep each comment on its own line. Investigate and support normal TOML inline comments; the loader is upstream's file.
 - A ddsonic visualizer of its own (an ASCII duck) in place of the hidden Logo mode.

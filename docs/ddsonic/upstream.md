@@ -35,6 +35,7 @@ When a merge conflicts, start by searching for `// ddsonic:` markers. Every ddso
 ## Rules that keep merges cheap
 
 - Keep the Go module path `github.com/bjarneo/cliamp`. ddsonic keeps its own files; see [files.md](files.md).
+  - Go names an executable after the last element of that path, so a plain `go build` or `go install .` writes `cliamp`, and `go install github.com/DaphnisDuck/ddsonic@<version>` is refused. The Makefile and `packaging/release.sh` name the binary themselves (`-o ddsonic`); `TestMakeNamesTheBinary` holds the Makefile to that, and the release build runs the `ddsonic` it made.
 - Put new behavior in new files or packages: `library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`.
 - Keep each necessary edit to an upstream file small and tag it with `// ddsonic:` (or `# ddsonic:` in Makefiles and TOML).
 - ddsonic docs go in `docs/ddsonic/`. Leave upstream `docs/` alone.

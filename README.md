@@ -69,6 +69,8 @@ make install            # builds ./ddsonic and installs it to ~/.local/bin/ddson
 
 To update, `git pull && make install`. ddsonic does not update itself.
 
+Build with `make build` or `make install`. A plain `go build` or `go install .` names the executable `cliamp`, because ddsonic keeps cliamp's Go module path; `go build -o ddsonic .` is the plain Go equivalent.
+
 **Release builds**
 
 Published releases are on the [Releases](https://github.com/DaphnisDuck/ddsonic/releases) page; release candidates are marked "Pre-release" there. If the page lists none, none has been published yet, and source is the way to install. Each release has a build for Linux x86-64 (glibc 2.36 or newer; it needs only ALSA and glibc from your system) and a `SHA256SUMS` file:

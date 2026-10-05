@@ -89,7 +89,7 @@ I propose three ways to install 1.0, all on Linux x86-64, because that is the on
 | Linux arm64 | Later | Builds with a cross toolchain, but we have no arm64 machine | No | Medium |
 | macOS (amd64, arm64) | Later | Code inherited, never run by us; needs a macOS runner | No | Medium |
 | Homebrew | Later | Only sensible once macOS is supported | No | Medium |
-| `go install` | No | Unsupported for this fork while the module declares upstream's path (finding 4) | — | — |
+| `go install`, plain `go build` | No | Unsupported for this fork while the module declares upstream's path (finding 4): by repository path Go refuses the install, and in a checkout both name the executable `cliamp`. `make build` and `make install` are the source build | — | — |
 | `.deb`, `.rpm` | No | Easy to generate, but we can't test them | No | Medium |
 | Flatpak, Snap | No | Sandboxing fights a terminal app that needs ALSA, `yt-dlp` and the browser cookie stores | No | High |
 | Windows | No | Untested; upstream supports it, ddsonic doesn't claim to | No | High |
@@ -255,7 +255,7 @@ Nothing here is built before 1.0. It moves into a "Post-1.0 backlog" section of 
 | Broad-prefix search speed (P3) | Codex's ranking-preserving idea (about 22% faster), only if search speed becomes a complaint |
 | Linux arm64, macOS, Homebrew, `.deb`/`.rpm` | Once someone can test them |
 | Replace `xlab/vorbis-go` (no license file) | Feasibility study: Spotify playback decodes through it inside go-librespot. Candidate: `jfreymuth/oggvorbis` (MIT, pure Go, already in `go.mod` for local Ogg files). Likely needs a go-librespot change upstream or a maintained patch |
-| `go install` | Needs the module renamed, which would make upstream merges costly |
+| `go install`, and `ddsonic` as the name a plain `go build` gives | Needs the module renamed to `github.com/DaphnisDuck/ddsonic`, which would make upstream merges costly. A decision for when tracking upstream is no longer worth that |
 | Full upstream merge | The first 1.1 work: a `sync/upstream-YYYYMMDD` merge of upstream's latest release tag, never `main`. Fixes ported before 1.0 were cherry-picked, which gives no merge ancestry: the triage log says which conflicts keep ours |
 
 ## Decisions that are yours

@@ -71,3 +71,40 @@ func TestDesktopInstall(t *testing.T) {
 		})
 	}
 }
+
+// TestMakeNamesTheBinary asks make what `make install` would run. Go names a
+// plain build after the module path, cliamp's, so the Makefile has to name
+// the binary itself.
+func TestMakeNamesTheBinary(t *testing.T) {
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("make is not installed")
+	}
+
+	cmd := exec.Command("make", "-n", "install")
+	// Under `make test`, the outer make's variables and flags would leak in.
+	for _, kv := range os.Environ() {
+		name, _, _ := strings.Cut(kv, "=")
+		switch name {
+		case "BINARY", "HOME", "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES":
+		default:
+			cmd.Env = append(cmd.Env, kv)
+		}
+	}
+	cmd.Env = append(cmd.Env, "HOME=/home/duck")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("make -n install: %v\n%s", err, out)
+	}
+
+	var built, installed bool
+	for _, line := range strings.Split(string(out), "\n") {
+		built = built || strings.HasPrefix(line, "go build ") && strings.HasSuffix(line, " -o ddsonic .")
+		installed = installed || line == "install -m 755 ddsonic /home/duck/.local/bin/ddsonic"
+	}
+	if !built {
+		t.Errorf("make does not build ./ddsonic:\n%s", out)
+	}
+	if !installed {
+		t.Errorf("make does not install ~/.local/bin/ddsonic:\n%s", out)
+	}
+}

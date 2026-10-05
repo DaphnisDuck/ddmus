@@ -1,5 +1,7 @@
 # Upstream fix triage before 1.0
 
+> **A dated record, kept as written.** The project was called ddmus when this triage was done and was renamed ddsonic on 2026-10-04, after `v1.0.0-rc.1`. `ddmus` below is ddsonic.
+
 The pre-RC gate from the [release plan](release-plan.md): upstream's fixes checked against ddmus's code, without a full merge. Done 2026-10-02; two deferrals were reversed on 2026-10-03 after the Codex review.
 
 - **Cutoff:** upstream `9d9e55ab` (2026-10-02). No release newer than v2.3.0 existed. ddmus's merge base is `4cef3a24` (v2.3.0 + 5).

@@ -1,6 +1,6 @@
 # Library navigation
 
-ddmus opens on **Music**, a library hierarchy that sits above cliamp's playback chrome. Now playing, progress, volume, EQ and the visualizer stay where they were.
+ddsonic opens on **Music**, a library hierarchy that sits above cliamp's playback chrome. Now playing, progress, volume, EQ and the visualizer stay where they were.
 
 ```
 Music
@@ -34,7 +34,7 @@ Enter on a track replaces the queue with the list it's in and starts at that tra
 
 ## The catalog and sync
 
-Spotify, YouTube Music and Local browsing read from a local catalog (`~/.local/share/ddmus/library.db`), so lists open instantly and work offline; your radio stations are in it too, for search. Spotify and YouTube Music sync at startup when their last sync is older than their refresh setting, Local re-indexes changed files at every startup, and `r` syncs the source you're browsing. The header shows each source's status (`↻ syncing`, `✓ synced 2m ago`, `sync failed · cached`). See [catalog.md](catalog.md) for what's cached, failure safety, and the `[ddmus]` settings.
+Spotify, YouTube Music and Local browsing read from a local catalog (`~/.local/share/ddsonic/library.db`), so lists open instantly and work offline; your radio stations are in it too, for search. Spotify and YouTube Music sync at startup when their last sync is older than their refresh setting, Local re-indexes changed files at every startup, and `r` syncs the source you're browsing. The header shows each source's status (`↻ syncing`, `✓ synced 2m ago`, `sync failed · cached`). See [catalog.md](catalog.md) for what's cached, failure safety, and the `[ddsonic]` settings.
 
 ## Keys
 
@@ -95,9 +95,9 @@ In search results, `/`, `Esc` and `h` return to the query; while typing, Enter o
 
 Track info, lyrics, Up next and Jump open over the queue; `Esc` returns to it.
 
-`q` quits ddmus at once from every library screen, the queue, and the overlays over it; only where you are typing (search, the queue filter, Jump) is it a letter. `Esc` always goes back one step (overlay → queue → Library, results → query → closed search, a list → its parent) and never quits. `r` means repeat in the queue and sync in the library.
+`q` quits ddsonic at once from every library screen, the queue, and the overlays over it; only where you are typing (search, the queue filter, Jump) is it a letter. `Esc` always goes back one step (overlay → queue → Library, results → query → closed search, a list → its parent) and never quits. `r` means repeat in the queue and sync in the library.
 
-Mono has no key while the library is enabled, and 1.0 removed `--mono` and `ddmus mono`; `mono = true` in config.toml still turns it on, and the settings line shows `[M]` while it is.
+Mono has no key while the library is enabled, and 1.0 removed `--mono` and `ddsonic mono`; `mono = true` in config.toml still turns it on, and the settings line shows `[M]` while it is.
 
 The settings panel shows the queue's settings: **SRC** is the playing track's source (`[Spotify]`, `[YouTube]`, `[Local]`, `[Radio]`), then volume, EQ, shuffle, repeat and speed. It is display only; the keys above change it. For a track the library didn't start (a file or URL given on the command line, the file browser, a provider's own search), SRC shows what the track's path tells, or nothing.
 

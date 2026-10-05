@@ -1,16 +1,16 @@
-# CLAUDE.md — ddmus, DaphnisDuck's Music Player (fork of cliamp)
+# CLAUDE.md — ddsonic, DaphnisDuck's Music Player (fork of cliamp)
 
 > A retro terminal music player (Go + Bubbletea). This file tells AI agents where things live, what conventions the codebase uses, and which skills to lean on.
 
-## ddmus fork — read first
+## ddsonic fork — read first
 
-This repo is **DaphnisDuck's Music Player** (`ddmus`; called omatunes until v0.6), a fork of cliamp that turns the provider-oriented UI into a library-oriented one (Music → Spotify/Local/Radio/Search). **Read `plan.md` before any task** — it holds the milestones, architecture invariants, status checklist, and decisions log. Update its Status/Decisions sections as work lands.
+This repo is **DaphnisDuck's Music Player** (`ddsonic`; called omatunes until v0.6 and ddmus until `v1.0.0-rc.1`), a fork of cliamp that turns the provider-oriented UI into a library-oriented one (Music → Spotify/Local/Radio/Search). **Read `plan.md` before any task** — it holds the milestones, architecture invariants, status checklist, and decisions log. Update its Status/Decisions sections as work lands.
 
 Fork rules (keep upstream merges cheap):
 - `upstream` = `https://github.com/bjarneo/cliamp.git`; sync by merging `upstream/main` on a `sync/upstream-YYYYMMDD` branch.
-- Module path stays `github.com/bjarneo/cliamp`. The binary, UI branding, and on-disk/runtime identity are ddmus: config `~/.config/ddmus` (`DDMUS_CONFIG_DIR` overrides; `CLIAMP_CONFIG_DIR` is checked first for upstream test isolation), data `~/.local/share/ddmus`, downloads `~/Music/ddmus`, MPRIS `org.mpris.MediaPlayer2.ddmus`, all derived from `internal/appdir.Name` and `internal/appmeta`. See `docs/ddmus/files.md`.
-- New code goes in new files/packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`). Unavoidable edits to upstream files stay small and are tagged `// ddmus:`.
-- ddmus docs live in `docs/ddmus/`. Don't edit upstream `docs/` for ddmus-only changes. ddmus removed upstream's `site/`, Nix files and branding assets (`docs/ddmus/upstream.md` lists them; a sync keeps them deleted), so the `site/` rules below are upstream's and don't apply here.
+- Module path stays `github.com/bjarneo/cliamp`. The binary, UI branding, and on-disk/runtime identity are ddsonic: config `~/.config/ddsonic` (`DDSONIC_CONFIG_DIR` overrides; `CLIAMP_CONFIG_DIR` is checked first for upstream test isolation), data `~/.local/share/ddsonic`, downloads `~/Music/ddsonic`, MPRIS `org.mpris.MediaPlayer2.ddsonic`, all derived from `internal/appdir.Name` and `internal/appmeta`. See `docs/ddsonic/files.md`.
+- New code goes in new files/packages (`library/`, `ui/model/library_*.go`, `external/spotify/library_browse.go`). Unavoidable edits to upstream files stay small and are tagged `// ddsonic:`.
+- ddsonic docs live in `docs/ddsonic/`. Don't edit upstream `docs/` for ddsonic-only changes. ddsonic removed upstream's `site/`, Nix files and branding assets (`docs/ddsonic/upstream.md` lists them; a sync keeps them deleted), so the `site/` rules below are upstream's and don't apply here.
 
 ## Extended context
 
@@ -86,7 +86,7 @@ Lua plugins run in isolated `gopher-lua` VMs. Crashes are sandboxed. Hooks fire 
 ## Build, test, and local workflow
 
 ```sh
-make build        # go build -trimpath with version ldflags → ./ddmus (BINARY=cliamp for the upstream name)
+make build        # go build -trimpath with version ldflags → ./ddsonic (BINARY=cliamp for the upstream name)
 make test         # go test ./...
 make vet          # go vet ./...
 make lint         # vet + staticcheck (if installed)
@@ -102,7 +102,7 @@ make install      # installs binary into ~/.local/bin
 
 Tests are colocated with sources (`*_test.go`). Favor table-driven tests — the codebase already uses them heavily in `player/`, `playlist/`, `config/`, `ui/model/`, and `luaplugin/`.
 
-Config lives at `~/.config/ddmus/config.toml` (`DDMUS_CONFIG_DIR` overrides; example at `config.toml.example`); plugins, `radios.toml` and themes live beside it. See `docs/ddmus/files.md`.
+Config lives at `~/.config/ddsonic/config.toml` (`DDSONIC_CONFIG_DIR` overrides; example at `config.toml.example`); plugins, `radios.toml` and themes live beside it. See `docs/ddsonic/files.md`.
 
 ---
 
@@ -132,17 +132,17 @@ Installed plugins: `ecc` (marketplace `affaan-m/ECC`), `gopls-lsp`, `context7`.
 - **gopls LSP** — Prefer LSP go-to-definition / find-references over grep when tracing symbols across `ui/model/`.
 
 Golden path for a non-trivial change:
-1. Read `plan.md`, relevant `docs/*.md` / `docs/ddmus/*.md`, and skim the target package.
+1. Read `plan.md`, relevant `docs/*.md` / `docs/ddsonic/*.md`, and skim the target package.
 2. Plan (optionally via `ecc:plan`).
 3. Implement the narrowest change that works. Add/extend table-driven tests.
 4. Run `make check`.
 5. Invoke `/simplify` on the diff.
-6. If user-visible: upstream-style changes update both `docs/` and `site/index.html`; ddmus-only changes update `docs/ddmus/`.
+6. If user-visible: upstream-style changes update both `docs/` and `site/index.html`; ddsonic-only changes update `docs/ddsonic/`.
 7. Run the Codex review loop below before reporting the change as done.
 
-### Codex review loop (ddmus)
+### Codex review loop (ddsonic)
 
-Claude implements and is the only writer. Codex reviews independently. The owner makes product decisions. The `agent-review` harness lives in `~/.local/share/agent-review`, outside the repo, so a change under review cannot edit its own gate. It runs `codex exec` in a sandbox that cannot write the repo, `.git`, or the run records (`~/.local/state/agent-review/ddmus/`), and it returns JSON checked against a schema.
+Claude implements and is the only writer. Codex reviews independently. The owner makes product decisions. The `agent-review` harness lives in `~/.local/share/agent-review`, outside the repo, so a change under review cannot edit its own gate. It runs `codex exec` in a sandbox that cannot write the repo, `.git`, or the run records (`~/.local/state/agent-review/<checkout folder name>/`), and it returns JSON checked against a schema.
 
 1. **Start the review.** Write `request.md`: the owner's request verbatim, plus the confirmed acceptance criteria and constraints. Write `notes.md` as claims to check, never as "please verify my correct implementation". It covers:
    - the entry points affected, and the invariants the change preserves;

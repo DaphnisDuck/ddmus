@@ -1,6 +1,6 @@
 # The music catalog
 
-ddmus keeps your Spotify library and an index of your local music folder in one SQLite database, `~/.local/share/ddmus/library.db`. The library screens read from it, so lists open instantly and keep working offline. Playback still goes to Spotify, or to the file itself.
+ddsonic keeps your Spotify library and an index of your local music folder in one SQLite database, `~/.local/share/ddsonic/library.db`. The library screens read from it, so lists open instantly and keep working offline. Playback still goes to Spotify, or to the file itself.
 
 ## What it holds
 
@@ -11,7 +11,7 @@ ddmus keeps your Spotify library and an index of your local music folder in one 
 - **Search index:** a full-text index of everything above, kept in step with every change. See [search.md](search.md).
 - **Not in the catalog:** the radio directory, local playlists, and an artist's full Spotify discography. These are always loaded live. A Spotify artist page shows the albums the catalog knows at once; its **Full discography…** row loads the rest from Spotify when you open it.
 
-No account passwords or tokens are stored in the catalog: Spotify and YouTube credentials stay in `~/.config/ddmus/` (`spotify_credentials.json`, `ytmusic_credentials.json`). A radio station's URL is stored as written, so a station URL that carries a password or token puts it in the catalog. The catalog file and its folder are readable only by you.
+No account passwords or tokens are stored in the catalog: Spotify and YouTube credentials stay in `~/.config/ddsonic/` (`spotify_credentials.json`, `ytmusic_credentials.json`). A radio station's URL is stored as written, so a station URL that carries a password or token puts it in the catalog. The catalog file and its folder are readable only by you.
 
 ## When it updates
 
@@ -27,7 +27,7 @@ A Spotify sync first asks for your saved albums' and liked songs' count and newe
 
 **Spotify album tracks:** opening an album whose tracks aren't cached yet loads it from Spotify and caches it. A background fill then caches your other saved albums one at a time, newest saved first, one every 10 seconds. It pauses while you open an album or a sync runs, and when Spotify rate-limits it, it waits as long as Spotify asks (at least 5 seconds, doubling up to 10 minutes).
 
-**Spotify rate limits:** Spotify can block a client for hours when it asks too much (seen: 20 hours on a development-mode client ID). While a block lasts, ddmus sends Spotify nothing: syncs, the fill and album opens fail at once with "rate limited until" and the time, and a failed sync retries when the block ends. Short waits (30 seconds or less) are waited out, or retried by the fill, and not remembered. A longer block is kept in `library.db` (at most 48 hours), so restarting ddmus does not ask Spotify again early.
+**Spotify rate limits:** Spotify can block a client for hours when it asks too much (seen: 20 hours on a development-mode client ID). While a block lasts, ddsonic sends Spotify nothing: syncs, the fill and album opens fail at once with "rate limited until" and the time, and a failed sync retries when the block ends. Short waits (30 seconds or less) are waited out, or retried by the fill, and not remembered. A longer block is kept in `library.db` (at most 48 hours), so restarting ddsonic does not ask Spotify again early.
 
 ## Status
 
@@ -37,22 +37,22 @@ The top of the library shows each source's state:
 - `✓ synced 2m ago`
 - `sync failed · cached`: the last attempt failed, and you're browsing what the catalog already holds.
 
-With both Spotify and Local, each status is prefixed with its source. Details of a failure are in `~/.config/ddmus/ddmus.log`.
+With both Spotify and Local, each status is prefixed with its source. Details of a failure are in `~/.config/ddsonic/ddsonic.log`.
 
 ## Failure safety
 
 A sync either applies completely or changes nothing:
 
 - **Spotify:** if any page of a collection fails, or the library changes while it's being read, that collection keeps what it had.
-- **Local:** if the music folder is missing, or is empty while the catalog holds files (an unmounted drive, for example), the index is left as it is. Files under a folder ddmus can't read are kept too.
+- **Local:** if the music folder is missing, or is empty while the catalog holds files (an unmounted drive, for example), the index is left as it is. Files under a folder ddsonic can't read are kept too.
 - **Sign-in:** a Spotify sign-in that fails because Spotify is unreachable or down is reported as that error, not as "sign-in required". The sync retries by itself.
 
 ## Settings
 
-In `~/.config/ddmus/config.toml`:
+In `~/.config/ddsonic/config.toml`:
 
 ```toml
-[ddmus]
+[ddsonic]
 # sync Spotify at startup if the last sync is older than this; "0s" syncs every time
 spotify_refresh = "2h"
 # the same for YouTube Music
@@ -61,10 +61,10 @@ youtube_refresh = "2h"
 youtube_playlists = []
 ```
 
-Keep each comment on a line of its own, as here: ddmus does not read a comment that follows a value.
+Keep each comment on a line of its own, as here: ddsonic does not read a comment that follows a value.
 
 Durations use Go's format: `90s`, `30m`, `2h`. An invalid value keeps the default.
 
 ## Starting over
 
-The catalog can always be rebuilt from Spotify and your music folder. To reset it, quit ddmus and delete `~/.local/share/ddmus/library.db`, along with the `library.db-wal` and `library.db-shm` files next to it. The next start syncs everything again.
+The catalog can always be rebuilt from Spotify and your music folder. To reset it, quit ddsonic and delete `~/.local/share/ddsonic/library.db`, along with the `library.db-wal` and `library.db-shm` files next to it. The next start syncs everything again.

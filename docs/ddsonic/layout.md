@@ -1,11 +1,11 @@
 # Layout
 
-ddmus fills the terminal. On a taller terminal, every list shows more rows. On a wider one, long titles show in full, and rows line up as a table rather than stretching across the screen. Resizing while ddmus runs reflows the screen at once.
+ddsonic fills the terminal. On a taller terminal, every list shows more rows. On a wider one, long titles show in full, and rows line up as a table rather than stretching across the screen. Resizing while ddsonic runs reflows the screen at once.
 
 ## What you see
 
 - **Height:** the library's lists (levels, search results), the queue, Up next, lyrics and track info get every row between the header and the key bar. The now-playing lines, seek bar and visualizer keep their heights; extra rows go to the list.
-- **Short terminals:** the queue, and track info, lyrics or Up next over it, take rows from the visualizer (down to one row) until the list has 8. If that is not enough, the queue's key bar shows only its first lines, keeping at least 3 list rows. Below 40×10, ddmus shows "Terminal too small" until the terminal grows.
+- **Short terminals:** the queue, and track info, lyrics or Up next over it, take rows from the visualizer (down to one row) until the list has 8. If that is not enough, the queue's key bar shows only its first lines, keeping at least 3 list rows. Below 40×10, ddsonic shows "Terminal too small" until the terminal grows.
 - **Width up to 100 columns:** rows fill the width, with the detail (artist, year) or duration at the right edge.
 - **Width over 100 columns:** a list's rows form a table. Titles take a column wide enough for 9 in 10 of the list's titles, and details start after it; a longer title pushes its own detail right instead of being cut. Track rows (an album's tracks, the queue, Up next) end where most of their rows end. Rows never get narrower than 100 columns. The queue's settings column stays at the right edge.
 
@@ -14,7 +14,7 @@ ddmus fills the terminal. On a taller terminal, every list shows more rows. On a
 A rounded border runs around the screen from 56×16 up; below that it is left out to keep rows for the list. From 80×24 up, a rule also separates the list from the key bar, and a line divides the queue from its settings column. The border takes the place of the frame's outer padding, so it costs no list rows; the queue's rule costs one. To turn it off:
 
 ```toml
-[ddmus]
+[ddsonic]
 border = false
 ```
 

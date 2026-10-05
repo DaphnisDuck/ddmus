@@ -1,5 +1,7 @@
 # ddmus 1.0 CLI audit
 
+> **A dated record, kept as written.** The project was called ddmus when this audit was done (2026-10-01 to 2026-10-02) and was renamed ddsonic on 2026-10-04, after `v1.0.0-rc.1`. Read `ddmus` below as `ddsonic`: the command, `~/.config/ddsonic`, `ddsonic.sock`, `ddsonic.log`, `ddsonic-bin`, `docs/ddsonic/`, the `*_ddsonic.go` files and `DDSONIC_UPDATE_GOLDEN`. Nothing else about the command line changed with the name.
+
 Working record for Workstream 1 of the [release plan](release-plan.md). Every public command and option ends in one of four categories: **verified and supported**, **fixed and supported**, **intentionally retained and documented**, or **removed before 1.0**. Rows marked *to verify* still need a behavior check. Checks so far (2026-10-01) ran ddmus in an isolated home (config, data, cache and state under a scratch HOME, its own IPC socket, a private D-Bus session, ALSA's null device, generated test tracks).
 
 Inventory taken 2026-10-01 from `ddmus --help`, recursively, at 5597fd0 (`release-1.0`): 31 visible root commands plus 2 hidden (`upgrade`, `radio`), 37 subcommands, 25 global options.

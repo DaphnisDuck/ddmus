@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -33,7 +34,10 @@ func TestDesktopInstall(t *testing.T) {
 		// A desktop session's PATH often lacks ~/.local/bin, and a launcher
 		// drops an entry whose program it can't find.
 		{"absolute", "/home/duck/.local/bin/ddsonic", `Exec="/home/duck/.local/bin/ddsonic"`},
-		{"needs quoting", `/home/a b/$x/50%/ddsonic`, `Exec="/home/a b/\$x/50%%/ddsonic"`},
+		// Two layers (packaging/desktop.sh): the quoted argument's own
+		// backslashes, each doubled as the file's string values want.
+		{"needs quoting", `/home/a b/$x/50%/ddsonic`, `Exec="/home/a b/\\$x/50%%/ddsonic"`},
+		{"quotes and backslashes", "/home/q\"uo`te\\back/it's/ddsonic", "Exec=\"/home/q\\\\\"uo\\\\`te\\\\\\\\back/it's/ddsonic\""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -51,6 +55,18 @@ func TestDesktopInstall(t *testing.T) {
 				t.Fatal(err)
 			}
 			lines := strings.Split(string(entry), "\n")
+			if tt.exe != "" {
+				// Read back as a launcher reads it, the line names the program.
+				if got := desktopExecProgram(t, lines); got != tt.exe {
+					t.Errorf("a launcher would run %q, want %q", got, tt.exe)
+				}
+			}
+			if validate, err := exec.LookPath("desktop-file-validate"); err == nil {
+				path := filepath.Join(dest, "applications", "ddsonic.desktop")
+				if out, err := exec.Command(validate, path).CombinedOutput(); err != nil {
+					t.Errorf("desktop-file-validate: %v\n%s", err, out)
+				}
+			}
 			for _, want := range []string{tt.want, "Icon=ddsonic", "Terminal=true"} {
 				found := false
 				for _, line := range lines {
@@ -172,5 +188,89 @@ func TestMPRISDesktopEntryIsTheInstalledOne(t *testing.T) {
 	entry := filepath.Join("packaging", "linux", appmeta.DesktopEntry()+".desktop")
 	if _, err := os.Stat(entry); err != nil {
 		t.Errorf("appmeta.DesktopEntry() names no launcher entry: %v", err)
+	}
+}
+
+// desktopExecProgram decodes the entry's Exec line as the Desktop Entry
+// specification says a launcher does: first the escapes of every string value
+// (\\ is a backslash; an unknown escape is an error), then the one quoted
+// argument (a backslash before \, ", ` or $), then %% for a percent sign.
+func desktopExecProgram(t *testing.T, lines []string) string {
+	t.Helper()
+	var value string
+	for _, line := range lines {
+		if v, ok := strings.CutPrefix(line, "Exec="); ok {
+			value = v
+		}
+	}
+
+	var str strings.Builder
+	for i := 0; i < len(value); i++ {
+		if value[i] != '\\' {
+			str.WriteByte(value[i])
+			continue
+		}
+		i++
+		if i == len(value) || value[i] != '\\' {
+			t.Fatalf("Exec has an escape the file format does not define: %s", value)
+		}
+		str.WriteByte('\\')
+	}
+
+	quoted, ok := strings.CutPrefix(str.String(), `"`)
+	quoted, ok2 := strings.CutSuffix(quoted, `"`)
+	if !ok || !ok2 {
+		t.Fatalf("Exec is not one quoted argument: %s", value)
+	}
+	var arg strings.Builder
+	for i := 0; i < len(quoted); i++ {
+		switch c := quoted[i]; {
+		case c == '\\':
+			i++
+			if i == len(quoted) || !strings.ContainsRune("\\\"`$", rune(quoted[i])) {
+				t.Fatalf("Exec's argument has a stray backslash: %s", value)
+			}
+			arg.WriteByte(quoted[i])
+		case strings.ContainsRune("\"`$", rune(c)):
+			t.Fatalf("Exec's argument has an unescaped %c: %s", c, value)
+		default:
+			arg.WriteByte(c)
+		}
+	}
+	program := arg.String()
+	if strings.Contains(strings.ReplaceAll(program, "%%", ""), "%") {
+		t.Fatalf("Exec has a field code or a lone %%: %s", value)
+	}
+	return strings.ReplaceAll(program, "%%", "%")
+}
+
+// TestReadmeImagesShipWithIt holds the README to pictures the release build
+// can ship beside it: packaging/release.sh copies every <img src> the README
+// names into the archive, and the AUR recipe installs them from there.
+func TestReadmeImagesShipWithIt(t *testing.T) {
+	readme, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if regexp.MustCompile(`!\[[^\]]*\]\(`).Match(readme) {
+		t.Error("the README has a Markdown image; the release build copies <img src> ones only")
+	}
+	images := regexp.MustCompile(`<img src="([^"]*)"`).FindAllSubmatch(readme, -1)
+	if len(images) == 0 {
+		t.Fatal("the README shows no image")
+	}
+	for _, m := range images {
+		src := string(m[1])
+		if strings.Contains(src, ":") || filepath.IsAbs(src) || strings.Contains(src, "..") {
+			t.Errorf("%s is not a path inside the repository", src)
+			continue
+		}
+		if info, err := os.Stat(filepath.FromSlash(src)); err != nil || info.Size() == 0 {
+			t.Errorf("the README shows %s, which is missing or empty", src)
+		}
+		// The recipe copies these two folders of the archive, whole.
+		if top, _, _ := strings.Cut(src, "/"); top != "assets" && top != "docs" {
+			t.Errorf("%s is outside assets/ and docs/, which packaging/aur/PKGBUILD installs", src)
+		}
 	}
 }

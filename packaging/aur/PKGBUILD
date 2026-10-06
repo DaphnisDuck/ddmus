@@ -32,6 +32,8 @@ package() {
     install -Dm644 THIRD_PARTY_NOTICES "${pkgdir}/usr/share/licenses/${pkgname}/THIRD_PARTY_NOTICES"
     install -Dm644 README.md "${pkgdir}/usr/share/doc/ddsonic/README.md"
     install -Dm644 CHANGELOG.md "${pkgdir}/usr/share/doc/ddsonic/CHANGELOG.md"
+    # the README's images, beside it at the paths it names them by
+    cp -r --no-preserve=ownership assets docs "${pkgdir}/usr/share/doc/ddsonic/"
     install -Dm644 share/applications/ddsonic.desktop "${pkgdir}/usr/share/applications/ddsonic.desktop"
     cp -r --no-preserve=ownership share/icons "${pkgdir}/usr/share/icons"
 }

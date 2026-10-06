@@ -87,10 +87,10 @@ From `v1.0.0-rc.3` on, the archive also holds a launcher entry and ddsonic's ico
 
 ```sh
 cp -r ddsonic-*-linux-amd64/share/. ~/.local/share/
-sed -i "s|^Exec=ddsonic\$|Exec=$HOME/.local/bin/ddsonic|" ~/.local/share/applications/ddsonic.desktop
+sed -i "s|^Exec=ddsonic\$|Exec=\"$HOME/.local/bin/ddsonic\"|" ~/.local/share/applications/ddsonic.desktop
 ```
 
-The entry as shipped starts `ddsonic` from the `PATH` of your desktop session, which often lacks `~/.local/bin`; the second line gives it the full path.
+The entry as shipped starts `ddsonic` from the `PATH` of your desktop session, which often lacks `~/.local/bin`; the second line gives it the full path, in quotes so that a space in it is harmless. (If your home folder's name holds a `$`, a quote, a backtick, a backslash or a `%`, edit the `Exec=` line by hand: the [Desktop Entry rules](https://specifications.freedesktop.org/desktop-entry-spec/latest/exec-variables.html) say how each is written.)
 
 An AUR package, `ddsonic-bin`, is planned for the stable 1.0 release; it is not in the AUR yet.
 

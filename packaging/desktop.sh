@@ -22,9 +22,12 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 entry="$dest/applications/ddsonic.desktop"
 install -Dm644 "$root/packaging/linux/ddsonic.desktop" "$entry"
 if [ -n "$exe" ]; then
-	# One quoted Exec argument: inside the quotes the Desktop Entry spec wants
-	# \, ", ` and $ escaped, and a literal % is written %%.
-	quoted=$(printf '%s\n' "$exe" | sed -e 's/[\\"`$]/\\&/g' -e 's/%/%%/g')
+	# One quoted Exec argument, encoded twice as the Desktop Entry spec reads
+	# it. Inside the quotes \, ", ` and $ take a backslash, and a literal % is
+	# written %%. Then, as in every string value of the file, each backslash
+	# is doubled: a lone \$ is no escape the file's parser knows, and it
+	# rejects the entry.
+	quoted=$(printf '%s\n' "$exe" | sed -e 's/[\\"`$]/\\&/g' -e 's/\\/\\\\/g' -e 's/%/%%/g')
 	EXEC_LINE="Exec=\"$quoted\"" awk '/^Exec=/ { print ENVIRON["EXEC_LINE"]; next } { print }' \
 		"$root/packaging/linux/ddsonic.desktop" > "$entry"
 fi

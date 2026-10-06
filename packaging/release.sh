@@ -62,6 +62,12 @@ bin="$name-linux-amd64"
 mkdir "$work/$bin"
 cp "$work/ddsonic" "$work/$bin/ddsonic"
 cp LICENSE LICENSE-GPL-3.0 README.md CHANGELOG.md "$work/$bin/"
+# The README's images go with it, at the paths it names them by, so the
+# archive's copy shows them. A picture the README names and the tree lacks
+# stops the build.
+sed -n 's/.*<img src="\([^":]*\)".*/\1/p' README.md | while read -r img; do
+	install -Dm644 "$img" "$work/$bin/$img"
+done
 # The launcher entry and the icons, laid out as they install under a prefix.
 sh packaging/desktop.sh "$work/$bin/share"
 sh packaging/notices.sh "$work/ddsonic" > "$work/$bin/THIRD_PARTY_NOTICES"

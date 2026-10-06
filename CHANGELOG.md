@@ -13,6 +13,7 @@ The first release for people who don't build from source. 1.0 adds no features t
 - `ddsonic setup` sets up Spotify, YouTube Music and the Local music folder, and keeps every other line of an existing `config.toml`.
 - `--version` answers in every build.
 - A logo and an icon for ddsonic: a duck at a terminal. The release archive (in `share/`), the AUR package and `make install` carry a launcher entry, `ddsonic.desktop`, and the icon in eight sizes from 16 to 512 pixels, so ddsonic appears in application menus and opens in a terminal. The artwork is raster (PNG); its masters and layered sources are in `assets/branding`.
+- The release archive and the AUR package carry the logo and the screenshot the README shows, beside it, so their copy of the README displays them.
 - Desktop media controls can show ddsonic's icon: ddsonic names its launcher entry to them (the MPRIS `DesktopEntry`).
 
 ### Changed

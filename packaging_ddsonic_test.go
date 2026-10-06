@@ -274,3 +274,51 @@ func TestReadmeImagesShipWithIt(t *testing.T) {
 		}
 	}
 }
+
+// TestWorkflowScriptsParse reads every `run: |` script of the workflows with
+// bash, as the runner does. A quote left open in one, by an apostrophe in a
+// comment inside a quoted `sh -c` script, say, stops the job where it stands.
+func TestWorkflowScriptsParse(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("no bash")
+	}
+	files, err := filepath.Glob(".github/workflows/*.yml")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no workflow found: %v", err)
+	}
+	runKey := regexp.MustCompile(`^\s*(?:- )?run: \|\s*$`)
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(string(data), "\n")
+		scripts := 0
+		for i := 0; i < len(lines); i++ {
+			if !runKey.MatchString(lines[i]) {
+				continue
+			}
+			key := len(lines[i]) - len(strings.TrimLeft(lines[i], " -"))
+			start := i + 1
+			var script []string
+			for i+1 < len(lines) {
+				next := lines[i+1]
+				if strings.TrimSpace(next) != "" && len(next)-len(strings.TrimLeft(next, " ")) <= key {
+					break
+				}
+				script = append(script, next)
+				i++
+			}
+			scripts++
+			cmd := exec.Command(bash, "-n")
+			cmd.Stdin = strings.NewReader(strings.Join(script, "\n"))
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Errorf("%s: the script at line %d does not parse: %v\n%s", file, start, err, out)
+			}
+		}
+		if scripts == 0 {
+			t.Errorf("%s: no run script found", file)
+		}
+	}
+}

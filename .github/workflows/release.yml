@@ -48,7 +48,7 @@ jobs:
             test -s ddsonic-*-linux-amd64/LICENSE-GPL-3.0
             grep -qx Icon=ddsonic ddsonic-*-linux-amd64/share/applications/ddsonic.desktop
             test -s ddsonic-*-linux-amd64/share/icons/hicolor/48x48/apps/ddsonic.png
-            # every picture the archive's README shows is in the archive
+            # every picture the README shows is in the archive
             cd ddsonic-*-linux-amd64
             sed -n "s/.*<img src=\"\([^\":]*\)\".*/\1/p" README.md | while read -r img; do test -s "$img"; done'
 

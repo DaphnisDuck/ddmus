@@ -238,7 +238,7 @@ Each gate is a checklist; the next phase starts only when every box is ticked or
 
 ## Post-1.0 backlog
 
-Nothing here is built before 1.0. It moves into a "Post-1.0 backlog" section of `plan.md` when the freeze is recorded, so none of it gets lost.
+Historical freeze-time inventory: these items were transferred to [plan.md](../../plan.md#post-10-backlog). Unscheduled ideas are now consolidated in [Post-1.0 Ideas and Investigations](POST-1.0-IDEAS.md); maintain those canonical records rather than extending this historical table. Nothing here is built before 1.0.
 
 | Idea | Notes |
 | --- | --- |

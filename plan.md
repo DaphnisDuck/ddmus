@@ -601,6 +601,10 @@ Branch `m10-artwork`.
 - M10.3 Docs, review agents, live check in Kitty and in a terminal without graphics, tag `v0.10.0`.
 
 ## Status
+- [x] Planning only (2026-10-08): recorded [Alphabetical Radio Station Sorting](docs/ddsonic/POST-1.0-IDEAS.md#alphabetical-radio-station-sorting) as a post-1.0 UX improvement. No implementation or behavior change; any intentional radio ordering is to be verified and documented before implementation.
+- [x] Planning only (2026-10-08): recorded [Three-State Keymap / Key-Hint Display](docs/ddsonic/POST-1.0-IDEAS.md#three-state-keymap--key-hint-display) as a post-1.0 UX investigation. No feature commitment or behavior change; default, cycling order and persistence remain open.
+- [x] Planning only (2026-10-05): consolidated the supplied post-1.0 idea catalog and overlapping backlog ideas in [POST-1.0-IDEAS.md](docs/ddsonic/POST-1.0-IDEAS.md); moved the Track Info investigation there and resolved its classical/unification cross-reference gap. No implementation or new release commitments.
+- [x] Planning only (2026-10-05): recorded the post-1.0 [Track Info / Metadata Redesign](docs/ddsonic/POST-1.0-IDEAS.md#track-info--metadata-redesign) investigation; design and implementation remain unscheduled.
 - [x] M0: add the `upstream` remote, create `plan.md`, add the CLAUDE.md fork note, write `docs/omatunes/upstream.md`, make the Makefile build `omatunes`, rebrand the UI title and terminal title.
 - [x] M1.1: `library/` Level/Entry model and root menu, with tests.
 - [x] M1.2: Spotify adapter (Playlists/Liked Songs over `Playlists()` sections, pinned by `external/spotify/library_contract_test.go`) and `external/spotify/library_browse.go` (AlbumBrowser + ArtistBrowser; `user-follow-read` was already in the scopes).
@@ -793,6 +797,9 @@ Branch `m10-artwork`.
   - [ ] v1.0.0 (Gate D).
 
 ## Decisions log
+- 2026-10-08: Three-State Keymap / Key-Hint Display is an unscheduled post-1.0 UX investigation, not roadmap promotion. Evaluate screen-selected Minimal hints, Full and Hidden modes, preference scope and metadata reuse; command-palette work is not a prerequisite. No default or cycling order is decided by recording the idea.
+- 2026-10-05: `docs/ddsonic/POST-1.0-IDEAS.md` is the canonical brainstorming/investigation catalog; `plan.md` retains scheduled work and deferred engineering decisions. Ideas require separate roadmap promotion before implementation.
+- 2026-10-05: Track Info / Metadata Redesign is a post-1.0 investigation/design item, not an approved implementation specification. Inventory metadata across sources before choosing field placement or overflow behavior; marquee scrolling is not a preferred solution by default.
 - 2026-09-29: Spotify Artists means followed artists through a new `ArtistBrowser` implementation in `external/spotify/library_browse.go`.
 - 2026-09-29: Rename only the binary and UI; the module path stays cliamp. (Config dir superseded below.)
 - 2026-09-29: Providers other than Spotify, Local and Radio are still constructed but hidden from the root until M4.
@@ -878,15 +885,13 @@ Branch `m10-artwork`.
 
 ## Post-1.0 backlog
 Nothing here is built before 1.0.
-- Auto EQ from normalized genre metadata.
-- Ambient or generated sounds.
-- More providers: only ones the owner uses and can test; the hidden ones are candidates.
-- Sixel, iTerm2 and other artwork protocols (WezTerm, Konsole, foot).
+
+The canonical [Post-1.0 Ideas and Investigations](docs/ddsonic/POST-1.0-IDEAS.md) catalog holds the Track Info redesign, genre-based EQ, ambient/generated audio, additional providers, cross-provider playlists, daemon investigation and other unscheduled ideas. Their presence there is not implementation approval. Existing deferred engineering work and scheduling decisions remain below; the catalog links back to them.
+
+- [Album Artwork Across More Terminals](docs/ddsonic/POST-1.0-IDEAS.md#album-artwork-across-more-terminals): investigate alternative image libraries and protocol support; consolidates the Sixel/iTerm2/other-terminal idea, with no library change approved.
 - InnerTube discovery of saved YouTube Music playlists the API doesn't list.
-- Cross-source, ddsonic-owned playlists.
 - `X` in the queue clears the whole queue (Ctrl+Z undoes it); `X` is free once the provider hotkeys go.
 - YouTube cookie playlist count check (guard against a short playlist feed).
-- Daemon or headless persistent playback (likely a 2.0 architectural project).
 - Broad-prefix search speed (P3), only if it becomes a complaint.
 - Linux arm64, macOS, Homebrew, `.deb`/`.rpm`, once someone can test them.
 - `go install` (needs the module renamed, which makes upstream merges costly). The same rename is what would make a plain `go build` and a local `go install .` write `ddsonic` instead of `cliamp`, and make `go install github.com/DaphnisDuck/ddsonic@<version>` work. It belongs to one future decision: whether keeping upstream's module path still earns its cost. Until then the path is intended, not debt.
